@@ -20,7 +20,7 @@ export default async function handler(request){
     !/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(event.order_id) ||
     !/^pay_[a-zA-Z0-9_-]{8,100}$/.test(event.payment_id||'')) return json({error:'Invalid payment event'},400);
   const statuses=['paid','created','processing','canceled','expired','refunded','chargeback'];
-  if(!statuses.includes(event.status)||event.event_type!==`payment.${event.status}`)return json({error:'Inconsistent payment event'},400);
+  if(!statuses.includes(event.status)||!(event.event_type===`payment.${event.status}` || (event.event_type==='refund_request.completed' && event.status==='refunded')))return json({error:'Inconsistent payment event'},400);
   try{
     // Verify against RollyPay API independently: signed callbacks alone are not treated as fulfillment.
     const verified=await fetchPayment(event.payment_id);
