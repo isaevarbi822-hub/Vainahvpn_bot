@@ -119,12 +119,15 @@ test('Malformed payment ID, unsafe/missing pay URL receive separate diagnostic c
   }
 });
 test('missing required sandbox markers are still rejected',async()=>{
-  for(const fields of [
-    {test:false}, {environment:'prod'}, {test:undefined}, {environment:undefined}
+  for(const [fields,expected] of [
+    [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+    [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+    [{test:undefined},'PROVIDER_TEST_FLAG_MISSING'],
+    [{environment:undefined},'PROVIDER_ENVIRONMENT_MISSING']
   ]){
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
-      e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
+      e=>e.code===expected);
   }
 });
 
@@ -195,14 +198,14 @@ test('rejects unapproved PayForm origins or paths with a safe specific diagnosti
 });
 test('does not accept a real payment just because its PayForm URL passes validation',async()=>{
   const url='https://pay.rollypay.io/pay/9f8e7d6c5b4a3210';
-  for(const fields of [
-    {pay_url:url,test:false,environment:'prod'},
-    {pay_url:url,environment:'prod'},
-    {pay_url:url,amount:'9999.00'}
+  for(const [fields,expected] of [
+    [{pay_url:url,test:false,environment:'prod'},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+    [{pay_url:url,environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+    [{pay_url:url,amount:'9999.00'},'PROVIDER_AMOUNT_MISMATCH']
   ]){
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
-      e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
+      e=>e.code===expected);
   }
 });
 
@@ -228,4 +231,49 @@ test('test fulfillment endpoint refuses anonymous, other-origin or unenabled req
   }finally{
     for(const [k,v]of Object.entries(old))if(v===undefined)delete process.env[k];else process.env[k]=v;
   }
+});
+
+test('precise and privacy-safe sandbox diagnostics for provider fields',async()=>{
+ const cases=[
+  [{test:undefined},'PROVIDER_TEST_FLAG_MISSING'],
+  [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+  [{environment:undefined},'PROVIDER_ENVIRONMENT_MISSING'],
+  [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+  [{order_id:'SECRET_OTHER_ORDER'},'PROVIDER_ORDER_MISMATCH'],
+  [{payment_currency:undefined,currency:undefined},'PROVIDER_CURRENCY_MISMATCH'],
+  [{payment_currency:'EUR'},'PROVIDER_CURRENCY_MISMATCH'],
+  [{amount:'11.00'},'PROVIDER_AMOUNT_MISMATCH'],
+  [{status:'not-paid'},'PROVIDER_STATUS_INVALID']
+ ];
+ for(const [overrides,expected] of cases){
+   await assert.rejects(createSandboxPayment(id,{env,
+     fetcher:async(_url,opts)=>response(jsonPayment(JSON.parse(opts.body),overrides))}),
+     e=>e.code===expected&&!String(e).includes('SECRET_OTHER_ORDER'));
+ }
+});
+test('sandbox GET paid receipt recognizes equivalent amount representations',async()=>{
+ let original;
+ const created=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>{original=JSON.parse(opts.body);return response(jsonPayment(original));}});
+ for(const amount of ['10','10.0','10.00',10]){
+   const result=await checkSandboxPayment(id,created.proof,{env,now:1800000000000,
+     fetcher:async()=>response(jsonPayment(original,{status:'paid',amount}))});
+   assert.equal(result.status,'paid');
+ }
+});
+test('sandbox GET cannot downgrade or omit test markers or change payment ID',async()=>{
+ const receipt=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>response(jsonPayment(JSON.parse(opts.body)))});
+ const p=JSON.parse(Buffer.from(receipt.proof.split('.')[0],'base64url').toString());
+ for(const [overrides,expected] of [
+   [{test:undefined},'PROVIDER_TEST_FLAG_MISSING'],
+   [{environment:undefined},'PROVIDER_ENVIRONMENT_MISSING'],
+   [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+   [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+   [{payment_id:'pay_WRONG_PAYMENT_ID_ABC'},'PROVIDER_PAYMENT_ID_MISMATCH']
+ ]){
+   await assert.rejects(checkSandboxPayment(id,receipt.proof,{env,now:1800000000000,
+     fetcher:async()=>response(jsonPayment({order_id:p.orderId},{status:'paid',...overrides}))}),
+     e=>e.code===expected);
+ }
 });
