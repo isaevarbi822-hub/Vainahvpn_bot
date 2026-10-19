@@ -1,4 +1,19 @@
-import {getInternalOrder,claimDelivery,reserveExpiry,deliveryDone,deliveryRetry} from './subscription-db.mjs';
+import {getPool,getInternalOrder,claimDelivery,reserveExpiry,deliveryDone,deliveryRetry} from './subscription-db.mjs';
+
+async function withCustomerDeliveryLock(telegramId,work) {
+  const db=await (await getPool()).connect();
+  try{
+    await db.query('BEGIN');
+    // A PostgreSQL advisory transaction lock serializes deliveries for one Telegram ID.
+    // It prevents a slower webhook overwriting a newer expiry in H1Cloud.
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1), 60481)',[telegramId]);
+    const result=await work();
+    await db.query('COMMIT');
+    return result;
+  }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}
+  finally{db.release()}
+}
+
 function panelConfig(){
   const base=(process.env.PANEL_BASE_URL||'').replace(/\/+$/,'');
   if(!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/[a-z0-9_-]+)*$/i.test(base) ||
@@ -53,6 +68,7 @@ export async function fulfillPaidOrder(orderId) {
   try{
     const order=await getInternalOrder(orderId);
     if(!order || order.status!=='paid' || order.is_test)throw Error('ORDER_NOT_PAID');
+    return await withCustomerDeliveryLock(order.telegram_id,async()=> {
     const name=userClientName(order);
     const existing=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
     const prior=Number(existing?.expires_at||0);
@@ -88,6 +104,7 @@ export async function fulfillPaidOrder(orderId) {
       '\n\nНе пересылай эту ссылку другим людям. Если не удаётся подключиться, открой раздел помощи на сайте.');
     await deliveryDone(orderId);
     return {accepted:true,delivery:'delivered'};
+    });
   }catch(error){
     // Do not log customer subscription URLs, bot token or payment credentials.
     console.error('Vainah delivery status:',stage);
