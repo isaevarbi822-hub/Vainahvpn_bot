@@ -81,3 +81,10 @@ test('six Vainah plans have exact server-side prices and device counts',()=>{
   assert.equal(planById('365-family').priceRub,'1000.00');
   assert.equal(planById('bad'),undefined);
 });
+
+test('server price catalog cannot be changed by spoofed environment price values',()=>{
+  const plans=planCatalog({VAINAH_PRICE_30_RUB:'1.00',VAINAH_PRICE_365_RUB:'1.00'});
+  assert.equal(plans.find(p=>p.id==='30').kopeks,9900);
+  assert.equal(plans.find(p=>p.id==='365').kopeks,70000);
+  assert.equal(plans.find(p=>p.id==='365-family').deviceLimit,6);
+});
