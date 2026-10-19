@@ -44,7 +44,7 @@ small{color:#c8bbf3}a{color:#cebaff}
   async function call(method, url) {
     const response = await fetch(url, {method, headers:{'x-vainah-test-token': token.value}, cache:'no-store'});
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || 'HTTP ' + response.status);
+    if (!response.ok) throw new Error((data.error || 'HTTP ' + response.status) + (data.diagnostic ? ' [' + data.diagnostic + ']' : ''));
     return data;
   }
   create.addEventListener('click',async () => {
