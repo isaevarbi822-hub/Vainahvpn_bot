@@ -135,11 +135,7 @@ export async function fulfillPaidOrder(orderId) {
     if(Number(fresh.device_limit||0)<Number(order.device_limit||3))throw Error('H1_DEVICE_LIMIT_NOT_CONFIRMED');
     const profile=fresh.subscription_url||fresh.sub_url;
     if(!profile || typeof profile!=='string'||!/^https:\/\//.test(profile))throw Error('H1_SUBSCRIPTION_URL_MISSING');
-    stage='TELEGRAM_DELIVERY_FAILED';
-    await telegramSend(order.telegram_id,
-      'Vainah VPN 💜\nПлатёж подтверждён! Подписка активна до '+new Date(expiresAt*1000).toLocaleDateString('ru-RU',{timeZone:'UTC'})+
-      '.\n\nТвоя личная ссылка для VPN-клиента:\n'+profile+
-      '\n\nНе пересылай эту ссылку другим людям. Если не удаётся подключиться, открой раздел помощи на сайте.');
+    // Website checkout delivers access in the authenticated account, not via the Telegram bot.
     await deliveryDone(orderId,db);
     return {accepted:true,delivery:'delivered'};
     } catch(error) {
@@ -166,4 +162,14 @@ export async function readSharedH1Subscription(telegramId) {
   const valid=Number.isFinite(seconds)&&seconds>0;
   return {found:true,active:valid && seconds*1000>Date.now(),
     expiresAt:valid?new Date(seconds*1000).toISOString():null};
+}
+
+/** Read access only for an owner-authorized, already delivered website order. */
+export async function readWebsiteAccess(telegramId){
+  const name=await userClientName({telegram_id:String(telegramId)});
+  const client=(await panel('/clients/'+encodeURIComponent(name)))?.client;
+  const url=client?.subscription_url||client?.sub_url;
+  if(!client || !Number.isFinite(Number(client.expires_at)) || Number(client.expires_at)*1000<=Date.now() ||
+     typeof url!=='string' || !/^https:\/\/[^\\s]+$/.test(url))throw Error('VPN_ACCESS_NOT_READY');
+  return {subscriptionUrl:url,expiresAt:new Date(Number(client.expires_at)*1000).toISOString()};
 }
