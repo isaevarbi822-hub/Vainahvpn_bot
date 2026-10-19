@@ -70,3 +70,14 @@ test('Telegram account endpoint rejects forged and cross-site authentication',as
     assert.equal((await account(cross)).status,403);
   }finally{for(const [k,v] of Object.entries(old)){if(v===undefined)delete process.env[k];else process.env[k]=v}}
 });
+
+import {planCatalog,planById} from '../netlify/functions/lib/plan-catalog.mjs';
+test('six Vainah plans have exact server-side prices and device counts',()=>{
+  const plans=planCatalog();
+  assert.deepEqual(plans.map(p=>[p.id,p.days,p.kopeks,p.deviceLimit]),[
+    ['30',30,9900,3],['60',60,16000,3],['90',90,21900,3],
+    ['180',180,33900,3],['365',365,70000,3],['365-family',365,100000,6]
+  ]);
+  assert.equal(planById('365-family').priceRub,'1000.00');
+  assert.equal(planById('bad'),undefined);
+});
