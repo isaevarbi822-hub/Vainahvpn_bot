@@ -16,7 +16,7 @@ async function callRollypay(path, options = {}) {
     signal: AbortSignal.timeout(10_000)
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error('Rollypay HTTP ' + response.status);
+  if (!response.ok) { console.error('Rollypay API HTTP status:', response.status); throw new Error('Rollypay HTTP ' + response.status); }
   return body;
 }
 
@@ -35,7 +35,7 @@ export default async function handler(request) {
         description: 'VAINAH VPN — проверка интеграции (ТЕСТ)',
         test: true
       };
-      if (process.env.ROLLYPAY_TERMINAL_ID?.trim()) payload.terminal_id = process.env.ROLLYPAY_TERMINAL_ID.trim();
+      // Terminal ID omitted: Rollypay determines the terminal from its API key.
       const payment = await callRollypay('', { method: 'POST', body: JSON.stringify(payload) });
       if (payment.test !== true && payment.environment !== 'sandbox') {
         console.error('Rollypay returned non-sandbox payment for test request');
@@ -55,7 +55,12 @@ export default async function handler(request) {
     if (payment.test !== true && payment.environment !== 'sandbox') return json({ error: 'Not a sandbox payment' }, 403);
     return json({ test: true, paymentId, status: String(payment.status || 'unknown') });
   } catch (e) {
-    console.error('Rollypay sandbox API operation failed:', String(e?.message || '').replace(/rpk_[^\s]+/g, '[redacted]'));
-    return json({ error: 'Rollypay connection failed. Check function logs and terminal credentials.' }, 502);
+    const failure = String(e?.message || '');
+    const httpStatus = /^Rollypay HTTP ([0-9]{3})$/.exec(failure)?.[1];
+    const diagnostic = httpStatus ? 'ROLLYPAY_HTTP_' + httpStatus
+      : e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'ROLLYPAY_TIMEOUT'
+      : 'ROLLYPAY_NETWORK_OR_RESPONSE';
+    console.error('Rollypay sandbox error diagnostic:', diagnostic);
+    return json({ error: 'Не удалось создать тестовый платёж Rollypay.', diagnostic }, 502);
   }
 }
