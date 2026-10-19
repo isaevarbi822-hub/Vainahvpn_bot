@@ -52,7 +52,7 @@ export async function markOrderFailed(id) {
 export async function getCustomerOrder(id,telegramId) {
   const pool=await getPool();
   const result=await pool.query(
-    `SELECT id,telegram_id,provider,plan_days,amount_kopeks,currency,status,delivery_state,
+    `SELECT id,telegram_id,source,provider,plan_days,amount_kopeks,currency,status,delivery_state,
       target_expires_at,created_at,notification_sent_at
       FROM vpn_orders WHERE id=$1 AND telegram_id=$2`,[id,telegramId]);
   return result.rows[0]||null;
