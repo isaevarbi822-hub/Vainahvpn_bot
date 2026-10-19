@@ -92,8 +92,8 @@ export async function updateVerifiedPayment({orderId,paymentId,status,amountKope
     return {ignored:true};
   });
 }
-export async function reserveExpiry(orderId,existingPanelExpiryMs=0) {
-  return transaction(async db=>{
+export async function reserveExpiry(orderId,existingPanelExpiryMs=0,lockedDb=null) {
+  const reserve=async db=>{
     const found=await db.query('SELECT * FROM vpn_orders WHERE id=$1 FOR UPDATE',[orderId]);
     const order=found.rows[0];
     if(!order || order.status!=='paid') return null;
@@ -113,7 +113,8 @@ export async function reserveExpiry(orderId,existingPanelExpiryMs=0) {
       `UPDATE vpn_orders SET target_expires_at=$2,updated_at=now()
        WHERE id=$1 RETURNING *`,[orderId,target]);
     return updated.rows[0];
-  });
+  };
+  return lockedDb ? reserve(lockedDb) : transaction(reserve);
 }
 export async function claimDelivery(orderId) {
   const pool=await getPool();
