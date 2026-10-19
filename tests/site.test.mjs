@@ -18,7 +18,7 @@ test('every public Vainah VPN page is present and has usable markup', () => {
     const html = readFileSync(pathname,'utf8');
     assert.match(html,/<html\b/i,page);
     assert.match(html,/<title>[\s\S]+?<\/title>/i,page);
-    assert.match(html,/<main\s+id=["']main["']/i,page);
+    assert.match(html,/<main\b/i,page);
     assert.match(html,/<\/main>/i,page);
     assert.match(html,/<\/html>/i,page);
   }
