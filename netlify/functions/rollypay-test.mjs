@@ -1,0 +1,61 @@
+import { randomUUID } from 'node:crypto';
+import { isAdminRequest, json } from './lib/security.mjs';
+
+const BASE = 'https://rollypay.io/api/v1/payments';
+
+async function callRollypay(path, options = {}) {
+  if (!process.env.ROLLYPAY_API_KEY) throw new Error('API key not configured');
+  const response = await fetch(BASE + path, {
+    ...options,
+    headers: {
+      'X-API-Key': process.env.ROLLYPAY_API_KEY,
+      'X-Nonce': randomUUID(),
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    },
+    signal: AbortSignal.timeout(10_000)
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error('Rollypay HTTP ' + response.status);
+  return body;
+}
+
+export default async function handler(request) {
+  if (!isAdminRequest(request)) return json({ error: 'Forbidden' }, 403);
+  if (request.method !== 'POST' && request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
+  try {
+    if (request.method === 'POST') {
+      if (!process.env.ROLLYPAY_API_KEY) return json({ error: 'Missing ROLLYPAY_API_KEY in Netlify' }, 503);
+      const orderId = 'vainah_sandbox_' + randomUUID();
+      // Always sandbox. Not controlled by caller. No billing, no VPN provisioning.
+      const payload = {
+        amount: '1500.00',
+        payment_currency: 'RUB',
+        order_id: orderId,
+        description: 'VAINAH VPN — проверка интеграции (ТЕСТ)',
+        test: true
+      };
+      if (process.env.ROLLYPAY_TERMINAL_ID?.trim()) payload.terminal_id = process.env.ROLLYPAY_TERMINAL_ID.trim();
+      const payment = await callRollypay('', { method: 'POST', body: JSON.stringify(payload) });
+      if (payment.test !== true && payment.environment !== 'sandbox') {
+        console.error('Rollypay returned non-sandbox payment for test request');
+        return json({ error: 'Rollypay did not confirm sandbox mode' }, 502);
+      }
+      if (!payment.payment_id || !payment.pay_url || !/^https:\/\//i.test(payment.pay_url)) {
+        return json({ error: 'Unexpected Rollypay response' }, 502);
+      }
+      return json({
+        test: true, paymentId: payment.payment_id, orderId,
+        payUrl: payment.pay_url, status: payment.status || 'created'
+      });
+    }
+    const paymentId = new URL(request.url).searchParams.get('paymentId') || '';
+    if (!/^pay_[a-zA-Z0-9-]{8,100}$/.test(paymentId)) return json({ error: 'Invalid payment ID' }, 400);
+    const payment = await callRollypay('/' + encodeURIComponent(paymentId));
+    if (payment.test !== true && payment.environment !== 'sandbox') return json({ error: 'Not a sandbox payment' }, 403);
+    return json({ test: true, paymentId, status: String(payment.status || 'unknown') });
+  } catch (e) {
+    console.error('Rollypay sandbox API operation failed:', String(e?.message || '').replace(/rpk_[^\s]+/g, '[redacted]'));
+    return json({ error: 'Rollypay connection failed. Check function logs and terminal credentials.' }, 502);
+  }
+}
