@@ -78,7 +78,7 @@ function showProof(){
 async function api(path,options={}){
  const r=await fetch('/.netlify/functions/'+path,{credentials:'same-origin',cache:'no-store',...options});
  const data=await r.json().catch(()=>({}));
- if(!r.ok)throw Error(data.error||'Ошибка запроса');
+ if(!r.ok){const code=typeof data.diagnostic==='string'&&/^PROVIDER_[A-Z0-9_]{3,50}$/.test(data.diagnostic)?' [Код: '+data.diagnostic+']':'';throw Error((data.error||'Ошибка запроса')+code);}
  return data;
 }
 async function action(body){

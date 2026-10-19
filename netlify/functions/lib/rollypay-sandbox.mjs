@@ -46,18 +46,22 @@ async function provider(path,method,body,{env,fetcher}){
       signal:AbortSignal.timeout(9000)
     });
   }catch{throw new SandboxError('PROVIDER_UNREACHABLE')}
-  if(Number(res.headers?.get('content-length')||0)>65536)throw new SandboxError('PROVIDER_RESPONSE_INVALID');
-  let data;
-  try{
-    const raw=await res.text();
-    if(raw.length>65536)throw Error('Oversized response');
-    data=JSON.parse(raw);
-  }catch{throw new SandboxError('PROVIDER_RESPONSE_INVALID')}
-  if(!res.ok){
-    // Never return provider payload: it can contain private merchant diagnostics.
-    throw new SandboxError('PROVIDER_HTTP_'+res.status);
+  // Diagnose HTTP failures before JSON parsing. RollyPay or an upstream proxy
+  // can return an HTML/plain-text error page, especially for invalid credentials.
+  // Never copy response bodies into logs or API responses (they may contain PII).
+  if(!res || typeof res.ok!=='boolean')throw new SandboxError('PROVIDER_INVALID_HTTP_RESPONSE');
+  if(!res.ok) {
+    const status=Number(res.status);
+    if(!Number.isInteger(status)||status<400||status>599)throw new SandboxError('PROVIDER_HTTP_ERROR');
+    throw new SandboxError('PROVIDER_HTTP_'+status);
   }
-  if(!data||typeof data!=='object')throw new SandboxError('PROVIDER_RESPONSE_INVALID');
+  if(Number(res.headers?.get('content-length')||0)>65536)throw new SandboxError('PROVIDER_RESPONSE_TOO_LARGE');
+  let raw;
+  try{raw=await res.text()}catch{throw new SandboxError('PROVIDER_RESPONSE_READ_FAILED')}
+  if(typeof raw!=='string'||raw.length>65536)throw new SandboxError('PROVIDER_RESPONSE_TOO_LARGE');
+  let data;
+  try{data=JSON.parse(raw)}catch{throw new SandboxError('PROVIDER_RESPONSE_NOT_JSON')}
+  if(!data||typeof data!=='object'||Array.isArray(data))throw new SandboxError('PROVIDER_RESPONSE_FIELDS_INVALID');
   return data;
 }
 function confirmSandbox(data,{orderId,paymentId}={}){
@@ -79,12 +83,12 @@ export async function createSandboxPayment(telegramId,{env=process.env,fetcher=f
   },{env,fetcher});
   confirmSandbox(data,{orderId});
   if(!/^pay_[A-Za-z0-9_-]{8,100}$/.test(data.payment_id||''))
-    throw new SandboxError('PROVIDER_RESPONSE_INVALID');
+    throw new SandboxError('PROVIDER_PAYMENT_ID_INVALID');
   let url;
-  try{url=new URL(data.pay_url)}catch{throw new SandboxError('PROVIDER_RESPONSE_INVALID')}
+  try{url=new URL(data.pay_url)}catch{throw new SandboxError('PROVIDER_PAY_URL_INVALID')}
   if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||
-     url.username||url.password||url.hash||url.port||!url.pathname.startsWith('/pay/'))
-    throw new SandboxError('PROVIDER_RESPONSE_INVALID');
+     url.username||url.password||url.hash||url.port||!/^\/pay\/tok_[A-Za-z0-9_-]{6,200}$/.test(url.pathname))
+    throw new SandboxError('PROVIDER_PAY_URL_INVALID');
   const proof=seal({id:telegramId,orderId,paymentId:data.payment_id,exp:Math.floor(now/1000)+3600},
     env.SESSION_SIGNING_KEY);
   return {test:true,amountRub:AMOUNT,orderId,payUrl:url.href,proof,status:data.status};

@@ -92,3 +92,38 @@ test('public handler denies anonymous and cross-site requests before any payment
     for(const [k,v]of Object.entries(old))if(v===undefined)delete process.env[k];else process.env[k]=v;
   }
 });
+
+test('HTML error pages are recognized by HTTP status before JSON parsing',async()=>{
+  let calls=0;
+  await assert.rejects(createSandboxPayment(id,{env,
+    fetcher:async()=>{calls++;return new Response('<html>401 Unauthorized</html>',{
+      status:401,headers:{'content-type':'text/html'}});}
+  }),e=>e.code==='PROVIDER_HTTP_401');
+  assert.equal(calls,1);
+});
+test('200 HTML response produces a safe distinct diagnostic without leaking HTML',async()=>{
+  await assert.rejects(createSandboxPayment(id,{env,fetcher:async()=>new Response(
+    '<html>private-data</html>',{status:200,headers:{'content-type':'text/html'}})}),
+    e=>e.code==='PROVIDER_RESPONSE_NOT_JSON'&&!String(e).includes('private-data'));
+});
+test('Malformed payment ID, unsafe/missing pay URL receive separate diagnostic codes',async()=>{
+  for(const testCase of [
+    {fields:{payment_id:''},code:'PROVIDER_PAYMENT_ID_INVALID'},
+    {fields:{pay_url:null},code:'PROVIDER_PAY_URL_INVALID'},
+    {fields:{pay_url:'https://wrong.example/pay/tok_abcdefgh'},code:'PROVIDER_PAY_URL_INVALID'},
+    {fields:{pay_url:'https://pay.rollypay.io/pay/../admin'},code:'PROVIDER_PAY_URL_INVALID'}
+  ]){
+    await assert.rejects(createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),testCase.fields))}),
+      e=>e.code===testCase.code);
+  }
+});
+test('missing required sandbox markers are still rejected',async()=>{
+  for(const fields of [
+    {test:false}, {environment:'prod'}, {test:undefined}, {environment:undefined}
+  ]){
+    await assert.rejects(createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
+      e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
+  }
+});
