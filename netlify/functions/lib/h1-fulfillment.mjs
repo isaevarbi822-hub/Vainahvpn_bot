@@ -172,6 +172,6 @@ export async function readWebsiteAccess(telegramId){
   let parsed;
   try{parsed=new URL(url)}catch{throw Error('VPN_ACCESS_NOT_READY')}
   if(!client || !Number.isFinite(Number(client.expires_at)) || Number(client.expires_at)*1000<=Date.now() ||
-     typeof url!=='string' || /\\s/.test(url) || parsed.protocol!=='https:' || !parsed.hostname || parsed.username || parsed.password || parsed.href!==url)throw Error('VPN_ACCESS_NOT_READY');
+     typeof url!=='string' || /\s/.test(url) || parsed.protocol!=='https:' || !parsed.hostname || parsed.username || parsed.password || parsed.href!==url)throw Error('VPN_ACCESS_NOT_READY');
   return {subscriptionUrl:url,expiresAt:new Date(Number(client.expires_at)*1000).toISOString()};
 }
