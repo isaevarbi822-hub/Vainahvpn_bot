@@ -53,9 +53,9 @@ async function panel(path,options={}) {
   if(!res.ok||data?.ok!==true)throw Error('H1_HTTP_'+res.status);
   return data;
 }
-async function userClientName(order) {
+async function userClientName(order,lockedDb=null) {
   const prefix=process.env.PANEL_CLIENT_PREFIX??'tg';
-  const mapped=await findMappedClientName(order.telegram_id);
+  const mapped=await findMappedClientName(order.telegram_id,lockedDb);
   const name=mapped||prefix+order.telegram_id;
   if(!/^[a-zA-Z0-9_.-]{1,64}$/.test(name))throw Error('H1_BAD_CLIENT_NAME');
   return name;
@@ -89,7 +89,7 @@ export async function fulfillPaidOrder(orderId) {
     const order=await getInternalOrder(orderId);
     if(!order || order.status!=='paid' || order.is_test)throw Error('ORDER_NOT_PAID');
     return await withCustomerDeliveryLock(order.telegram_id,async(db)=> {
-    const name=await userClientName(order);
+    const name=await userClientName(order,db);
     const existing=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
     const prior=Number(existing?.expires_at||0);
     const booked=await reserveExpiry(orderId,prior>0?prior*1000:0,db);
@@ -132,7 +132,7 @@ export async function fulfillPaidOrder(orderId) {
       'Vainah VPN 💜\nПлатёж подтверждён! Подписка активна до '+new Date(expiresAt*1000).toLocaleDateString('ru-RU',{timeZone:'UTC'})+
       '.\n\nТвоя личная ссылка для VPN-клиента:\n'+profile+
       '\n\nНе пересылай эту ссылку другим людям. Если не удаётся подключиться, открой раздел помощи на сайте.');
-    await deliveryDone(orderId);
+    await deliveryDone(orderId,db);
     return {accepted:true,delivery:'delivered'};
     });
   }catch(error){
