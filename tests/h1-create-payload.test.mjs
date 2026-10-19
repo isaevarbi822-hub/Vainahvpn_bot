@@ -20,3 +20,10 @@ test('H1 creation refuses untrusted names or nonsensical periods/inbound IDs',()
   assert.throws(()=>h1CreatePayload({name:'tg123456789',days:0}));
   assert.throws(()=>h1CreatePayload({name:'tg123456789',days:30,inboundIds:['../../']}));
 });
+
+test('family plan gets six devices without a traffic quota',()=>{
+  const family=h1CreatePayload({name:'tg123456789',days:365,deviceLimit:6,trafficLimitGb:0});
+  assert.equal(family.device_limit,6);
+  assert.equal(family.days,365);
+  assert.equal(Object.hasOwn(family,'traffic_limit_gb'),false);
+});
