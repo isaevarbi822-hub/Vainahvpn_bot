@@ -125,6 +125,7 @@ export async function fulfillPaidOrder(orderId) {
     // Confirm the panel sees the intended expiry before sending any access URL.
     const fresh=(await panel('/clients/'+encodeURIComponent(name)))?.client||client;
     if(!fresh || Number(fresh.expires_at||0)<expiresAt)throw Error('H1_EXPIRY_NOT_CONFIRMED');
+    if(Number(fresh.device_limit||0)<Number(order.device_limit||3))throw Error('H1_DEVICE_LIMIT_NOT_CONFIRMED');
     const profile=fresh.subscription_url||fresh.sub_url;
     if(!profile || typeof profile!=='string'||!/^https:\/\//.test(profile))throw Error('H1_SUBSCRIPTION_URL_MISSING');
     stage='TELEGRAM_DELIVERY_FAILED';
