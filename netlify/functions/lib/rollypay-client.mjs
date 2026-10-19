@@ -30,13 +30,13 @@ export async function createInvoice({orderId,amountKopeks,telegramId,description
       test:false
     })
   });
-  if(data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount||''))!==amountKopeks) {
+  if(data.test!==false || data.environment==='sandbox' || data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount??''))!==amountKopeks) {
     throw Error('ROLLYPAY_INVOICE_MISMATCH');
   }
   if(typeof data.payment_id!=='string'||!/^pay_[\w-]{8,100}$/.test(data.payment_id))throw Error('ROLLYPAY_BAD_PAYMENT_ID');
   if(typeof data.pay_url!=='string')throw Error('ROLLYPAY_BAD_PAYMENT_URL');
   const url=new URL(data.pay_url);
-  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io')throw Error('ROLLYPAY_BAD_PAYMENT_URL');
+  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||url.port||url.username||url.password||url.search||url.hash||!/^\/pay\/[a-zA-Z0-9_-]{6,256}\/?$/.test(url.pathname))throw Error('ROLLYPAY_BAD_PAYMENT_URL');
   return {paymentId:data.payment_id,payUrl:data.pay_url};
 }
 export async function fetchPayment(paymentId) {
