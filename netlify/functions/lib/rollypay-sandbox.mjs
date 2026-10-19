@@ -38,6 +38,16 @@ function unseal(proof,secret,telegramId,now=Date.now()){
     data.exp>now/1000+7200||
     !PAYMENT_ID.test(data.paymentId||'')||
     !/^vainah-sandbox-[0-9a-f-]{36}$/.test(data.orderId||''))throw new SandboxError('INVALID_TEST_SESSION');
+  // Only signed attestations minted by a verified sandbox POST are accepted.
+  // Original receipts were signed after both markers were confirmed as well.
+  // Keep these legacy receipts valid only for their existing 1-hour TTL.
+  const keys=Object.keys(data).sort().join(',');
+  const legacy='exp,id,orderId,paymentId';
+  const current='amountKopeks,currency,exp,id,mode,orderId,paymentId';
+  if(keys!==legacy&&(keys!==current||
+    data.mode!=='rollypay-sandbox-verified-v2'||
+    data.currency!=='RUB'||data.amountKopeks!==1000))
+    throw new SandboxError('INVALID_TEST_SESSION');
   return data;
 }
 async function provider(path,method,body,{env,fetcher}){
@@ -79,16 +89,21 @@ function rubKopeks(value) {
   const [rub,dec='']=text.split('.');
   return Number(rub)*100+Number(dec.padEnd(2,'0'));
 }
-function confirmSandbox(data,{orderId,paymentId}={}){
-  // Never reveal ID, amount, URL, or raw provider data in diagnostics.
-  if(data.test===undefined||data.test===null)
-    throw new SandboxError('PROVIDER_TEST_FLAG_MISSING');
-  if(data.test!==true)
+function confirmSandbox(data,{orderId,paymentId,verifiedCreationProof=false}={}){
+  // POST must explicitly confirm BOTH markers before a test receipt is signed.
+  // GET may omit them, even if docs state they should be included.
+  // Omission is allowed ONLY with the authenticated signed creation proof.
+  // Explicitly false, null or production markers always fail closed.
+  if(data.test===undefined){
+    if(!verifiedCreationProof)throw new SandboxError('PROVIDER_TEST_FLAG_MISSING');
+  }else if(data.test!==true){
     throw new SandboxError('PROVIDER_TEST_FLAG_NOT_TRUE');
-  if(data.environment===undefined||data.environment===null)
-    throw new SandboxError('PROVIDER_ENVIRONMENT_MISSING');
-  if(data.environment!=='sandbox')
+  }
+  if(data.environment===undefined){
+    if(!verifiedCreationProof)throw new SandboxError('PROVIDER_ENVIRONMENT_MISSING');
+  }else if(data.environment!=='sandbox'){
     throw new SandboxError('PROVIDER_ENVIRONMENT_NOT_SANDBOX');
+  }
   if(data.order_id!==orderId)
     throw new SandboxError('PROVIDER_ORDER_MISMATCH');
   const apiCurrency=data.payment_currency,eventCurrency=data.currency;
@@ -130,15 +145,24 @@ export async function createSandboxPayment(telegramId,{env=process.env,fetcher=f
     throw new SandboxError('PROVIDER_PAY_URL_UNSAFE_ORIGIN');
   if(!PAY_PATH.test(url.pathname)||url.search)
     throw new SandboxError('PROVIDER_PAY_URL_UNEXPECTED_PATH');
-  const proof=seal({id:telegramId,orderId,paymentId:data.payment_id,exp:Math.floor(now/1000)+3600},
-    env.SESSION_SIGNING_KEY);
+  // These fields are attested ONLY after the authenticated POST response
+  // explicitly verified test:true, environment:sandbox, ID, amount and currency.
+  const proof=seal({
+    id:telegramId,orderId,paymentId:data.payment_id,exp:Math.floor(now/1000)+3600,
+    mode:'rollypay-sandbox-verified-v2',currency:'RUB',amountKopeks:1000
+  },env.SESSION_SIGNING_KEY);
   return {test:true,amountRub:AMOUNT,orderId,payUrl:url.href,proof,status:data.status};
 }
 export async function checkSandboxPayment(telegramId,proof,{env=process.env,fetcher=fetch,now=Date.now()}={}){
   if(!sandboxAllowed(telegramId,env))throw new SandboxError('SANDBOX_NOT_ALLOWED');
   const ticket=unseal(proof,env.SESSION_SIGNING_KEY,telegramId,now);
   const data=await provider('/'+encodeURIComponent(ticket.paymentId),'GET',null,{env,fetcher});
-  confirmSandbox(data,{orderId:ticket.orderId,paymentId:ticket.paymentId});
+  // Signed owner-bound proof is a creation-time sandbox attestation;
+  // GET must independently confirm order, payment ID, paid state, sum, currency.
+  confirmSandbox(data,{
+    orderId:ticket.orderId,paymentId:ticket.paymentId,
+    verifiedCreationProof:true
+  });
   return {test:true,orderId:ticket.orderId,status:data.status,amountRub:AMOUNT,
     note:data.status==='paid'?'Тест подтверждён. VPN не изменён.':
       data.status==='canceled'||data.status==='expired'?'Тест завершён без оплаты. VPN не изменён.':

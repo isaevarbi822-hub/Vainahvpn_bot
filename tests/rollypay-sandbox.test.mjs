@@ -261,19 +261,76 @@ test('sandbox GET paid receipt recognizes equivalent amount representations',asy
    assert.equal(result.status,'paid');
  }
 });
-test('sandbox GET cannot downgrade or omit test markers or change payment ID',async()=>{
+test('sandbox GET accepts omitted fields using strictly verified signed creation proof',async()=>{
+ let requestBody;
  const receipt=await createSandboxPayment(id,{env,now:1800000000000,
-   fetcher:async(_url,opts)=>response(jsonPayment(JSON.parse(opts.body)))});
- const p=JSON.parse(Buffer.from(receipt.proof.split('.')[0],'base64url').toString());
- for(const [overrides,expected] of [
-   [{test:undefined},'PROVIDER_TEST_FLAG_MISSING'],
-   [{environment:undefined},'PROVIDER_ENVIRONMENT_MISSING'],
-   [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
-   [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
-   [{payment_id:'pay_WRONG_PAYMENT_ID_ABC'},'PROVIDER_PAYMENT_ID_MISMATCH']
+   fetcher:async(_url,opts)=>{requestBody=JSON.parse(opts.body);return response(jsonPayment(requestBody));}});
+ const attestation=JSON.parse(Buffer.from(receipt.proof.split('.')[0],'base64url').toString());
+ assert.equal(attestation.mode,'rollypay-sandbox-verified-v2');
+ assert.equal(attestation.amountKopeks,1000);
+ for(const fields of [
+   {test:undefined},
+   {environment:undefined},
+   {test:undefined,environment:undefined},
+   {test:true,environment:undefined},
+   {test:undefined,environment:'sandbox'}
  ]){
-   await assert.rejects(checkSandboxPayment(id,receipt.proof,{env,now:1800000000000,
-     fetcher:async()=>response(jsonPayment({order_id:p.orderId},{status:'paid',...overrides}))}),
-     e=>e.code===expected);
+   const result=await checkSandboxPayment(id,receipt.proof,{env,now:1800000000000,
+     fetcher:async(_url,opts)=>{
+       assert.equal(opts.method,'GET');
+       return response(jsonPayment(requestBody,{status:'paid',...fields}));
+     }});
+   assert.equal(result.status,'paid');
+   assert.equal(result.test,true);
  }
 });
+test('sandbox GET still rejects live, null, other order/payment, amount and currency',async()=>{
+ let requestBody;
+ const receipt=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>{requestBody=JSON.parse(opts.body);return response(jsonPayment(requestBody));}});
+ const cases=[
+   [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+   [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+   [{test:null},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+   [{environment:null},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+   [{payment_id:'pay_WRONG_PAYMENT_ID_ABC'},'PROVIDER_PAYMENT_ID_MISMATCH'],
+   [{order_id:'evil_order'},'PROVIDER_ORDER_MISMATCH'],
+   [{amount:'15.00'},'PROVIDER_AMOUNT_MISMATCH'],
+   [{payment_currency:'EUR'},'PROVIDER_CURRENCY_MISMATCH']
+ ];
+ for(const [overrides,expected] of cases){
+   await assert.rejects(checkSandboxPayment(id,receipt.proof,{env,now:1800000000000,
+     fetcher:async()=>response(jsonPayment(requestBody,{
+       status:'paid',test:undefined,environment:undefined,...overrides
+     }))}),e=>e.code===expected);
+ }
+});
+test('invalid or expired signed receipts cannot bypass missing GET markers',async()=>{
+ const created=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>response(jsonPayment(JSON.parse(opts.body)))});
+ const never=async()=>{throw Error('Provider must never be called');};
+ await assert.rejects(checkSandboxPayment(id,created.proof.slice(0,-1)+'Z',{
+   env,fetcher:never,now:1800000000000
+ }),e=>e.code==='INVALID_TEST_SESSION');
+ await assert.rejects(checkSandboxPayment(id,created.proof,{
+   env,fetcher:never,now:1800000000000+3700000
+ }),e=>e.code==='INVALID_TEST_SESSION');
+ const payload=JSON.parse(Buffer.from(created.proof.split('.')[0],'base64url').toString());
+ assert.equal(payload.mode,'rollypay-sandbox-verified-v2');
+});
+test('legacy signed sandbox-created proof remains valid until its expiry',async()=>{
+ const {createHmac}=await import('node:crypto');
+ let requestBody;
+ const receipt=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>{requestBody=JSON.parse(opts.body);return response(jsonPayment(requestBody));}});
+ const d=JSON.parse(Buffer.from(receipt.proof.split('.')[0],'base64url').toString());
+ const legacy=Buffer.from(JSON.stringify({id:d.id,orderId:d.orderId,
+   paymentId:d.paymentId,exp:d.exp})).toString('base64url');
+ const sig=createHmac('sha256',env.SESSION_SIGNING_KEY).update(legacy).digest('hex');
+ const result=await checkSandboxPayment(id,legacy+'.'+sig,{env,now:1800000000000,
+   fetcher:async()=>response(jsonPayment(requestBody,{
+     status:'paid',test:undefined,environment:undefined
+   }))});
+ assert.equal(result.status,'paid');
+});
+
