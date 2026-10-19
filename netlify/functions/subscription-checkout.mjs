@@ -2,7 +2,6 @@ import {randomUUID} from 'node:crypto';
 import {json} from './lib/security.mjs';
 import {checkoutReady,planById} from './lib/plan-catalog.mjs';
 import {sameOrigin,sessionFromRequest} from './lib/telegram-identity.mjs';
-import {assertTelegramChat} from './lib/h1-fulfillment.mjs';
 import {insertCheckout,attachPayment,markOrderFailed} from './lib/subscription-db.mjs';
 import {createInvoice} from './lib/rollypay-client.mjs';
 
@@ -20,11 +19,6 @@ export default async function handler(request){
   }catch{return json({error:'Invalid request'},400)}
   const plan=planById(body?.plan);
   if(!plan || plan.kopeks===null)return json({error:'Тариф пока недоступен'},400);
-  try{
-    if(!(await assertTelegramChat(user.telegramId)))return json({
-      error:'Открой @Vainahvpn_bot и нажми Start, затем повтори покупку.',code:'START_BOT_FIRST'
-    },409);
-  }catch{return json({error:'Не удалось проверить доступность Telegram-бота. Попробуй позже.'},503)}
   const id=randomUUID();
   let created=false;
   try{
