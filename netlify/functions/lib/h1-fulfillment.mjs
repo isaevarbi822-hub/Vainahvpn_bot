@@ -112,3 +112,14 @@ export async function fulfillPaidOrder(orderId) {
     return {accepted:true,delivery:'retry_required'};
   }
 }
+
+export async function readSharedH1Subscription(telegramId) {
+  if(!/^[1-9][0-9]{0,17}$/.test(telegramId||''))throw Error('INVALID_TELEGRAM_ID');
+  const name=userClientName({telegram_id:telegramId});
+  const client=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
+  if(!client)return {found:false,active:false,expiresAt:null};
+  const seconds=Number(client.expires_at||0);
+  const valid=Number.isFinite(seconds)&&seconds>0;
+  return {found:true,active:valid && seconds*1000>Date.now(),
+    expiresAt:valid?new Date(seconds*1000).toISOString():null};
+}
