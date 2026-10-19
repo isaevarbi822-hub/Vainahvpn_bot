@@ -30,7 +30,8 @@ export async function createInvoice({orderId,amountKopeks,telegramId,description
       test:false
     })
   });
-  if(data.test!==false || data.environment==='sandbox' || data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount??''))!==amountKopeks) {
+  // RollyPay's documented create response omits the optional test field.
+  if(data.test===true || data.environment==='sandbox' || data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount??''))!==amountKopeks) {
     throw Error('ROLLYPAY_INVOICE_MISMATCH');
   }
   if(typeof data.payment_id!=='string'||!/^pay_[\w-]{8,100}$/.test(data.payment_id))throw Error('ROLLYPAY_BAD_PAYMENT_ID');
