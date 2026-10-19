@@ -21,7 +21,18 @@ async function callRollypay(path, options = {}) {
 }
 
 export default async function handler(request) {
-  if (!isAdminRequest(request)) return json({ error: 'Forbidden' }, 403);
+  if (!process.env.ROLLYPAY_TEST_TOKEN || process.env.ROLLYPAY_TEST_TOKEN.length < 24) {
+    return json({
+      error: 'Тестовый пароль не настроен в Netlify (ROLLYPAY_TEST_TOKEN).',
+      diagnostic: 'TEST_TOKEN_NOT_CONFIGURED'
+    }, 503);
+  }
+  if (!isAdminRequest(request)) {
+    return json({
+      error: 'Тестовый пароль не совпадает со значением ROLLYPAY_TEST_TOKEN в Netlify.',
+      diagnostic: 'INVALID_TEST_TOKEN'
+    }, 403);
+  }
   if (request.method !== 'POST' && request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
   try {
     if (request.method === 'POST') {
