@@ -98,6 +98,8 @@ export async function fulfillPaidOrder(orderId) {
     let client=existing;
     if(client){
       // Absolute expiry is idempotent; never add days twice on retries.
+      // Existing profile device limits must be managed carefully by a reviewed
+      // upgrade path; do not silently downgrade a family subscription.
       const result=await panel('/clients/'+encodeURIComponent(name),{
         method:'PATCH',body:JSON.stringify({expires_at:expiresAt})
       });
@@ -107,7 +109,7 @@ export async function fulfillPaidOrder(orderId) {
       // H1Cloud /create REQUIRES days (not expires_at); apply the booked
       // absolute expiry afterward with PATCH for safe retries and renewals.
       const payload=h1CreatePayload({name,days:order.plan_days,inboundIds:ids,
-        deviceLimit:Number(process.env.DEVICE_LIMIT||3),
+        deviceLimit:Number(order.device_limit),
         trafficLimitGb:Number(process.env.TRAFFIC_LIMIT_GB||0)});
       const result=await panel('/create',{method:'POST',body:JSON.stringify(payload)});
       client=result?.client||(await panel('/clients/'+encodeURIComponent(name)))?.client;
