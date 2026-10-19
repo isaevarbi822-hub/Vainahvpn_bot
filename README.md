@@ -69,3 +69,26 @@ Node 20+: `npm test`.
 - https://docs.rollypay.io/api/payments/
 - https://docs.rollypay.io/api/testing/
 - https://docs.rollypay.io/api/callbacks/
+
+## Большой сайт Vainah VPN — обновление
+
+Маркетинговые и информационные разделы расположены в папке `site/`:
+
+- `index.html` — большая главная со слоганом «Твоё соединение. Твои правила»;
+- `features.html` — возможности;
+- `plans.html` — тарифы (покупка по-прежнему только в существующем Telegram-боте);
+- `servers.html` — выбор локаций и разъяснения;
+- `devices.html` — устройства;
+- `guide.html` — инструкции подключения;
+- `security.html` — безопасность;
+- `speed.html` — скорость и стабильность;
+- `troubleshooting.html` — пошаговое устранение ошибок;
+- `help.html` — FAQ;
+- `contact.html` — поддержка;
+- `about.html`, `privacy.html`, `terms.html` — информация и правила.
+
+Новые страницы используют `site/assets/main.css` и `site/assets/main.js`. Netlify публикует всю папку `site`, настройки указаны в `netlify.toml`.
+
+**Оплата не дорабатывалась** в этом обновлении: Rollypay Sandbox остаётся только для тестирования, а реальные платежи и автоматическая выдача VPN через публичный сайт не включены. Реквизиты и секреты хранятся только в переменных окружения хостинга, а не в репозитории.
+
+Проверки локальных путей новых страниц и наличия стилей добавлены в `tests/site.test.mjs`; запускать через `npm test`.
