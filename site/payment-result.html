@@ -34,7 +34,7 @@ out.textContent='Оплата: '+(statuses[d.status]||'Обрабатывает�
 if(d.status==='paid'&&d.deliveryState==='retry')retry.hidden=false;
 if(d.status==='paid'&&d.deliveryState==='delivered'){
   const access=await fetch('/.netlify/functions/website-vpn-access?order='+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'});
-  if(access.ok){const vpn=await access.json();if(vpn.subscriptionUrl){const a=document.createElement('a');a.href=vpn.subscriptionUrl;a.textContent='Открыть VPN-подписку';a.target='_blank';a.rel='noopener noreferrer';out.append(document.createElement('br'),a)}}
+  if(access.ok){const vpn=await access.json();if(vpn.subscriptionUrl){const a=document.createElement('a');a.href=vpn.subscriptionUrl;a.textContent='Открыть VPN-подписку';a.target='_blank';a.rel='noopener noreferrer';a.referrerPolicy='no-referrer';out.append(document.createElement('br'),a)}}
 }
 }catch(e){out.textContent=e.message+'. Если вернулся с RollyPay, войди в тот же Telegram-аккаунт на странице покупки и повтори проверку.'}
 finally{refresh.disabled=false}}
