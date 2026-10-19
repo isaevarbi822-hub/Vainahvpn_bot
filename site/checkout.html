@@ -57,7 +57,8 @@ footer{border-top:1px solid #2a2e43;margin-top:95px;padding:49px 0 36px;backgrou
      const price=document.createElement('div');price.className='price';price.textContent=p.priceRub===null?'Цена ещё не установлена':p.priceRub+' ₽';
      const btn=document.createElement('button');btn.type='button';btn.className='btn btn-border';btn.textContent=selected===p.id?'Выбран ✓':'Выбрать тариф';
      btn.addEventListener('click',()=>{selected=p.id;render()});
-     a.append(duration,title,price,btn);cards.appendChild(a);
+     const detail=document.createElement('p');detail.className='plan-desc';detail.textContent='Безлимит · '+p.deviceLimit+' устройства';
+     a.append(duration,title,price,detail,btn);cards.appendChild(a);
    }
    const p=plans.find(x=>x.id===selected);
    buy.disabled=insideTelegramMiniApp||!ready||!account||!p||p.priceRub===null;
