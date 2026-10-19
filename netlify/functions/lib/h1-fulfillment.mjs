@@ -170,6 +170,6 @@ export async function readWebsiteAccess(telegramId){
   const client=(await panel('/clients/'+encodeURIComponent(name)))?.client;
   const url=client?.subscription_url||client?.sub_url;
   if(!client || !Number.isFinite(Number(client.expires_at)) || Number(client.expires_at)*1000<=Date.now() ||
-     typeof url!=='string' || !url.startsWith('https://'))throw Error('VPN_ACCESS_NOT_READY');
+     typeof url!=='string' || !/^https:\/\/[^\s]+$/.test(url))throw Error('VPN_ACCESS_NOT_READY');
   return {subscriptionUrl:url,expiresAt:new Date(Number(client.expires_at)*1000).toISOString()};
 }
