@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS vpn_orders (
   source text NOT NULL DEFAULT 'website' CHECK (source IN ('website','telegram')),
   provider text NOT NULL DEFAULT 'rollypay' CHECK (provider IN ('rollypay','telegram_stars')),
   payment_id text UNIQUE,
-  plan_days integer NOT NULL CHECK (plan_days IN (30,90,365)),
+  plan_days integer NOT NULL CHECK (plan_days IN (30,60,90,180,365)),
+  device_limit integer NOT NULL DEFAULT 3 CHECK (device_limit IN (3,6)),
   amount_kopeks integer NOT NULL CHECK (amount_kopeks >= 0),
   currency text NOT NULL DEFAULT 'RUB',
   is_test boolean NOT NULL DEFAULT false,
@@ -40,3 +41,6 @@ CREATE INDEX IF NOT EXISTS vpn_orders_pending_delivery ON vpn_orders (status,del
 CREATE INDEX IF NOT EXISTS vpn_orders_provider_payment ON vpn_orders(provider,payment_id);
 -- NB: Telegram Stars must only be credited from a verified, trusted Telegram
 -- payment update, NOT from an unauthenticated website request.
+
+-- For an already deployed older schema, apply a reviewed one-time migration
+-- to expand vpn_orders.plan_days and add vpn_orders.device_limit.
