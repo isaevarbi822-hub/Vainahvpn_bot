@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#100c20">
+<title>Тест RollyPay — Vainah VPN</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,-apple-system,"Segoe UI",sans-serif;background:#0a0c19;color:#f5f1ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top right,#38245e 0%,transparent 50%),#0a0c19}
+main{max-width:810px;margin:0 auto;padding:32px 20px 80px}
+nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:8px 0 34px}
+nav a{color:#d3c0ff;text-decoration:none;font-size:14px}
+.brand{font-weight:850;letter-spacing:.03em;color:white}
+h1{font-size:clamp(30px,6vw,50px);letter-spacing:-.04em;line-height:1.08;margin:12px 0}
+.lead{color:#b0b3cb;line-height:1.65}
+.pill{display:inline-block;padding:7px 12px;border:1px solid #7c61a9;background:#271c48;border-radius:99px;color:#dfcaff;font-size:12px;font-weight:800}
+section{border:1px solid #353152;border-radius:22px;background:#151629e8;margin:23px 0;padding:26px}
+h2{font-size:20px;margin:0 0 13px}
+p{line-height:1.6}
+.muted{color:#abb0c6;font-size:14px}
+.status{border:1px solid #474261;border-radius:13px;background:#211d36;padding:15px;margin:14px 0;line-height:1.5;overflow-wrap:anywhere}
+button,.button-link{display:inline-flex;align-items:center;justify-content:center;min-height:47px;padding:12px 20px;border-radius:12px;border:1px solid #76619d;background:#34284d;color:#eee3ff;font-weight:750;font-size:14px;text-decoration:none;cursor:pointer}
+button.primary{background:linear-gradient(110deg,#e1cbff,#9e83ff);color:#1b1038;border:0}
+button:disabled{opacity:.48;cursor:not-allowed}
+button:focus-visible,a:focus-visible{outline:2px solid #a0d9ff;outline-offset:3px}
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:20px}
+#pay-link{display:none}
+#status-check{display:none}
+strong{color:#fff}
+code{color:#dbbfff;word-break:break-word}
+li{margin:9px 0;color:#c0bed2}
+@media(max-width:480px){section{padding:20px}main{padding:18px 15px 55px}}
+</style>
+</head>
+<body>
+<main>
+<nav><a href="index.html" class="brand">◆ VAINAH VPN</a><a href="account.html">← Мой VPN</a></nav>
+<span class="pill">🧪 SANDBOX · БЕЗ РЕАЛЬНЫХ ДЕНЕГ</span>
+<h1>Проверяем оплату <span style="color:#bb9aff">RollyPay.</span></h1>
+<p class="lead">Проверка связи сайта с платёжной кассой. Здесь нельзя купить VPN: тест не создаёт заказ в базе, не меняет срок подписки и не отправляет ключи. Стоимость <strong>10,00 ₽ — только демонстрационная</strong>.</p>
+<section>
+<h2>1. Вход через Telegram</h2>
+<div id="auth-status" class="status" aria-live="polite">Проверяем аккаунт…</div>
+<p class="muted">Для проверки ты должен войти через Telegram на странице <a href="account.html" style="color:#d0b8ff">«Мой VPN»</a>. Только владелец, указанный в настройке Netlify <code>VAINAH_SANDBOX_TELEGRAM_ID</code>, может создать тестовый платёж.</p>
+<div id="owner-help" hidden>
+<p class="muted">Твой Telegram ID для настройки в Netlify:</p>
+<div class="actions"><code id="owner-id"></code><button id="copy-id" type="button">Скопировать ID</button></div>
+</div>
+</section>
+<section>
+<h2>2. Создаём тестовую платёжную ссылку</h2>
+<p class="muted">Сервер сам добавляет <code>test: true</code>. На открывшейся странице RollyPay должен появиться яркий баннер «Тестовый режим» и кнопка симуляции оплаты. <strong>Не вводи платёжные данные и не оплачивай QR-код</strong>, если баннер отсутствует.</p>
+<div id="create-status" class="status" aria-live="polite">Ожидаем проверки доступа.</div>
+<div class="actions">
+<button class="primary" id="create" type="button" disabled>Создать тестовый платёж</button>
+<a class="button-link" id="pay-link" target="_blank" rel="noopener noreferrer">Открыть тестовую форму ↗</a>
+</div>
+</section>
+<section>
+<h2>3. Проверяем результат</h2>
+<p class="muted">На странице RollyPay выбери «Симулировать успешную оплату». Затем вернись сюда и нажми «Проверить статус». Платёжное подтверждение мы перепроверяем через API RollyPay.</p>
+<div id="result-status" class="status" aria-live="polite">Тестовый платёж ещё не создан.</div>
+<div class="actions"><button id="status-check" type="button">Проверить статус</button></div>
+</section>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const auth=$('auth-status'),createStatus=$('create-status'),resultStatus=$('result-status');
+const create=$('create'),pay=$('pay-link'),check=$('status-check');
+let proof='';try{proof=sessionStorage.getItem('vainah-rollypay-sandbox-proof')||'';}catch{}
+function showProof(){
+  check.style.display=proof?'inline-flex':'none';
+  if(proof)resultStatus.textContent='Тест создан ранее. После симуляции оплаты нажми «Проверить статус».';
+}
+async function api(path,options={}){
+ const r=await fetch('/.netlify/functions/'+path,{credentials:'same-origin',cache:'no-store',...options});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(data.error||'Ошибка запроса');
+ return data;
+}
+async function action(body){
+ return api('rollypay-sandbox',{method:'POST',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+async function start(){
+ try{
+   const account=await api('telegram-account');
+   if(!account.user){auth.textContent='Ты пока не вошёл через Telegram. Открой «Мой VPN», войди и вернись сюда.';return;}
+   const id=String(account.user.telegramId||account.user.id||'');
+   auth.textContent='Telegram подтверждён: '+(account.user.username?'@'+account.user.username:'ID '+id);
+   $('owner-id').textContent=id;
+   $('owner-help').hidden=false;
+   const permission=await api('rollypay-sandbox');
+   if(!permission.allowed){createStatus.textContent='Нужно добавить в Netlify переменную VAINAH_SANDBOX_TELEGRAM_ID со своим Telegram ID и дождаться нового deploy. API-ключ никому не показывай.';return;}
+   create.disabled=false;
+   createStatus.textContent='Готово! Тест доступен. 10 ₽ — условная сумма, реальные деньги не списываются.';
+ }catch(e){auth.textContent='Не удалось проверить доступ: '+e.message;}
+}
+$('copy-id').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('owner-id').textContent);$('copy-id').textContent='Скопировано ✓';}catch{$('copy-id').textContent='Не удалось скопировать';}});
+create.addEventListener('click',async()=>{
+ create.disabled=true;createStatus.textContent='Создаём тестовый платёж…';
+ try{
+   const p=await action({action:'create'});
+   if(p.test!==true||!p.payUrl||!p.proof)throw Error('Ответ сервера не подтверждает sandbox');
+   proof=p.proof;
+   try{sessionStorage.setItem('vainah-rollypay-sandbox-proof',proof);}catch{}
+   createStatus.textContent='Тест создан! Нажми «Открыть тестовую форму» и проверь надпись «Тестовый режим».';
+   pay.href=p.payUrl;pay.style.display='inline-flex';
+   showProof();
+ }catch(e){createStatus.textContent='Ошибка: '+e.message;create.disabled=false;}
+});
+check.addEventListener('click',async()=>{
+ check.disabled=true;resultStatus.textContent='Проверяем состояние в RollyPay…';
+ try{
+   const result=await action({action:'status',proof});
+   const map={created:'Ожидает симуляции оплаты',processing:'Обрабатывается',paid:'✅ Тест успешно подтверждён',canceled:'❌ Тест отменён',expired:'⌛ Тест истёк'};
+   resultStatus.textContent=(map[result.status]||'Статус не определён')+'. '+result.note;
+ }catch(e){resultStatus.textContent='Ошибка проверки: '+e.message;}
+ finally{check.disabled=false;}
+});
+showProof();
+start();
+})();
+</script>
+</main>
+</body>
+</html>
