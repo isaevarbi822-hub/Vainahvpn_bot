@@ -2,7 +2,7 @@ name: Vainah VPN checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/telegram-linked-checkout]
   pull_request:
 
 permissions:
@@ -21,5 +21,10 @@ jobs:
           node --check netlify/functions/lib/security.mjs
           node --check netlify/functions/rollypay-test.mjs
           node --check netlify/functions/rollypay-webhook.mjs
-      - name: Run sandbox tests
+      - name: Check unified subscription function syntax
+        run: |
+          for file in netlify/functions/lib/*.mjs netlify/functions/*.mjs; do node --check "$file"; done
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run tests
         run: npm test
