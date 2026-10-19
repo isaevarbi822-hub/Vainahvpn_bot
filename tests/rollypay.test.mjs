@@ -25,8 +25,25 @@ test('test endpoint requires a secret admin password', async () => {
   delete process.env.ROLLYPAY_TEST_TOKEN;
   try {
     const request = new Request('https://example.com/.netlify/functions/rollypay-test');
-    assert.equal((await testHandler(request)).status,403);
+    const response = await testHandler(request);
+    assert.equal(response.status,503);
+    assert.equal((await response.json()).diagnostic,'TEST_TOKEN_NOT_CONFIGURED');
     assert.equal(isAdminRequest(request),false);
+  } finally {
+    if(previous===undefined) delete process.env.ROLLYPAY_TEST_TOKEN;
+    else process.env.ROLLYPAY_TEST_TOKEN=previous;
+  }
+});
+test('incorrect test password receives a safe diagnostic', async () => {
+  const previous=process.env.ROLLYPAY_TEST_TOKEN;
+  process.env.ROLLYPAY_TEST_TOKEN='a-valid-local-test-password-123456789';
+  try {
+    const req=new Request('https://example.com/.netlify/functions/rollypay-test',{
+      method:'POST',headers:{'x-vainah-test-token':'wrong-password-over-24-characters'}
+    });
+    const response=await testHandler(req);
+    assert.equal(response.status,403);
+    assert.equal((await response.json()).diagnostic,'INVALID_TEST_TOKEN');
   } finally {
     if(previous===undefined) delete process.env.ROLLYPAY_TEST_TOKEN;
     else process.env.ROLLYPAY_TEST_TOKEN=previous;
