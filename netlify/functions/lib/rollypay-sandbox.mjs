@@ -71,13 +71,37 @@ async function provider(path,method,body,{env,fetcher}){
   if(!data||typeof data!=='object'||Array.isArray(data))throw new SandboxError('PROVIDER_RESPONSE_FIELDS_INVALID');
   return data;
 }
+function rubKopeks(value) {
+  // Exact integer-kopeck comparison, allowing 10, 10.0 or 10.00.
+  if(typeof value!=='string'&&typeof value!=='number')return null;
+  const text=String(value);
+  if(!/^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,2})?$/.test(text))return null;
+  const [rub,dec='']=text.split('.');
+  return Number(rub)*100+Number(dec.padEnd(2,'0'));
+}
 function confirmSandbox(data,{orderId,paymentId}={}){
-  if(data.test!==true||data.environment!=='sandbox'||
-    data.order_id!==orderId||data.payment_currency!=='RUB'||
-    data.amount!==AMOUNT||typeof data.status!=='string'||!STATES.has(data.status)||
-    (paymentId&&data.payment_id!==paymentId)){
-    throw new SandboxError('PROVIDER_SANDBOX_MISMATCH');
-  }
+  // Never reveal ID, amount, URL, or raw provider data in diagnostics.
+  if(data.test===undefined||data.test===null)
+    throw new SandboxError('PROVIDER_TEST_FLAG_MISSING');
+  if(data.test!==true)
+    throw new SandboxError('PROVIDER_TEST_FLAG_NOT_TRUE');
+  if(data.environment===undefined||data.environment===null)
+    throw new SandboxError('PROVIDER_ENVIRONMENT_MISSING');
+  if(data.environment!=='sandbox')
+    throw new SandboxError('PROVIDER_ENVIRONMENT_NOT_SANDBOX');
+  if(data.order_id!==orderId)
+    throw new SandboxError('PROVIDER_ORDER_MISMATCH');
+  const apiCurrency=data.payment_currency,eventCurrency=data.currency;
+  if((apiCurrency!==undefined&&apiCurrency!=='RUB')||
+     (eventCurrency!==undefined&&eventCurrency!=='RUB')||
+     (apiCurrency===undefined&&eventCurrency===undefined))
+    throw new SandboxError('PROVIDER_CURRENCY_MISMATCH');
+  if(rubKopeks(data.amount)!==rubKopeks(AMOUNT))
+    throw new SandboxError('PROVIDER_AMOUNT_MISMATCH');
+  if(typeof data.status!=='string'||!STATES.has(data.status))
+    throw new SandboxError('PROVIDER_STATUS_INVALID');
+  if(paymentId&&data.payment_id!==paymentId)
+    throw new SandboxError('PROVIDER_PAYMENT_ID_MISMATCH');
 }
 export async function createSandboxPayment(telegramId,{env=process.env,fetcher=fetch,now=Date.now()}={}){
   if(!sandboxAllowed(telegramId,env))throw new SandboxError('SANDBOX_NOT_ALLOWED');

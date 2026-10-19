@@ -142,7 +142,7 @@ async function checkStatus(automatic=false){
          'Ссылка отправлена в Telegram. Основная подписка не изменена.';
      }catch(e){deliveryStatus.textContent='Ошибка тестовой выдачи: '+e.message;}
    }
- }catch(e){if(!automatic)resultStatus.textContent='Ошибка проверки: '+e.message;}
+ }catch(e){resultStatus.textContent='Ошибка проверки: '+e.message;}
  finally{checking=false;check.disabled=false;}
 }
 check.addEventListener('click',()=>{void checkStatus(false);});
