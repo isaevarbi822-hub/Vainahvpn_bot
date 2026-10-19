@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reserveExpiry} from '../netlify/functions/lib/subscription-db.mjs';
+import {reserveExpiry,findMappedClientName,deliveryDone} from '../netlify/functions/lib/subscription-db.mjs';
 
 test('reservation reuses locked connection and never acquires another pool client', async()=>{
   const queries=[];
@@ -27,4 +27,17 @@ test('retry with existing reservation never extends expiry again',async()=>{
   const result=await reserveExpiry('order-2',0,db);
   assert.equal(result.target_expires_at,original);
   assert.equal(count,1);
+});
+
+test('delivery finalization and client mapping reuse the supplied DB client',async()=>{
+  const queries=[];
+  const db={query:async(sql,params)=>{
+    queries.push({sql,params});
+    if(sql.startsWith('SELECT client_name'))return {rows:[{client_name:'tg123456789'}]};
+    return {rowCount:1,rows:[]};
+  }};
+  assert.equal(await findMappedClientName('123456789',db),'tg123456789');
+  await deliveryDone('order-1',db);
+  assert.equal(queries.length,2);
+  assert.ok(queries[1].sql.includes("delivery_state='delivered'"));
 });
