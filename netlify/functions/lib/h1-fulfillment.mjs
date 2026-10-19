@@ -88,12 +88,14 @@ export async function fulfillPaidOrder(orderId) {
   try{
     const order=await getInternalOrder(orderId);
     if(!order || order.status!=='paid' || order.is_test)throw Error('ORDER_NOT_PAID');
-    return await withCustomerDeliveryLock(order.telegram_id,async(db)=> {
+    const outcome=await withCustomerDeliveryLock(order.telegram_id,async(db)=> {
     const name=await userClientName(order,db);
     const existing=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
     const prior=Number(existing?.expires_at||0);
     const booked=await reserveExpiry(orderId,prior>0?prior*1000:0,db);
     if(!booked?.target_expires_at)throw Error('BOOKING_FAILED');
+    // Reservation must commit even if the external panel or notification fails.
+    try {
     const expiresAt=Math.max(Math.floor(new Date(booked.target_expires_at).getTime()/1000),prior);
     let client=existing;
     if(client){
@@ -135,7 +137,13 @@ export async function fulfillPaidOrder(orderId) {
       '\n\nНе пересылай эту ссылку другим людям. Если не удаётся подключиться, открой раздел помощи на сайте.');
     await deliveryDone(orderId,db);
     return {accepted:true,delivery:'delivered'};
+    } catch(error) {
+      // Keep the booked expiry committed; retry must never add paid days twice.
+      return {accepted:true,delivery:'retry_required',stage};
+    }
     });
+    if(outcome.delivery==='retry_required')await deliveryRetry(orderId,outcome.stage).catch(()=>{});
+    return {accepted:true,delivery:outcome.delivery};
   }catch(error){
     // Do not log customer subscription URLs, bot token or payment credentials.
     console.error('Vainah delivery status:',stage);
