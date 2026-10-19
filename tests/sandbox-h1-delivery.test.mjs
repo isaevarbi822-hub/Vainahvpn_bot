@@ -39,7 +39,7 @@ function backend(proof,config={}) {
     if(url==='https://rollypay.io/api/v1/payments/pay_SANDBOX1234')
       return reply({payment_id:'pay_SANDBOX1234',order_id:config.orderId||'bogus',
         payment_currency:'RUB',amount:'10.00',test:true,environment:'sandbox',
-        status:config.paymentStatus||'paid'});
+        status:config.paymentStatus||'paid',...(config.paymentOverride||{})});
     if(url==='https://h1panel.example.test/api/clients/'+name)
       return state.created||config.existing?reply({ok:true,client:config.client||goodClient}):
         reply({ok:false,error:'user_not_found'},404);
@@ -120,4 +120,30 @@ test('provider says unpaid or live: H1 and Telegram must not be touched',async()
       e=>e.code==='TEST_PAYMENT_NOT_PAID');
     assert.equal(r.requests.filter(x=>x.url!=='https://rollypay.io/api/v1/payments/pay_SANDBOX1234').length,0);
   }
+});
+
+test('signed paid sandbox receipt with omitted GET fields creates only separate 1-day demo and notifies Telegram',async()=>{
+ const ticket=await proof();
+ const orderId=JSON.parse(Buffer.from(ticket.split('.')[0],'base64url')).orderId;
+ const backendCase=backend(ticket,{orderId,paymentOverride:{
+   test:undefined,environment:undefined,amount:undefined,payment_currency:undefined
+ }});
+ const result=await deliverPaidSandboxProfile(id,ticket,{env,now,fetcher:backendCase.fetcher});
+ assert.equal(result.test,true);
+ assert.equal(result.sent,true);
+ assert.equal(result.created,true);
+ assert.equal(backendCase.requests.filter(x=>x.url.endsWith('/api/create')).length,1);
+ assert.equal(backendCase.requests.filter(x=>x.method==='PATCH'||x.method==='DELETE').length,0);
+ assert.equal(backendCase.requests.some(x=>x.url.includes('/api/clients/tg'+id)),false);
+});
+test('different explicit paid amount never reaches H1Cloud or Telegram',async()=>{
+ const ticket=await proof();
+ const orderId=JSON.parse(Buffer.from(ticket.split('.')[0],'base64url')).orderId;
+ const backendCase=backend(ticket,{orderId,paymentOverride:{
+   amount:'1000',test:undefined,environment:undefined
+ }});
+ await assert.rejects(deliverPaidSandboxProfile(id,ticket,{
+   env,now,fetcher:backendCase.fetcher
+ }),e=>e.code==='PROVIDER_AMOUNT_MISMATCH');
+ assert.equal(backendCase.requests.filter(x=>!x.url.startsWith('https://rollypay.io/')).length,0);
 });
