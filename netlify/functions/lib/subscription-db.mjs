@@ -120,7 +120,8 @@ export async function claimDelivery(orderId) {
     `UPDATE vpn_orders SET delivery_state='processing',
        delivery_lease_until=now()+interval '90 seconds',updated_at=now()
      WHERE id=$1 AND status='paid' AND (
-       delivery_state IN ('pending','retry') OR
+       delivery_state = 'pending' OR
+       (delivery_state = 'retry' AND updated_at < now()-interval '90 seconds') OR
        (delivery_state='processing' AND delivery_lease_until<now()))
      RETURNING *`,[orderId]);
   return r.rows[0]||null;
