@@ -128,9 +128,9 @@ export async function claimDelivery(orderId) {
      RETURNING *`,[orderId]);
   return r.rows[0]||null;
 }
-export async function deliveryDone(orderId) {
-  const pool=await getPool();
-  await pool.query(
+export async function deliveryDone(orderId,lockedDb=null) {
+  const db=lockedDb||await getPool();
+  await db.query(
     `UPDATE vpn_orders SET delivery_state='delivered',notification_sent_at=now(),
        delivery_lease_until=NULL,last_delivery_error=NULL,updated_at=now()
        WHERE id=$1 AND delivery_state='processing'`,[orderId]);
@@ -143,10 +143,10 @@ export async function deliveryRetry(orderId,reason='DELIVERY_FAILED') {
        WHERE id=$1 AND delivery_state='processing'`,[orderId,reason]);
 }
 
-export async function findMappedClientName(telegramId) {
-  if(!process.env.DATABASE_URL)return null;
-  const pool=await getPool();
-  const response=await pool.query(
+export async function findMappedClientName(telegramId,lockedDb=null) {
+  if(!process.env.DATABASE_URL&&!lockedDb)return null;
+  const db=lockedDb||await getPool();
+  const response=await db.query(
     'SELECT client_name FROM vpn_customers WHERE telegram_id=$1',[telegramId]
   );
   return response.rows[0]?.client_name||null;
