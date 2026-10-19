@@ -20,5 +20,5 @@ export function checkoutReady(env=process.env) {
   // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
   const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
     'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
-  return env.VAINAH_LIVE_CHECKOUT==='enabled-after-review' && env.PANEL_CLIENT_MAPPING_VERIFIED==='true' && required.every(key=>Boolean(env[key])) && planCatalog(env).every(p=>p.kopeks!==null);
+  // Checkout is intentionally locked until the production system passes a separate review.\n  // Do not unlock through environment variables alone.\n  return false;
 }
