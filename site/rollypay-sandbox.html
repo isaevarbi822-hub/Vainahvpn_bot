@@ -39,7 +39,7 @@ li{margin:9px 0;color:#c0bed2}
 <nav><a href="index.html" class="brand">◆ VAINAH VPN</a><a href="account.html">← Мой VPN</a></nav>
 <span class="pill">🧪 SANDBOX · БЕЗ РЕАЛЬНЫХ ДЕНЕГ</span>
 <h1>Проверяем оплату <span style="color:#bb9aff">RollyPay.</span></h1>
-<p class="lead">Проверка связи сайта с платёжной кассой. Здесь нельзя купить VPN: тест не создаёт заказ в базе, не меняет срок подписки и не отправляет ключи. Стоимость <strong>10,00 ₽ — только демонстрационная</strong>.</p>
+<p class="lead">Проверка связи сайта с платёжной кассой. Здесь нельзя купить VPN за настоящие деньги. Основную подписку мы не меняем: после подтверждённого тестового платежа можно отдельно проверить выдачу демонстрационного VPN-профиля на 1 день. Стоимость <strong>10,00 ₽ — только демонстрационная</strong>.</p>
 <section>
 <h2>1. Вход через Telegram</h2>
 <div id="auth-status" class="status" aria-live="polite">Проверяем аккаунт…</div>
@@ -64,12 +64,20 @@ li{margin:9px 0;color:#c0bed2}
 <div id="result-status" class="status" aria-live="polite">Тестовый платёж ещё не создан.</div>
 <div class="actions"><button id="status-check" type="button">Проверить статус</button></div>
 </section>
+<section>
+<h2>4. Тестовая выдача VPN в Telegram</h2>
+<p class="muted">Если владелец разрешил отдельный тест через настройку Netlify, после подтверждения оплаченного sandbox-счёта сервер создаёт профиль <code>vainah_sbx_…</code> на <strong>1 день</strong> и отправляет ссылку в <a href="https://t.me/Vainahvpn_bot" target="_blank" rel="noopener noreferrer" style="color:#d0b8ff">@Vainahvpn_bot</a>. Твой обычный профиль <code>tg…</code> не изменяется. Повторная проверка не добавляет дни.</p>
+<div id="delivery-status" class="status" aria-live="polite">Проверяем доступность тестовой выдачи…</div>
+<p class="muted">После симуляции оплаты вернись в эту вкладку. При возвращении мы автоматически проверим её статус и, если тестовая выдача разрешена, отправим профиль в Telegram. Кнопка «Проверить статус» тоже работает.</p>
+</section>
 <script>
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
 const auth=$('auth-status'),createStatus=$('create-status'),resultStatus=$('result-status');
-const create=$('create'),pay=$('pay-link'),check=$('status-check');
+const create=$('create'),pay=$('pay-link'),check=$('status-check'),deliveryStatus=$('delivery-status');
+let deliveryReady=false,checking=false,lastAutoCheck=0;
+let deliveredOrder='';try{deliveredOrder=sessionStorage.getItem('vainah-sandbox-delivered-order')||'';}catch{}
 let proof='';try{proof=sessionStorage.getItem('vainah-rollypay-sandbox-proof')||'';}catch{}
 function showProof(){
   check.style.display=proof?'inline-flex':'none';
@@ -78,7 +86,7 @@ function showProof(){
 async function api(path,options={}){
  const r=await fetch('/.netlify/functions/'+path,{credentials:'same-origin',cache:'no-store',...options});
  const data=await r.json().catch(()=>({}));
- if(!r.ok){const code=typeof data.diagnostic==='string'&&/^PROVIDER_[A-Z0-9_]{3,50}$/.test(data.diagnostic)?' [Код: '+data.diagnostic+']':'';throw Error((data.error||'Ошибка запроса')+code);}
+ if(!r.ok){const code=typeof data.diagnostic==='string'&&/^(?:PROVIDER|TEST)_[A-Z0-9_]{3,70}$/.test(data.diagnostic)?' [Код: '+data.diagnostic+']':'';throw Error((data.error||'Ошибка запроса')+code);}
  return data;
 }
 async function action(body){
@@ -94,9 +102,12 @@ async function start(){
    $('owner-id').textContent=id;
    $('owner-help').hidden=false;
    const permission=await api('rollypay-sandbox');
-   if(!permission.allowed){createStatus.textContent='Нужно добавить в Netlify переменную VAINAH_SANDBOX_TELEGRAM_ID со своим Telegram ID и дождаться нового deploy. API-ключ никому не показывай.';return;}
+   if(!permission.allowed){createStatus.textContent='Нужно добавить в Netlify переменную VAINAH_SANDBOX_TELEGRAM_ID со своим Telegram ID и дождаться нового deploy. API-ключ никому не показывай.';deliveryStatus.textContent='Выдача доступна только владельцу.';return;}
    create.disabled=false;
    createStatus.textContent='Готово! Тест доступен. 10 ₽ — условная сумма, реальные деньги не списываются.';
+   deliveryReady=permission.deliveryReady===true;
+   deliveryStatus.textContent=deliveryReady?'Тестовая выдача включена. После успешной симуляции бот пришлёт отдельный тестовый профиль.':'Тестовая выдача VPN пока отключена. Чтобы разрешить только её, добавь в Netlify переменную VAINAH_SANDBOX_H1_DELIVERY со значением enabled-test-only, затем дождись Deploy.';
+   if(proof&&deliveryReady)void checkStatus(true);
  }catch(e){auth.textContent='Не удалось проверить доступ: '+e.message;}
 }
 $('copy-id').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('owner-id').textContent);$('copy-id').textContent='Скопировано ✓';}catch{$('copy-id').textContent='Не удалось скопировать';}});
@@ -106,20 +117,39 @@ create.addEventListener('click',async()=>{
    const p=await action({action:'create'});
    if(p.test!==true||!p.payUrl||!p.proof)throw Error('Ответ сервера не подтверждает sandbox');
    proof=p.proof;
-   try{sessionStorage.setItem('vainah-rollypay-sandbox-proof',proof);}catch{}
+   deliveredOrder='';try{sessionStorage.removeItem('vainah-sandbox-delivered-order');sessionStorage.setItem('vainah-rollypay-sandbox-proof',proof);}catch{}
    createStatus.textContent='Тест создан! Нажми «Открыть тестовую форму» и проверь надпись «Тестовый режим».';
    pay.href=p.payUrl;pay.style.display='inline-flex';
    showProof();
  }catch(e){createStatus.textContent='Ошибка: '+e.message;create.disabled=false;}
 });
-check.addEventListener('click',async()=>{
- check.disabled=true;resultStatus.textContent='Проверяем состояние в RollyPay…';
+async function checkStatus(automatic=false){
+ if(!proof||checking)return;
+ checking=true;check.disabled=true;
+ if(!automatic)resultStatus.textContent='Проверяем состояние в RollyPay…';
  try{
    const result=await action({action:'status',proof});
    const map={created:'Ожидает симуляции оплаты',processing:'Обрабатывается',paid:'✅ Тест успешно подтверждён',canceled:'❌ Тест отменён',expired:'⌛ Тест истёк'};
    resultStatus.textContent=(map[result.status]||'Статус не определён')+'. '+result.note;
- }catch(e){resultStatus.textContent='Ошибка проверки: '+e.message;}
- finally{check.disabled=false;}
+   if(result.status==='paid'&&deliveryReady&&deliveredOrder!==result.orderId){
+     deliveryStatus.textContent='RollyPay подтвердил sandbox. Проверяем тестовый профиль в H1Cloud и отправляем в Telegram…';
+     try{
+       const sent=await action({action:'deliver',proof});
+       if(sent.test!==true||sent.sent!==true)throw Error('Выдача не подтверждена сервером');
+       deliveredOrder=result.orderId;
+       try{sessionStorage.setItem('vainah-sandbox-delivered-order',deliveredOrder);}catch{}
+       deliveryStatus.textContent='✅ Готово! '+(sent.created?'Создан отдельный тестовый профиль на 1 день. ':'Использован существующий тестовый профиль, без продления. ')+
+         'Ссылка отправлена в Telegram. Основная подписка не изменена.';
+     }catch(e){deliveryStatus.textContent='Ошибка тестовой выдачи: '+e.message;}
+   }
+ }catch(e){if(!automatic)resultStatus.textContent='Ошибка проверки: '+e.message;}
+ finally{checking=false;check.disabled=false;}
+}
+check.addEventListener('click',()=>{void checkStatus(false);});
+window.addEventListener('focus',()=>{
+ if(!deliveryReady||!proof||document.visibilityState!=='visible')return;
+ const now=Date.now();if(now-lastAutoCheck<15000)return;
+ lastAutoCheck=now;void checkStatus(true);
 });
 showProof();
 start();

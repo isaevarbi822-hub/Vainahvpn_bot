@@ -205,3 +205,27 @@ test('does not accept a real payment just because its PayForm URL passes validat
       e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
   }
 });
+
+test('test fulfillment endpoint refuses anonymous, other-origin or unenabled requests',async()=>{
+  const keys=['SESSION_SIGNING_KEY','VAINAH_SANDBOX_TELEGRAM_ID','ROLLYPAY_API_KEY',
+    'PUBLIC_SITE_ORIGIN','VAINAH_SANDBOX_H1_DELIVERY'];
+  const old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));
+  Object.assign(process.env,{...env,PUBLIC_SITE_ORIGIN:'https://vpn.example.test',VAINAH_SANDBOX_H1_DELIVERY:''});
+  const u='https://vpn.example.test/.netlify/functions/rollypay-sandbox';
+  try{
+    const makeReq=(origin,cookie)=>new Request(u,{method:'POST',headers:{
+      origin,...(cookie?{cookie}:{})},body:JSON.stringify({action:'deliver',proof:'bad-proof'})});
+    assert.equal((await endpoint(makeReq('https://vpn.example.test'))).status,401);
+    const session=makeSession({telegramId:id},env.SESSION_SIGNING_KEY);
+    const cookie='__Host-vainah_session='+session;
+    assert.equal((await endpoint(makeReq('https://attacker.example',cookie))).status,403);
+    const result=await endpoint(makeReq('https://vpn.example.test',cookie));
+    assert.equal(result.status,503);
+    const data=await result.json();
+    assert.equal(data.diagnostic,'TEST_DELIVERY_DISABLED');
+    const get=await endpoint(new Request(u,{headers:{cookie}}));
+    assert.deepEqual(await get.json(),{allowed:true,deliveryReady:false});
+  }finally{
+    for(const [k,v]of Object.entries(old))if(v===undefined)delete process.env[k];else process.env[k]=v;
+  }
+});
