@@ -27,7 +27,7 @@ export default async function handler(request){
     const amount=parseRubPrice(String(verified.amount||''));
     if(verified.order_id!==event.order_id || verified.payment_id!==event.payment_id ||
        verified.payment_currency!=='RUB' || amount===null ||
-       verified.status!==event.status || verified.test===true){
+       verified.status!==event.status || verified.test===true || verified.environment==='sandbox'){
       return json({error:'Payment provider mismatch'},409);
     }
     const result=await updateVerifiedPayment({
