@@ -37,6 +37,7 @@ footer{border-top:1px solid #2a2e43;margin-top:95px;padding:49px 0 36px;backgrou
  const loginStatus=document.getElementById('telegram-login-status'),notice=document.getElementById('checkout-notice');
  const cards=document.getElementById('order-plan-grid'),buy=document.getElementById('checkout-pay');
  const widget=document.getElementById('telegram-login-widget'),logout=document.getElementById('telegram-logout');
+ const insideTelegramMiniApp=Boolean(window.Telegram?.WebApp?.initData);
  let account=null,plans=[],ready=false,selected=new URLSearchParams(location.search).get('plan')||'30';
  const setNotice=text=>{notice.textContent=text};
  const username=u=>u?.username?'@'+u.username:'Telegram ID '+(u?.telegramId||u?.id||'');
@@ -59,8 +60,9 @@ footer{border-top:1px solid #2a2e43;margin-top:95px;padding:49px 0 36px;backgrou
      a.append(duration,title,price,btn);cards.appendChild(a);
    }
    const p=plans.find(x=>x.id===selected);
-   buy.disabled=!ready||!account||!p||p.priceRub===null;
-   if(!ready)setNotice('Приём реальных платежей пока не активирован. Это безопасно: деньги не списываются.');
+   buy.disabled=insideTelegramMiniApp||!ready||!account||!p||p.priceRub===null;
+   if(insideTelegramMiniApp)setNotice('Покупки VPN внутри Telegram не оформляются через RollyPay. Открой самостоятельный сайт в обычном браузере.');
+   else if(!ready)setNotice('Приём реальных платежей пока не активирован. Это безопасно: деньги не списываются.');
    else if(!account)setNotice('Сначала войди через Telegram. Ключ придёт только в подтверждённый чат.');
    else setNotice('После проверки выбрано: '+p.title+' за '+p.priceRub+' ₽. Нажми продолжить, чтобы создать заказ в RollyPay.');
  }
