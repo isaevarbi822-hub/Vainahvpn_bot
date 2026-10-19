@@ -70,7 +70,8 @@ export async function updateVerifiedPayment({orderId,paymentId,status,amountKope
       order.currency!==currency || Number(order.amount_kopeks)!==amountKopeks) return {error:'Mismatch'};
     if(status==='paid') {
       if(order.status==='paid') return {order,duplicate:true};
-      if(!['awaiting_payment'].includes(order.status)) return {error:'Unexpected payment state'};
+      // RollyPay can confirm a bank payment after an earlier expired event.
+      if(!['awaiting_payment','expired','canceled'].includes(order.status)) return {error:'Unexpected payment state'};
       const done=await db.query(
         `UPDATE vpn_orders SET status='paid',paid_at=now(),updated_at=now()
          WHERE id=$1 RETURNING *`,[orderId]);
