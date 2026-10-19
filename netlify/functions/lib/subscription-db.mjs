@@ -140,3 +140,12 @@ export async function deliveryRetry(orderId,reason='DELIVERY_FAILED') {
        last_delivery_error=$2,updated_at=now()
        WHERE id=$1 AND delivery_state='processing'`,[orderId,reason]);
 }
+
+export async function findMappedClientName(telegramId) {
+  if(!process.env.DATABASE_URL)return null;
+  const pool=await getPool();
+  const response=await pool.query(
+    'SELECT client_name FROM vpn_customers WHERE telegram_id=$1',[telegramId]
+  );
+  return response.rows[0]?.client_name||null;
+}
