@@ -1,6 +1,7 @@
 import {json} from './lib/security.mjs';
 import {sameOrigin,sessionFromRequest} from './lib/telegram-identity.mjs';
 import {sandboxAllowed,createSandboxPayment,checkSandboxPayment,SandboxError} from './lib/rollypay-sandbox.mjs';
+import {sandboxDeliveryReady,deliverPaidSandboxProfile,SandboxDeliveryError} from './lib/sandbox-h1-delivery.mjs';
 
 const explanations={
   SANDBOX_NOT_ALLOWED:'Тест доступен только владельцу. Укажи VAINAH_SANDBOX_TELEGRAM_ID в Netlify.',
@@ -27,13 +28,29 @@ const explanations={
   PROVIDER_HTTP_502:'RollyPay временно недоступен (HTTP 502).',
   PROVIDER_HTTP_503:'RollyPay временно недоступен (HTTP 503).',
   PROVIDER_SANDBOX_MISMATCH:'RollyPay не подтвердил безопасный тестовый режим.',
-  INVALID_TEST_SESSION:'Срок теста истёк или проверка не прошла. Создай новый тест.'
+  INVALID_TEST_SESSION:'Срок теста истёк или проверка не прошла. Создай новый тест.',
+  TEST_DELIVERY_DISABLED:'Тестовая выдача VPN отключена. Проверь отдельную настройку Netlify.',
+  TEST_OWNER_INVALID:'Не удалось проверить владельца тестового профиля.',
+  TEST_PAYMENT_NOT_PAID:'RollyPay пока не подтвердил успешный тестовый платёж.',
+  TEST_CLIENT_NAME_COLLISION:'Имя тестового профиля совпало с основным. Операция запрещена.',
+  TEST_PANEL_UNREACHABLE:'H1Cloud пока недоступен для теста.',
+  TEST_PANEL_UNAUTHORIZED:'H1Cloud отклонил доступ к панели.',
+  TEST_PANEL_INVALID_RESPONSE:'H1Cloud вернул неожиданный ответ.',
+  TEST_PANEL_CREATE_FAILED:'H1Cloud не смог создать демонстрационный профиль.',
+  TEST_PANEL_READ_FAILED:'H1Cloud не смог проверить демонстрационный профиль.',
+  TEST_PANEL_CREATE_NOT_VISIBLE:'Новый тестовый профиль пока не появился в панели.',
+  TEST_PANEL_PROFILE_MISMATCH:'Панель вернула другой профиль. Изменения запрещены.',
+  TEST_PANEL_PROFILE_UNSAFE:'Уже существует неподходящий тестовый профиль. Ничего не изменено.',
+  TEST_PANEL_LINK_INVALID:'Нет безопасной ссылки на тестовый VPN.',
+  TEST_TELEGRAM_UNREACHABLE:'Не получилось связаться с Telegram.',
+  TEST_TELEGRAM_START_BOT:'Открой @Vainahvpn_bot и нажми Start, затем повтори тестовую проверку.',
+  TEST_TELEGRAM_SEND_FAILED:'Бот не подтвердил доставку тестовой ссылки.'
 };
 export default async function handler(request){
   if(request.method!=='GET'&&request.method!=='POST')return json({error:'Method not allowed'},405);
   const user=sessionFromRequest(request);
   if(!user)return json({error:'Сначала войди через Telegram на сайте'},401);
-  if(request.method==='GET')return json({allowed:sandboxAllowed(user.telegramId)});
+  if(request.method==='GET')return json({allowed:sandboxAllowed(user.telegramId),deliveryReady:sandboxDeliveryReady(user.telegramId)});
   if(!sameOrigin(request))return json({error:'Неверный источник запроса'},403);
   if(!sandboxAllowed(user.telegramId))return json({error:explanations.SANDBOX_NOT_ALLOWED},403);
   let data;
@@ -52,9 +69,14 @@ export default async function handler(request){
       const result=await checkSandboxPayment(user.telegramId,data?.proof);
       return json(result);
     }
+    if(data?.action==='deliver'){
+      // Revalidate the signed TEST proof through RollyPay before any H1 API call.
+      const result=await deliverPaidSandboxProfile(user.telegramId,data?.proof);
+      return json(result);
+    }
     return json({error:'Неизвестное действие'},400);
   }catch(e){
-    const code=e instanceof SandboxError?e.code:'SANDBOX_UNAVAILABLE';
+    const code=e instanceof SandboxError||e instanceof SandboxDeliveryError?e.code:'SANDBOX_UNAVAILABLE';
     console.warn('Vainah RollyPay sandbox diagnostic:',code); // No API keys or payment URLs.
     return json({error:explanations[code]||'Не получилось проверить тестовый платёж. Повтори позже.',
       diagnostic:code},503);

@@ -143,3 +143,16 @@ Sandbox `payment_id` считается непрозрачным ID RollyPay: п
 
 
 Sandbox PayForm `pay_url`: документация RollyPay задаёт `https://pay.rollypay.io/pay/<token>` без требования обязательного префикса `tok_`. Валидатор проверяет HTTPS, точный домен, отсутствие userinfo/hash/query, один безопасный path-сегмент и максимальную длину. Для ошибочного ответа возвращаются только `PROVIDER_PAY_URL_MISSING`, `PROVIDER_PAY_URL_MALFORMED`, `PROVIDER_PAY_URL_UNSAFE_ORIGIN`, `PROVIDER_PAY_URL_UNEXPECTED_PATH`, без ссылок и токенов. Контроль `test:true` и `environment:sandbox` обязателен.
+
+### Тестовая выдача после sandbox-оплаты (по умолчанию ОТКЛЮЧЕНА)
+
+После успешного RollyPay sandbox теста сайт может создать один отдельный H1Cloud профиль на **1 день** и прислать ссылку через Telegram-бота. Для разрешения только этой операции добавь в Netlify:
+
+- **Key:** `VAINAH_SANDBOX_H1_DELIVERY`
+- **Value:** `enabled-test-only`
+
+Для проверки уже нужны существующие секреты `PANEL_BASE_URL`, `PANEL_API_TOKEN`, `TELEGRAM_BOT_TOKEN`, `SESSION_SIGNING_KEY`, `ROLLYPAY_API_KEY` и числовой Telegram ID владельца в `VAINAH_SANDBOX_TELEGRAM_ID`. Секреты не копировать в сообщения, логи, GitHub и скриншоты.
+
+На странице `/rollypay-sandbox.html` при возвращении из тестовой формы или ручном нажатии сервер читает RollyPay по короткоживущему подписанному proof. Если результат `paid` с `test:true`, `environment:"sandbox"` и верными order_id, payment_id, суммой и валютой, отдельное действие `deliver` **ещё раз** проверяет всё по API RollyPay. Только затем H1 получает `GET /api/clients/vainah_sbx_<ID>` и при отсутствии профиля — ровно `POST /api/create` с `days:1`, `device_limit:1`. Профили `tg<ID>` не затрагиваются; вызовов PATCH/DELETE нет, повторные проверки не прибавляют дни. Секретная VPN-ссылка отправляется через Telegram API только вошедшему владельцу, никогда не возвращается в браузер.
+
+**Важно:** это владелец-only sandbox, а не платёжный продукт для клиентов. Без отдельной БД и безопасного callback мы не гарантируем однократность сообщения и не можем выдать VPN при полностью закрытом браузере. Возможна повторная отправка ссылки при повторной проверке, но не дополнительное продление. Для production нужны транзакционная база заказов, проверенная идемпотентность, повторная проверка событий и перевыпущенный ранее раскрытый webhook signing secret. `VAINAH_LIVE_CHECKOUT` остаётся выключенным.
