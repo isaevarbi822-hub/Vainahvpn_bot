@@ -31,9 +31,9 @@ export async function insertCheckout({id,telegramId,username,plan}) {
        AND status IN ('created','awaiting_payment')`,[telegramId]);
     if(outstanding.rows[0].count>=2) return null;
     await db.query(
-      `INSERT INTO vpn_orders(id,telegram_id,plan_days,amount_kopeks,currency,provider,source,is_test)
-       VALUES($1,$2,$3,$4,'RUB','rollypay','website',false)`,
-       [id,telegramId,plan.days,plan.kopeks]);
+      `INSERT INTO vpn_orders(id,telegram_id,plan_days,device_limit,amount_kopeks,currency,provider,source,is_test)
+       VALUES($1,$2,$3,$4,$5,'RUB','rollypay','website',false)`,
+       [id,telegramId,plan.days,plan.deviceLimit,plan.kopeks]);
     return {id};
   });
 }
