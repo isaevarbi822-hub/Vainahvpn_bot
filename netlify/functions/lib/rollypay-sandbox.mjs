@@ -3,6 +3,10 @@ import {createHmac,randomUUID,timingSafeEqual} from 'node:crypto';
 const API='https://rollypay.io/api/v1/payments';
 const AMOUNT='10.00'; // Demonstration amount only. ALWAYS sandbox.
 const ORDER_PREFIX='vainah-sandbox-';
+// RollyPay payment_id is an opaque provider-generated path segment. Do not
+// assume a pay_ prefix: SDK/docs also refer to a generic payment UUID.
+// Only allow unreserved URL-safe characters and a bounded length.
+const PAYMENT_ID=/^[A-Za-z0-9][A-Za-z0-9_-]{5,127}$/;
 const STATES=new Set(['created','processing','paid','canceled','expired']);
 
 export class SandboxError extends Error {
@@ -29,7 +33,7 @@ function unseal(proof,secret,telegramId,now=Date.now()){
   catch{throw new SandboxError('INVALID_TEST_SESSION')}
   if(data?.id!==telegramId||!Number.isInteger(data.exp)||data.exp<now/1000||
     data.exp>now/1000+7200||
-    !/^pay_[A-Za-z0-9_-]{8,100}$/.test(data.paymentId||'')||
+    !PAYMENT_ID.test(data.paymentId||'')||
     !/^vainah-sandbox-[0-9a-f-]{36}$/.test(data.orderId||''))throw new SandboxError('INVALID_TEST_SESSION');
   return data;
 }
@@ -82,8 +86,12 @@ export async function createSandboxPayment(telegramId,{env=process.env,fetcher=f
     test:true
   },{env,fetcher});
   confirmSandbox(data,{orderId});
-  if(!/^pay_[A-Za-z0-9_-]{8,100}$/.test(data.payment_id||''))
-    throw new SandboxError('PROVIDER_PAYMENT_ID_INVALID');
+  if(!PAYMENT_ID.test(data.payment_id||''))
+    throw new SandboxError(
+      typeof data.payment_id !== 'string' || !data.payment_id
+        ? 'PROVIDER_PAYMENT_ID_MISSING'
+        : 'PROVIDER_PAYMENT_ID_INVALID'
+    );
   let url;
   try{url=new URL(data.pay_url)}catch{throw new SandboxError('PROVIDER_PAY_URL_INVALID')}
   if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||

@@ -137,3 +137,6 @@ Node 20+: `npm test`.
 #### Безопасная диагностика RollyPay sandbox
 
 Если интерфейс показывает `[Код: PROVIDER_…]`, это код диагностики без токена, личных данных и ссылок: HTTP-ошибки проверяются *до* JSON-разбора, поэтому даже HTML-страница при ошибке авторизации не маскируется общей ошибкой формата. `PROVIDER_RESPONSE_NOT_JSON` означает, что сервис ответил на 2xx не-JSON; `PROVIDER_PAYMENT_ID_INVALID`, `PROVIDER_PAY_URL_INVALID` — несовместимый или небезопасный формат обязательных полей; `PROVIDER_SANDBOX_MISMATCH` — отсутствие строгого `test:true`, `environment:"sandbox"` или несовпадение ID/суммы. **Не копировать сырой HTTP-ответ и не снимать ограничения**. Настоящие покупки остаются отключены.
+
+
+Sandbox `payment_id` считается непрозрачным ID RollyPay: поддерживаются ограниченные URL-safe строки, включая `pay_…`, UUID и ULID, без передачи сырого ID на клиент и без подстановки в URL вне фиксированного `GET /api/v1/payments/{id}`. Если `payment_id` отсутствует, диагностируется `PROVIDER_PAYMENT_ID_MISSING` без раскрытия тела ответа. Требования к `test:true`, `environment:sandbox`, точной сумме, `order_id` и владельцу Telegram неизменны.

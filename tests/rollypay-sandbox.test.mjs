@@ -108,7 +108,7 @@ test('200 HTML response produces a safe distinct diagnostic without leaking HTML
 });
 test('Malformed payment ID, unsafe/missing pay URL receive separate diagnostic codes',async()=>{
   for(const testCase of [
-    {fields:{payment_id:''},code:'PROVIDER_PAYMENT_ID_INVALID'},
+    {fields:{payment_id:''},code:'PROVIDER_PAYMENT_ID_MISSING'},
     {fields:{pay_url:null},code:'PROVIDER_PAY_URL_INVALID'},
     {fields:{pay_url:'https://wrong.example/pay/tok_abcdefgh'},code:'PROVIDER_PAY_URL_INVALID'},
     {fields:{pay_url:'https://pay.rollypay.io/pay/../admin'},code:'PROVIDER_PAY_URL_INVALID'}
@@ -125,5 +125,38 @@ test('missing required sandbox markers are still rejected',async()=>{
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
       e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
+  }
+});
+
+test('Accepts bounded URL-safe opaque provider payment IDs, not just pay_ prefix',async()=>{
+  for(const providerId of [
+    '6a92dcb3-dbf2-4aca-872d-0d34cc3b482a',
+    '01JAV3M97MX07CKJSBQ6G0T79W',
+    'pay_a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    'sand_ABC-123456789',
+  ]){
+    let originalBody;
+    const created=await createSandboxPayment(id,{env,now:1800000000000,
+      fetcher:async(_url,options)=>{
+        originalBody=JSON.parse(options.body);
+        return response(jsonPayment(originalBody,{payment_id:providerId}));
+      }});
+    assert.ok(created.proof);
+    const checked=await checkSandboxPayment(id,created.proof,{env,now:1800000000000,
+      fetcher:async(url,options)=>{
+        assert.equal(url,'https://rollypay.io/api/v1/payments/'+providerId);
+        assert.equal(options.method,'GET');
+        return response(jsonPayment(originalBody,{payment_id:providerId,status:'paid'}));
+      }});
+    assert.equal(checked.status,'paid');
+    assert.equal(checked.test,true);
+  }
+});
+test('Rejects provider ID path traversal, URL injection, unbounded IDs and missing IDs',async()=>{
+  for(const providerId of [null,123,'','/admin','pay_../../private',
+    'pay_x?debug=1','pay_x#anchor','pay_x%2Fprivate','x'.repeat(129),'x','a b']){
+    await assert.rejects(createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),{payment_id:providerId}))}),
+      e=>e.code===((typeof providerId!=='string'||!providerId)?'PROVIDER_PAYMENT_ID_MISSING':'PROVIDER_PAYMENT_ID_INVALID'));
   }
 });
