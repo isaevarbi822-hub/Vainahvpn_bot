@@ -19,6 +19,6 @@ export function planById(id,env=process.env) {return planCatalog(env).find(plan=
 export function checkoutReady(env=process.env) {
   // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
   const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
-    'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PANEL_INBOUND_IDS','PUBLIC_SITE_ORIGIN'];
+    'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
   return env.VAINAH_LIVE_CHECKOUT==='enabled-after-review' && env.PANEL_CLIENT_MAPPING_VERIFIED==='true' && required.every(key=>Boolean(env[key])) && planCatalog(env).every(p=>p.kopeks!==null);
 }

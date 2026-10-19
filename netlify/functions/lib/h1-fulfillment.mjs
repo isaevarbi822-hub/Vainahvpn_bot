@@ -1,5 +1,21 @@
 import {getPool,findMappedClientName,getInternalOrder,claimDelivery,reserveExpiry,deliveryDone,deliveryRetry} from './subscription-db.mjs';
 
+
+/** H1 /api/create requires {name,days}; custom inbound selection is optional. */
+export function h1CreatePayload({name,days,inboundIds=[],deviceLimit=3,trafficLimitGb=0}){
+  if(!/^[A-Za-z0-9._-]{1,64}$/.test(name)||!Number.isInteger(days)||days<1||days>3650)
+    throw Error('H1_CREATE_PARAMETERS_INVALID');
+  const payload={name,days};
+  if(Array.isArray(inboundIds)&&inboundIds.length){
+    if(inboundIds.some(x=>!/^[0-9]+$/.test(String(x))))throw Error('H1_BAD_INBOUND_IDS');
+    payload.inbound_ids=[String(inboundIds[0])];
+    payload.channels=[];
+  }
+  if(Number.isInteger(deviceLimit)&&deviceLimit>=1&&deviceLimit<=100)payload.device_limit=deviceLimit;
+  if(Number.isFinite(trafficLimitGb)&&trafficLimitGb>0&&trafficLimitGb<=100000)payload.traffic_limit_gb=trafficLimitGb;
+  return payload;
+}
+
 async function withCustomerDeliveryLock(telegramId,work) {
   const db=await (await getPool()).connect();
   try{
@@ -15,11 +31,14 @@ async function withCustomerDeliveryLock(telegramId,work) {
 }
 
 function panelConfig(){
-  const base=(process.env.PANEL_BASE_URL||'').replace(/\/+$/,'');
-  if(!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?(?:\/[a-z0-9_-]+)*$/i.test(base) ||
-      !process.env.PANEL_API_TOKEN) throw Error('H1_PANEL_NOT_CONFIGURED');
+  const raw=String(process.env.PANEL_BASE_URL||'').trim();
+  if(!raw||!process.env.PANEL_API_TOKEN)throw Error('H1_PANEL_NOT_CONFIGURED');
+  let u;
+  try{u=new URL(raw)}catch{throw Error('H1_PANEL_URL_INVALID')}
+  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||
+     !['/','/api','/api/'].includes(u.pathname))throw Error('H1_PANEL_URL_INVALID');
+  const base=u.origin;
   const ids=(process.env.PANEL_INBOUND_IDS||'').split(',').map(x=>x.trim()).filter(x=>/^\d+$/.test(x));
-  if(!ids.length)throw Error('H1_INBOUNDS_NOT_CONFIGURED');
   return {base,ids};
 }
 async function panel(path,options={}) {
@@ -30,12 +49,12 @@ async function panel(path,options={}) {
       ...(options.body?{'Content-Type':'application/json'}:{})}
   });
   const data=await res.json().catch(()=>({}));
-  if(res.status===404) return null;
-  if(!res.ok||data.ok===false) throw Error('H1_HTTP_'+res.status);
+  if(res.status===404 && data?.error==='user_not_found')return null;
+  if(!res.ok||data?.ok!==true)throw Error('H1_HTTP_'+res.status);
   return data;
 }
 async function userClientName(order) {
-  const prefix=process.env.PANEL_CLIENT_PREFIX||'tg_';
+  const prefix=process.env.PANEL_CLIENT_PREFIX??'tg';
   const mapped=await findMappedClientName(order.telegram_id);
   const name=mapped||prefix+order.telegram_id;
   if(!/^[a-zA-Z0-9_.-]{1,64}$/.test(name))throw Error('H1_BAD_CLIENT_NAME');
@@ -85,13 +104,20 @@ export async function fulfillPaidOrder(orderId) {
       client=result?.client||client;
     } else{
       const {ids}=panelConfig();
-      const result=await panel('/create',{
-        method:'POST',body:JSON.stringify({
-          name,expires_at:expiresAt,manual:true,inbound_ids:[ids[0]],
-          device_limit:Number(process.env.DEVICE_LIMIT||3),traffic_limit_gb:Number(process.env.TRAFFIC_LIMIT_GB||0),channels:[]
-        })
-      });
+      // H1Cloud /create REQUIRES days (not expires_at); apply the booked
+      // absolute expiry afterward with PATCH for safe retries and renewals.
+      const payload=h1CreatePayload({name,days:order.plan_days,inboundIds:ids,
+        deviceLimit:Number(process.env.DEVICE_LIMIT||3),
+        trafficLimitGb:Number(process.env.TRAFFIC_LIMIT_GB||0)});
+      const result=await panel('/create',{method:'POST',body:JSON.stringify(payload)});
       client=result?.client||(await panel('/clients/'+encodeURIComponent(name)))?.client;
+      if(!client)throw Error('H1_CREATE_NOT_CONFIRMED');
+      if(Number(client.expires_at)!==expiresAt){
+        const patched=await panel('/clients/'+encodeURIComponent(name),{
+          method:'PATCH',body:JSON.stringify({expires_at:expiresAt})
+        });
+        client=patched?.client||client;
+      }
     }
     // Confirm the panel sees the intended expiry before sending any access URL.
     const fresh=(await panel('/clients/'+encodeURIComponent(name)))?.client||client;
