@@ -151,3 +151,15 @@ export async function findMappedClientName(telegramId,lockedDb=null) {
   );
   return response.rows[0]?.client_name||null;
 }
+
+/** Latest completed website purchase for authenticated owner's account. */
+export async function latestDeliveredWebsiteOrder(telegramId){
+  const db=await getPool();
+  const r=await db.query(
+    `SELECT id,plan_days,device_limit,paid_at,target_expires_at
+       FROM vpn_orders
+      WHERE telegram_id=$1 AND source='website' AND status='paid'
+        AND delivery_state='delivered'
+      ORDER BY paid_at DESC NULLS LAST LIMIT 1`,[telegramId]);
+  return r.rows[0]||null;
+}
