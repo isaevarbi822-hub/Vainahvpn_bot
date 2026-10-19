@@ -16,10 +16,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Check function syntax
+      - name: Validate all Netlify function syntax
         run: |
-          node --check netlify/functions/lib/security.mjs
-          node --check netlify/functions/rollypay-test.mjs
-          node --check netlify/functions/rollypay-webhook.mjs
-      - name: Run sandbox tests
+          for file in netlify/functions/lib/*.mjs netlify/functions/*.mjs; do
+            node --check "$file"
+          done
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run sandbox and checkout regression tests
         run: npm test
