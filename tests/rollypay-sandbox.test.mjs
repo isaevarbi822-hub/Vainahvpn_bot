@@ -334,3 +334,70 @@ test('legacy signed sandbox-created proof remains valid until its expiry',async(
  assert.equal(result.status,'paid');
 });
 
+
+test('POST never signs missing, malformed or different RUB amount',async()=>{
+ const cases=[
+   [undefined,'PROVIDER_AMOUNT_MISSING'],
+   [null,'PROVIDER_AMOUNT_FORMAT'],
+   ['10.0000000000000000001','PROVIDER_AMOUNT_FORMAT'],
+   ['10,00','PROVIDER_AMOUNT_FORMAT'],
+   ['1e1','PROVIDER_AMOUNT_FORMAT'],
+   ['10.001','PROVIDER_AMOUNT_FORMAT'],
+   ['1000','PROVIDER_AMOUNT_MISMATCH'],
+   ['0.10','PROVIDER_AMOUNT_MISMATCH'],
+   ['10.01','PROVIDER_AMOUNT_MISMATCH']
+ ];
+ for(const [amount,expected] of cases){
+   await assert.rejects(createSandboxPayment(id,{env,
+     fetcher:async(_url,opts)=>response(jsonPayment(JSON.parse(opts.body),{amount}))}),
+     e=>e.code===expected);
+ }
+});
+test('GET accepts extra zero decimal places and absent money fields ONLY with signed creation proof',async()=>{
+ let original;
+ const created=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>{original=JSON.parse(opts.body);return response(jsonPayment(original));}});
+ for(const overrides of [
+   {amount:'10.0000'},
+   {amount:'10.000000000000000000'},
+   {amount:'10.000000000000000000000000000000'},
+   {amount:10},
+   {amount:undefined},
+   {amount:undefined,payment_currency:undefined,currency:undefined,test:undefined,environment:undefined},
+   {amount:undefined,payment_currency:undefined,currency:'RUB',test:undefined,environment:undefined}
+ ]){
+   const result=await checkSandboxPayment(id,created.proof,{env,now:1800000000000,
+     fetcher:async(_url,opts)=>{
+       assert.equal(opts.method,'GET');
+       return response(jsonPayment(original,{status:'paid',...overrides}));
+     }});
+   assert.equal(result.status,'paid');
+   assert.equal(result.test,true);
+ }
+});
+test('GET rejects explicitly wrong or malformed money, prod flags and changed order',async()=>{
+ let original;
+ const created=await createSandboxPayment(id,{env,now:1800000000000,
+   fetcher:async(_url,opts)=>{original=JSON.parse(opts.body);return response(jsonPayment(original));}});
+ const cases=[
+   [{amount:'1000'},'PROVIDER_AMOUNT_MISMATCH'],
+   [{amount:'10.01'},'PROVIDER_AMOUNT_MISMATCH'],
+   [{amount:'10.000000000000000001'},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:'10.001'},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:'10,00'},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:'10.00 RUB'},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:0},'PROVIDER_AMOUNT_MISMATCH'],
+   [{amount:null},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:{value:'10.00'}},'PROVIDER_AMOUNT_FORMAT'],
+   [{amount:undefined,order_id:'another-order'},'PROVIDER_ORDER_MISMATCH'],
+   [{amount:undefined,payment_currency:'EUR'},'PROVIDER_CURRENCY_MISMATCH'],
+   [{amount:undefined,test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+   [{amount:undefined,environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX']
+ ];
+ for(const [overrides,expected] of cases){
+   await assert.rejects(checkSandboxPayment(id,created.proof,{
+     env,now:1800000000000,
+     fetcher:async()=>response(jsonPayment(original,{status:'paid',...overrides}))
+   }),e=>e.code===expected);
+ }
+});

@@ -82,12 +82,15 @@ async function provider(path,method,body,{env,fetcher}){
   return data;
 }
 function rubKopeks(value) {
-  // Exact integer-kopeck comparison, allowing 10, 10.0 or 10.00.
+  // Exact currency comparison; never round or use floating point maths.
+  // 10.0000000000 RUB equals 10.00 RUB, but 1000 RUB does NOT.
   if(typeof value!=='string'&&typeof value!=='number')return null;
-  const text=String(value);
-  if(!/^(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,2})?$/.test(text))return null;
-  const [rub,dec='']=text.split('.');
-  return Number(rub)*100+Number(dec.padEnd(2,'0'));
+  const match=/^([0-9]{1,7})(?:\.([0-9]{1,30}))?$/.exec(String(value));
+  if(!match)return null;
+  const frac=(match[2]||'').padEnd(2,'0');
+  if(/[1-9]/.test(frac.slice(2)))return null;
+  const cents=BigInt(match[1])*100n+BigInt(frac.slice(0,2));
+  return cents<=999999900n?Number(cents):null;
 }
 function confirmSandbox(data,{orderId,paymentId,verifiedCreationProof=false}={}){
   // POST must explicitly confirm BOTH markers before a test receipt is signed.
@@ -107,12 +110,24 @@ function confirmSandbox(data,{orderId,paymentId,verifiedCreationProof=false}={})
   if(data.order_id!==orderId)
     throw new SandboxError('PROVIDER_ORDER_MISMATCH');
   const apiCurrency=data.payment_currency,eventCurrency=data.currency;
+  // Creation is already verified as RUB. Missing GET currency may be
+  // attested by the short-lived signed owner/order/payment proof instead.
+  // Any explicitly conflicting value is always rejected.
   if((apiCurrency!==undefined&&apiCurrency!=='RUB')||
      (eventCurrency!==undefined&&eventCurrency!=='RUB')||
-     (apiCurrency===undefined&&eventCurrency===undefined))
+     (apiCurrency===undefined&&eventCurrency===undefined&&!verifiedCreationProof))
     throw new SandboxError('PROVIDER_CURRENCY_MISMATCH');
-  if(rubKopeks(data.amount)!==rubKopeks(AMOUNT))
-    throw new SandboxError('PROVIDER_AMOUNT_MISMATCH');
+  // POST must explicitly confirm 10 RUB before signing a receipt.
+  // GET may omit amount entirely; verified receipt attests original amount.
+  // A present amount in another currency, invalid format or different value
+  // is never accepted.
+  if(data.amount===undefined){
+    if(!verifiedCreationProof)throw new SandboxError('PROVIDER_AMOUNT_MISSING');
+  }else{
+    const actual=rubKopeks(data.amount);
+    if(actual===null)throw new SandboxError('PROVIDER_AMOUNT_FORMAT');
+    if(actual!==rubKopeks(AMOUNT))throw new SandboxError('PROVIDER_AMOUNT_MISMATCH');
+  }
   if(typeof data.status!=='string'||!STATES.has(data.status))
     throw new SandboxError('PROVIDER_STATUS_INVALID');
   if(paymentId&&data.payment_id!==paymentId)
