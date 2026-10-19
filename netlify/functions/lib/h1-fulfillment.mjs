@@ -83,7 +83,12 @@ export async function assertTelegramChat(telegramId) {
 export async function fulfillPaidOrder(orderId) {
   // Claiming is atomic: parallel callbacks will not trigger two deliveries.
   const claim=await claimDelivery(orderId);
-  if(!claim) return {accepted:true,delivery:'already_processing_or_finished'};
+  if(!claim) {
+    // A callback received during the retry backoff must not acknowledge
+    // unfinished fulfillment as delivered to the payment provider.
+    const current=await getInternalOrder(orderId);
+    return {accepted:true,delivery:current?.delivery_state==='delivered'?'delivered':'retry_required'};
+  }
   let stage='PANEL_SYNC_FAILED';
   try{
     const order=await getInternalOrder(orderId);
