@@ -1,4 +1,4 @@
-import {getPool,getInternalOrder,claimDelivery,reserveExpiry,deliveryDone,deliveryRetry} from './subscription-db.mjs';
+import {getPool,findMappedClientName,getInternalOrder,claimDelivery,reserveExpiry,deliveryDone,deliveryRetry} from './subscription-db.mjs';
 
 async function withCustomerDeliveryLock(telegramId,work) {
   const db=await (await getPool()).connect();
@@ -34,9 +34,10 @@ async function panel(path,options={}) {
   if(!res.ok||data.ok===false) throw Error('H1_HTTP_'+res.status);
   return data;
 }
-function userClientName(order) {
+async function userClientName(order) {
   const prefix=process.env.PANEL_CLIENT_PREFIX||'tg_';
-  const name=prefix+order.telegram_id;
+  const mapped=await findMappedClientName(order.telegram_id);
+  const name=mapped||prefix+order.telegram_id;
   if(!/^[a-zA-Z0-9_.-]{1,64}$/.test(name))throw Error('H1_BAD_CLIENT_NAME');
   return name;
 }
@@ -69,7 +70,7 @@ export async function fulfillPaidOrder(orderId) {
     const order=await getInternalOrder(orderId);
     if(!order || order.status!=='paid' || order.is_test)throw Error('ORDER_NOT_PAID');
     return await withCustomerDeliveryLock(order.telegram_id,async()=> {
-    const name=userClientName(order);
+    const name=await userClientName(order);
     const existing=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
     const prior=Number(existing?.expires_at||0);
     const booked=await reserveExpiry(orderId,prior>0?prior*1000:0);
@@ -115,7 +116,7 @@ export async function fulfillPaidOrder(orderId) {
 
 export async function readSharedH1Subscription(telegramId) {
   if(!/^[1-9][0-9]{0,17}$/.test(telegramId||''))throw Error('INVALID_TELEGRAM_ID');
-  const name=userClientName({telegram_id:telegramId});
+  const name=await userClientName({telegram_id:telegramId});
   const client=(await panel('/clients/'+encodeURIComponent(name)))?.client||null;
   if(!client)return {found:false,active:false,expiresAt:null};
   const seconds=Number(client.expires_at||0);
