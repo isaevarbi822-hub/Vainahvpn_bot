@@ -37,6 +37,10 @@ export default async function handler(request){
     if(result.error)return json({error:result.error},409);
     if(verified.status==='paid') {
       const delivery=await fulfillPaidOrder(event.order_id);
+      if(delivery.delivery==='retry_required'){
+        // Payment is safely persisted; ask provider to retry notification later.
+        return json({error:'Delivery pending retry',paymentRecorded:true},503);
+      }
       return json({ok:true,delivery:delivery.delivery});
     }
     return json({ok:true,status:verified.status});
