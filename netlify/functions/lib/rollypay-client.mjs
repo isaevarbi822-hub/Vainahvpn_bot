@@ -1,3 +1,4 @@
+import {parseRubPrice} from './plan-catalog.mjs';
 import {randomUUID} from 'node:crypto';
 const API='https://rollypay.io/api/v1/payments';
 async function requestRollypay(path,options={}) {
@@ -29,7 +30,7 @@ export async function createInvoice({orderId,amountKopeks,telegramId,description
       test:false
     })
   });
-  if(data.order_id!==orderId || data.payment_currency!=='RUB'||Number(data.amount)*100!==amountKopeks) {
+  if(data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount||''))!==amountKopeks) {
     throw Error('ROLLYPAY_INVOICE_MISMATCH');
   }
   if(typeof data.payment_id!=='string'||!/^pay_[\w-]{8,100}$/.test(data.payment_id))throw Error('ROLLYPAY_BAD_PAYMENT_ID');
