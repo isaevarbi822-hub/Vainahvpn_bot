@@ -119,12 +119,15 @@ test('Malformed payment ID, unsafe/missing pay URL receive separate diagnostic c
   }
 });
 test('missing required sandbox markers are still rejected',async()=>{
-  for(const fields of [
-    {test:false}, {environment:'prod'}, {test:undefined}, {environment:undefined}
+  for(const [fields,expected] of [
+    [{test:false},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+    [{environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+    [{test:undefined},'PROVIDER_TEST_FLAG_MISSING'],
+    [{environment:undefined},'PROVIDER_ENVIRONMENT_MISSING']
   ]){
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
-      e=>['PROVIDER_TEST_FLAG_NOT_TRUE','PROVIDER_ENVIRONMENT_NOT_SANDBOX','PROVIDER_ORDER_MISMATCH','PROVIDER_AMOUNT_MISMATCH'].includes(e.code));
+      e=>e.code===expected);
   }
 });
 
@@ -195,14 +198,14 @@ test('rejects unapproved PayForm origins or paths with a safe specific diagnosti
 });
 test('does not accept a real payment just because its PayForm URL passes validation',async()=>{
   const url='https://pay.rollypay.io/pay/9f8e7d6c5b4a3210';
-  for(const fields of [
-    {pay_url:url,test:false,environment:'prod'},
-    {pay_url:url,environment:'prod'},
-    {pay_url:url,amount:'9999.00'}
+  for(const [fields,expected] of [
+    [{pay_url:url,test:false,environment:'prod'},'PROVIDER_TEST_FLAG_NOT_TRUE'],
+    [{pay_url:url,environment:'prod'},'PROVIDER_ENVIRONMENT_NOT_SANDBOX'],
+    [{pay_url:url,amount:'9999.00'},'PROVIDER_AMOUNT_MISMATCH']
   ]){
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
-      e=>['PROVIDER_TEST_FLAG_NOT_TRUE','PROVIDER_TEST_FLAG_MISSING','PROVIDER_ENVIRONMENT_NOT_SANDBOX','PROVIDER_ENVIRONMENT_MISSING'].includes(e.code));
+      e=>e.code===expected);
   }
 });
 
