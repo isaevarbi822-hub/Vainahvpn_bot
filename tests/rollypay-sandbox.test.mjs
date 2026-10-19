@@ -109,9 +109,9 @@ test('200 HTML response produces a safe distinct diagnostic without leaking HTML
 test('Malformed payment ID, unsafe/missing pay URL receive separate diagnostic codes',async()=>{
   for(const testCase of [
     {fields:{payment_id:''},code:'PROVIDER_PAYMENT_ID_MISSING'},
-    {fields:{pay_url:null},code:'PROVIDER_PAY_URL_INVALID'},
-    {fields:{pay_url:'https://wrong.example/pay/tok_abcdefgh'},code:'PROVIDER_PAY_URL_INVALID'},
-    {fields:{pay_url:'https://pay.rollypay.io/pay/../admin'},code:'PROVIDER_PAY_URL_INVALID'}
+    {fields:{pay_url:null},code:'PROVIDER_PAY_URL_MISSING'},
+    {fields:{pay_url:'https://wrong.example/pay/tok_abcdefgh'},code:'PROVIDER_PAY_URL_UNSAFE_ORIGIN'},
+    {fields:{pay_url:'https://pay.rollypay.io/pay/../admin'},code:'PROVIDER_PAY_URL_UNEXPECTED_PATH'}
   ]){
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),testCase.fields))}),
@@ -158,5 +158,50 @@ test('Rejects provider ID path traversal, URL injection, unbounded IDs and missi
     await assert.rejects(createSandboxPayment(id,{env,
       fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),{payment_id:providerId}))}),
       e=>e.code===((typeof providerId!=='string'||!providerId)?'PROVIDER_PAYMENT_ID_MISSING':'PROVIDER_PAYMENT_ID_INVALID'));
+  }
+});
+
+
+test('accepts provider PayForm links with opaque tokens and keeps sandbox checks',async()=>{
+  for(const payUrl of [
+    'https://pay.rollypay.io/pay/tok_9f8e7d6c5b4a3210',
+    'https://pay.rollypay.io/pay/9f8e7d6c5b4a3210',
+    'https://pay.rollypay.io/pay/6a92dcb3-dbf2-4aca-872d-0d34cc3b482a',
+    'https://pay.rollypay.io/pay/01JAV3M97MX07CKJSBQ6G0T79W'
+  ]){
+    const created=await createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),{pay_url:payUrl}))});
+    assert.equal(created.payUrl,payUrl);
+    assert.equal(created.test,true);
+  }
+});
+test('rejects unapproved PayForm origins or paths with a safe specific diagnostic',async()=>{
+  const cases=[
+    ['https://pay.rollypay.io.evil.example/pay/tok_9f8e7d6c5b4a3210','PROVIDER_PAY_URL_UNSAFE_ORIGIN'],
+    ['http://pay.rollypay.io/pay/tok_9f8e7d6c5b4a3210','PROVIDER_PAY_URL_UNSAFE_ORIGIN'],
+    ['https://evil.example@pay.rollypay.io/pay/tok_9f8e7d6c5b4a3210','PROVIDER_PAY_URL_UNSAFE_ORIGIN'],
+    ['https://pay.rollypay.io/pay/recurring/TOKEN123456789','PROVIDER_PAY_URL_UNEXPECTED_PATH'],
+    ['https://pay.rollypay.io/some-other-path/TOKEN123456789','PROVIDER_PAY_URL_UNEXPECTED_PATH'],
+    ['https://pay.rollypay.io/pay/tok_a?redirect=https://evil.example','PROVIDER_PAY_URL_UNEXPECTED_PATH'],
+    ['https://pay.rollypay.io/pay/%2f%2e%2e%2fsecret','PROVIDER_PAY_URL_UNEXPECTED_PATH'],
+    [null,'PROVIDER_PAY_URL_MISSING'],
+    ['not a url','PROVIDER_PAY_URL_MALFORMED']
+  ];
+  for(const [payUrl,expected] of cases) {
+    await assert.rejects(createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),{pay_url:payUrl}))}),
+    e=>e.code===expected, 'should reject '+String(payUrl).slice(0,40));
+  }
+});
+test('does not accept a real payment just because its PayForm URL passes validation',async()=>{
+  const url='https://pay.rollypay.io/pay/9f8e7d6c5b4a3210';
+  for(const fields of [
+    {pay_url:url,test:false,environment:'prod'},
+    {pay_url:url,environment:'prod'},
+    {pay_url:url,amount:'9999.00'}
+  ]){
+    await assert.rejects(createSandboxPayment(id,{env,
+      fetcher:async(_url,options)=>response(jsonPayment(JSON.parse(options.body),fields))}),
+      e=>e.code==='PROVIDER_SANDBOX_MISMATCH');
   }
 });

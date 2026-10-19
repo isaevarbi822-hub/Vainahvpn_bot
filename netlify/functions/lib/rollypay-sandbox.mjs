@@ -7,6 +7,9 @@ const ORDER_PREFIX='vainah-sandbox-';
 // assume a pay_ prefix: SDK/docs also refer to a generic payment UUID.
 // Only allow unreserved URL-safe characters and a bounded length.
 const PAYMENT_ID=/^[A-Za-z0-9][A-Za-z0-9_-]{5,127}$/;
+// PayForm is /pay/<opaque-token>, not necessarily /pay/tok_<token>.
+// Permit one bounded URL-safe path segment only, on the exact RollyPay host.
+const PAY_PATH=/^\/pay\/[A-Za-z0-9][A-Za-z0-9_-]{5,255}\/?$/;
 const STATES=new Set(['created','processing','paid','canceled','expired']);
 
 export class SandboxError extends Error {
@@ -92,11 +95,17 @@ export async function createSandboxPayment(telegramId,{env=process.env,fetcher=f
         ? 'PROVIDER_PAYMENT_ID_MISSING'
         : 'PROVIDER_PAYMENT_ID_INVALID'
     );
+  // The real provider returns a PayForm token in its URL. Do not impose
+  // a token prefix not guaranteed by the API; never allow offsite redirects.
+  if(typeof data.pay_url!=='string'||!data.pay_url||data.pay_url.length>2048)
+    throw new SandboxError('PROVIDER_PAY_URL_MISSING');
   let url;
-  try{url=new URL(data.pay_url)}catch{throw new SandboxError('PROVIDER_PAY_URL_INVALID')}
-  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||
-     url.username||url.password||url.hash||url.port||!/^\/pay\/tok_[A-Za-z0-9_-]{6,200}$/.test(url.pathname))
-    throw new SandboxError('PROVIDER_PAY_URL_INVALID');
+  try{url=new URL(data.pay_url)}catch{throw new SandboxError('PROVIDER_PAY_URL_MALFORMED')}
+  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||url.port||
+    url.username||url.password||url.hash)
+    throw new SandboxError('PROVIDER_PAY_URL_UNSAFE_ORIGIN');
+  if(!PAY_PATH.test(url.pathname)||url.search)
+    throw new SandboxError('PROVIDER_PAY_URL_UNEXPECTED_PATH');
   const proof=seal({id:telegramId,orderId,paymentId:data.payment_id,exp:Math.floor(now/1000)+3600},
     env.SESSION_SIGNING_KEY);
   return {test:true,amountRub:AMOUNT,orderId,payUrl:url.href,proof,status:data.status};

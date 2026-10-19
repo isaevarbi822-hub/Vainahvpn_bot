@@ -140,3 +140,6 @@ Node 20+: `npm test`.
 
 
 Sandbox `payment_id` считается непрозрачным ID RollyPay: поддерживаются ограниченные URL-safe строки, включая `pay_…`, UUID и ULID, без передачи сырого ID на клиент и без подстановки в URL вне фиксированного `GET /api/v1/payments/{id}`. Если `payment_id` отсутствует, диагностируется `PROVIDER_PAYMENT_ID_MISSING` без раскрытия тела ответа. Требования к `test:true`, `environment:sandbox`, точной сумме, `order_id` и владельцу Telegram неизменны.
+
+
+Sandbox PayForm `pay_url`: документация RollyPay задаёт `https://pay.rollypay.io/pay/<token>` без требования обязательного префикса `tok_`. Валидатор проверяет HTTPS, точный домен, отсутствие userinfo/hash/query, один безопасный path-сегмент и максимальную длину. Для ошибочного ответа возвращаются только `PROVIDER_PAY_URL_MISSING`, `PROVIDER_PAY_URL_MALFORMED`, `PROVIDER_PAY_URL_UNSAFE_ORIGIN`, `PROVIDER_PAY_URL_UNEXPECTED_PATH`, без ссылок и токенов. Контроль `test:true` и `environment:sandbox` обязателен.
