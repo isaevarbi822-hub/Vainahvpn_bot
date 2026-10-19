@@ -100,8 +100,9 @@ export async function fulfillPaidOrder(orderId) {
       // Absolute expiry is idempotent; never add days twice on retries.
       // Existing profile device limits must be managed carefully by a reviewed
       // upgrade path; do not silently downgrade a family subscription.
+      const nextLimit=Math.max(Number(existing.device_limit)||3,Number(order.device_limit)||3);
       const result=await panel('/clients/'+encodeURIComponent(name),{
-        method:'PATCH',body:JSON.stringify({expires_at:expiresAt})
+        method:'PATCH',body:JSON.stringify({expires_at:expiresAt,device_limit:nextLimit})
       });
       client=result?.client||client;
     } else{
