@@ -88,3 +88,10 @@ test('server price catalog cannot be changed by spoofed environment price values
   assert.equal(plans.find(p=>p.id==='365').kopeks,70000);
   assert.equal(plans.find(p=>p.id==='365-family').deviceLimit,6);
 });
+
+test('live checkout stays disabled even if all environment flags are present',async()=>{
+  const {checkoutReady}=await import('../netlify/functions/lib/plan-catalog.mjs');
+  const env={VAINAH_LIVE_CHECKOUT:'enabled-after-review',PANEL_CLIENT_MAPPING_VERIFIED:'true'};
+  for(const key of ['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET','TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'])env[key]='configured';
+  assert.equal(checkoutReady(env),false);
+});
