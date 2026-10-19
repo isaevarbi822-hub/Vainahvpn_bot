@@ -54,10 +54,12 @@ footer{border-top:1px solid #2a2e43;margin-top:95px;padding:49px 0 36px;backgrou
      const a=document.createElement('article');a.className='plan'+(selected===p.id?' featured':'');
      const duration=document.createElement('div');duration.className='duration';duration.textContent=p.days+' ДНЕЙ';
      const title=document.createElement('h3');title.textContent=p.title;
-     const price=document.createElement('div');price.className='price';price.textContent=p.priceRub===null?'Цена ещё не установлена':p.priceRub+' ₽';
+     const price=document.createElement('div');price.className='price';price.textContent=p.priceRub===null?'Цена ещё не установлена':Number(p.priceRub).toLocaleString('ru-RU')+' ₽';
+     const monthly={'60':'≈80 ₽/мес','90':'≈73 ₽/мес','180':'≈56 ₽/мес','365':'≈58 ₽/мес','365-family':'≈82 ₽/мес'}[p.id];
+     if(monthly){const note=document.createElement('small');note.textContent=' ('+monthly+')';price.appendChild(note)}
      const btn=document.createElement('button');btn.type='button';btn.className='btn btn-border';btn.textContent=selected===p.id?'Выбран ✓':'Выбрать тариф';
      btn.addEventListener('click',()=>{selected=p.id;render()});
-     const detail=document.createElement('p');detail.className='plan-desc';detail.textContent='Безлимит · '+p.deviceLimit+' устройства';
+     const detail=document.createElement('p');detail.className='plan-desc';detail.textContent='📶 Безлимит · 📱 '+p.deviceLimit+(p.deviceLimit===3?' устройства':' устройств');
      a.append(duration,title,price,detail,btn);cards.appendChild(a);
    }
    const p=plans.find(x=>x.id===selected);
