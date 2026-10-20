@@ -59,6 +59,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate Vainah website-matching app icon
+        run: swift native/ios/scripts/generate-icon.swift
       - name: Generate Xcode project
         working-directory: native/ios
         run: xcodegen generate

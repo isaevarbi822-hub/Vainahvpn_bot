@@ -7,3 +7,5 @@ xcuserdata/
 *.cer
 *.xcarchive
 Generated/
+
+Sources/App/Assets.xcassets/AppIcon.appiconset/AppIcon.png
