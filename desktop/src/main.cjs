@@ -1,11 +1,13 @@
 'use strict';
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, session, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { PUBLIC_CAPABILITIES } = require('../shared/h1-protocol.cjs');
+const { EngineHost } = require('./engine-host.cjs');
 
 let mainWindow;
+const engine = new EngineHost();
 const PREVIEW_STATUS = Object.freeze({
   state: 'unavailable',
   protected: false,
@@ -49,7 +51,18 @@ app.whenReady().then(()=>{
     preview:true
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
-  ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?PREVIEW_STATUS:null);
+  ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?engine.status():null);
+  ipcMain.handle('vainah:engine:choose',async event=>{
+    if(!authorizedSender(event))return {ok:false};
+    const result=await dialog.showOpenDialog(mainWindow,{
+      title:'Выбери официальный sing-box 1.14',
+      properties:['openFile'],filters:[{name:'sing-box',extensions:process.platform==='win32'?['exe']:['*']}]
+    });
+    if(result.canceled||result.filePaths.length!==1)return {ok:false,code:'CANCELLED'};
+    return engine.setExecutable(result.filePaths[0]);
+  });
+  ipcMain.handle('vainah:engine:start',(event,secret)=>authorizedSender(event)?engine.start(secret):{ok:false});
+  ipcMain.handle('vainah:engine:stop',event=>authorizedSender(event)?engine.stop():{ok:false});
   ipcMain.handle('vainah:capabilities',event=>authorizedSender(event)?PUBLIC_CAPABILITIES:null);
   ipcMain.handle('vainah:open-official',async(event,name)=>{
     if(!authorizedSender(event))return {ok:false};
@@ -60,6 +73,7 @@ app.whenReady().then(()=>{
       return {ok:true};
     }catch{return {ok:false}}
   });
+  app.on('before-quit',()=>engine.stop());
   createWindow();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow()});
 }).catch(()=>{app.quit()});
