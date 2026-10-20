@@ -29,6 +29,7 @@ class EngineHost {
         ready:'Движок выбран. VPN пока не подключён.',
         preparing:'Подготовка Reality-конфигурации. VPN ещё не активен.',
         running:'Сетевой процесс запущен. Защита маршрутов и DNS ещё не проверена.',
+        stopping:'Отключение VPN-процесса. Дожидаемся подтверждения остановки.', 
         error:'Не удалось запустить VPN. Соединение не подтверждено.',
         stopped:'VPN-процесс остановлен.'
       }[phase]||'VPN не подтверждён.'
@@ -106,9 +107,10 @@ class EngineHost {
   }
   processStopped(proc){
     if(this.proc!==proc)return;
+    const requested=this.phase==='stopping';
     this.proc=null;
     this.cleanup();
-    this.phase='stopped';
+    this.phase=requested?'stopped':'error';
   }
   cleanup(){
     if(!this.proc&&this.temp){
@@ -119,9 +121,14 @@ class EngineHost {
   stop(){
     ++this.generation;
     if(this.proc){
-      this.proc.kill();
-      this.phase='stopped';
-      // On close, the config is removed. Do not remove an in-use file.
+      const child=this.proc;
+      this.phase='stopping';
+      child.kill();
+      // Do not advertise stopped or delete the key-bearing config until the
+      // child exits. Force termination if it ignores a graceful request.
+      setTimeout(()=>{
+        if(this.proc===child)child.kill('SIGKILL');
+      },3000).unref();
     }else{
       this.cleanup();
       this.phase=this.executable?'ready':'unavailable';
