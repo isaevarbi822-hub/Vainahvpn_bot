@@ -38,13 +38,26 @@ jobs:
           curl --fail --location --silent --show-error --retry 3             'https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-amd64.tar.gz' -o /tmp/vainah-singbox.tgz
           echo 'e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee  /tmp/vainah-singbox.tgz' | sha256sum --check
           tar -xzf /tmp/vainah-singbox.tgz -C /tmp
+          # Validate the actual Electron runtime builder, not only the
+          # independent control-plane prototype. Dummy values only.
           node --input-type=module <<'JS'
           import fs from 'node:fs';
+          import {createRequire} from 'node:module';
           import {createDesktopTunConfig} from './services/control-plane/desktop-tun-config.mjs';
+          const require=createRequire(import.meta.url);
+          const {fromSubscriptionText,toTunConfig}=require('./desktop/shared/engine-config.cjs');
           const link='vless://123e4567-e89b-42d3-a456-426614174000@vpn.example.org:443?security=reality&type=tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome';
-          fs.writeFileSync('/tmp/vainah-schema-example.json',JSON.stringify(createDesktopTunConfig(link,'darwin')));
+          for(const platform of ['darwin','win32']){
+            fs.writeFileSync(`/tmp/vainah-prototype-${platform}.json`,
+              JSON.stringify(createDesktopTunConfig(link,platform)));
+            fs.writeFileSync(`/tmp/vainah-runtime-${platform}.json`,
+              JSON.stringify(toTunConfig(fromSubscriptionText(link),platform)));
+          }
           JS
-          /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c /tmp/vainah-schema-example.json
+          for platform in darwin win32; do
+            /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-prototype-${platform}.json"
+            /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-runtime-${platform}.json"
+          done
 
       - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs
 
