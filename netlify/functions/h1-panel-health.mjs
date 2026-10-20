@@ -16,7 +16,16 @@ export async function inspectH1Panel(options={}) {
       return {ok:false,panel:'reachable',authentication:'rejected'};
     if(error instanceof H1StatusError && /^(PANEL_URL_INVALID|PANEL_PREFIX_INVALID)$/.test(error.code))
       return {ok:false,panel:'invalid_configuration'};
-    return {ok:false,panel:'unavailable'};
+    // Only return fixed diagnostic labels, never upstream responses or tokens.
+    const reasons={
+      PANEL_UNREACHABLE:'connection_failed',
+      PANEL_SERVER_ERROR:'server_error',
+      PANEL_RATE_LIMITED:'rate_limited',
+      PANEL_INVALID_RESPONSE:'invalid_response',
+      PANEL_API_ERROR:'api_error'
+    };
+    const reason=error instanceof H1StatusError?reasons[error.code]:null;
+    return {ok:false,panel:'unavailable',reason:reason||'unknown_error'};
   }
 }
 
