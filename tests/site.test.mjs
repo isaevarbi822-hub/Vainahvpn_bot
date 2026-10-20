@@ -35,7 +35,7 @@ test('all public page links point to existing local files',()=>{
 });
 test('Telegram login stays separate from website checkout; production checkout locked',()=>{
  const account=readFileSync(new URL('account.html',root),'utf8');
- const loginCode=readFileSync(new URL('account-dashboard.js',root),'utf8');
+ const loginCode=readFileSync(new URL('telegram-login-widget.js',root),'utf8');
  const plans=readFileSync(new URL('plans.html',root),'utf8');
  const serverCatalog=readFileSync(new URL('../netlify/functions/lib/plan-catalog.mjs',root),'utf8');
  assert.match(account,/id="account-auth-panel"/);
