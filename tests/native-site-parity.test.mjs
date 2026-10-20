@@ -47,7 +47,7 @@ test('native screens mirror major website sections with four usable native tabs'
     assert.ok(code.includes('https://vainahvpnbot0.netlify.app/'));
     assert.ok(code.includes('Не подключено') || code.includes('tunnel.state.rawValue'));
     assert.ok(code.includes('Подключиться'));
-    assert.doesNotMatch(code,/\\bWebView\\s*\\(/);
+    assert.ok(!code.includes('WebView('));
     assert.ok(!code.includes('https://api.telegram.org/bot'));
   }
   for(const title of ['Главная','Тарифы','Кабинет','Помощь'])
