@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-/// Device-only Keychain storage. No UserDefaults, logs or analytics.
+/// Device-only Keychain storage: no plaintext settings, logs or analytics.
 enum SecureSubscription {
     private static let service = "app.vainah.vpn.subscription"
     private static let account = "profile-url-v1"
