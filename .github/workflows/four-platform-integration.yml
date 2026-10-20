@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test tests/control-plane-device-policy.test.mjs
+      - run: node --test tests/control-plane-device-policy.test.mjs tests/profile-format.test.mjs tests/reality-compat.test.mjs tests/engine-readiness.test.mjs
       - run: node --test desktop/tests/*.test.cjs
       - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs
 
