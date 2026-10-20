@@ -370,10 +370,10 @@ struct ContentView: View {
                 Text(plan.title)
                     .font(.system(size: 22, weight: .heavy, design: .rounded))
                     .foregroundStyle(VainahDesign.ink)
-                Text("\(plan.priceRub) ₽")
+                Text(plan.priceRub == 1000 ? "1 000 ₽" : "\(plan.priceRub) ₽")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundStyle(VainahDesign.ink)
-                Text("\(plan.days) дней · \(plan.deviceLimit) устройства · Безлимитный трафик")
+                Text(plan.days.description + " дней · " + (plan.deviceLimit == 6 ? "6 устройств" : "3 устройства") + " · Безлимитный трафик")
                     .font(.system(size: 12))
                     .foregroundStyle(VainahDesign.muted)
                 Link(destination: siteURL("plans.html")) {

@@ -238,9 +238,9 @@ class MainActivity : Activity() {
             add(parent,tile,13)
             add(tile,overline(plan.badge))
             add(tile,text(plan.title,22f,d.ink,true),12)
-            add(tile,text(plan.priceRub.toString()+" ₽",34f,d.ink,true),4)
-            add(tile,text(plan.days.toString()+" дней · "+plan.deviceLimit.toString()+
-                " устройства · Безлимитный трафик",12f,d.muted),4)
+            add(tile,text((if(plan.priceRub==1000) "1 000" else plan.priceRub.toString())+" ₽",34f,d.ink,true),4)
+            add(tile,text(plan.days.toString()+" дней · "+(if(plan.deviceLimit==6) "6 устройств" else "3 устройства")+
+                " · Безлимитный трафик",12f,d.muted),4)
             val more=action("Подробнее на сайте   ↗",true)
             add(tile,more,18)
             more.setOnClickListener{openSite("plans.html")}
