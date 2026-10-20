@@ -74,12 +74,49 @@
     if(filter){deviceFilter=Number(filter.dataset.devices);renderPlans()}
   });
   const dialog=document.getElementById('connection-dialog');
-  document.getElementById('connect-button').addEventListener('click',()=>{
-    document.getElementById('dialog-title').textContent='VPN пока не подключается';
-    document.getElementById('dialog-description').textContent=
-      'Это демонстрация Vainah VPN. Движок H1Cloud/VLESS ещё не встроен, поэтому программа не шифрует трафик и не меняет системные VPN-настройки.';
+  function showNotice(title,description){
+    document.getElementById('dialog-title').textContent=title;
+    document.getElementById('dialog-description').textContent=description;
     dialog.showModal();
+  }
+  async function refreshEngine(){
+    const status=await window.vainah?.getTunnelStatus?.().catch(()=>null);
+    if(!status)return;
+    const label=document.getElementById('connection-heading');
+    label.textContent=status.state==='running'?'Туннель тестируется':'Не подключено';
+    document.getElementById('connection-status').textContent=
+      status.protected===true?'Состояние проверяется…':
+      status.explanation||'VPN пока не подтверждён.';
+  }
+  document.getElementById('choose-core').addEventListener('click',async()=>{
+    if(!window.vainah?.chooseLocalEngine)return;
+    const result=await window.vainah.chooseLocalEngine().catch(()=>({ok:false}));
+    if(result?.ok)showNotice('Движок выбран','Выбран файл sing-box. Это не подтверждает VPN-защиту.');
+    else if(result?.code!=='CANCELLED')showNotice('Движок не выбран','Выбери официальный исполняемый файл sing-box 1.14.');
+    await refreshEngine();
   });
+  document.getElementById('connect-button').addEventListener('click',async()=>{
+    if(!window.vainah?.startLocalEngine)return;
+    const field=document.getElementById('engine-link');
+    const secret=field.value;
+    field.value='';
+    if(!secret){showNotice('Подписка не указана','Вставь личную HTTPS-ссылку H1Cloud. Не публикуй её.');return}
+    const button=document.getElementById('connect-button');
+    button.disabled=true;
+    try{
+      const result=await window.vainah.startLocalEngine(secret).catch(()=>({ok:false}));
+      showNotice(result?.ok?'VPN-процесс запущен':'Проверка не удалась',
+        result?.ok?
+          'Проверяемая конфигурация передана sing-box, но защита DNS и маршрутов не подтверждена. Не считай VPN подключённым до испытаний.':
+          'Проверь движок, подписку и разрешения системы. Временные конфигурации очищаются.');
+      await refreshEngine();
+    }finally{button.disabled=false}
+  });
+  document.getElementById('stop-engine').addEventListener('click',async()=>{
+    await window.vainah?.stopLocalEngine?.().catch(()=>null);
+    await refreshEngine();
+  });
+  window.setInterval(()=>{void refreshEngine()},3000);
   document.getElementById('close-dialog').addEventListener('click',()=>dialog.close());
   document.getElementById('dialog-ok').addEventListener('click',()=>dialog.close());
   document.getElementById('dialog-guide').addEventListener('click',()=>{dialog.close();showPage('guide')});
@@ -116,9 +153,9 @@
     }
     if(status){
       document.getElementById('connection-status').textContent=status.explanation;
-      // A future 'connected' visual must only be shown after verified real engine state.
-      if(status.protected!==false||status.state!=='unavailable')
-        document.getElementById('connection-status').textContent='Нет подтверждения защищённого VPN-подключения.';
+      // Never show a protected badge from process liveness alone.
+      if(status.protected!==false)
+        document.getElementById('connection-status').textContent='Защищённое соединение пока не подтверждено.';
     }
   }
   void init();
