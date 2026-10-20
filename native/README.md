@@ -17,6 +17,36 @@ merging is not required to keep the production site working.
 | Actual H1Cloud/VLESS packet transport | **NOT YET** | **NOT YET** |
 | App Store / Play Store release | **not submitted** | **not submitted** |
 
+## Website design parity (native, not a WebView)
+
+Both apps deliberately mirror the current public site at
+`https://vainahvpnbot0.netlify.app` rather than inventing a new brand:
+
+- The V logo reproduces the inline website SVG; Android provides a vector
+  launcher icon and iOS generates a 1024px native PNG AppIcon from its
+  first-party path during the Xcode build.
+- The design tokens mirror `site/index.html`: background `#080b15`,
+  cards `#121626`/`#181b2f`, violet `#a98bff`, ink `#f5f6ff`,
+  sky `#79cde9`, and green `#70e5b1`.
+- Main headline is the website's “Интернет под твоим контролем.”
+- 4 native tabs: **Главная · Тарифы · Кабинет · Помощь**;
+  brand header scrolls with the page rather than covering content.
+- 6 tariff cards including the 6-device family plan match the
+  canonical server plan catalog: 99 / 160 / 219 / 339 / 700 / 1000 ₽.
+  There is no native checkout; links to the existing website only.
+- Subscription owner data is NOT made up. Native account screens show
+  only the saved-on-device profile and explain how to open the
+  existing authenticated web account.
+
+The native layout adapts to platform safe areas, accessibility and
+device sizes; literal browser pixel-for-pixel rendering would require
+a WebView and lose native VPN features. Cross-platform regression test:
+`tests/native-site-parity.test.mjs`.
+
+**Site design is visually aligned, but native VPN networking is still
+an unimplemented milestone.** UI must never claim protected traffic
+until a verified protocol engine is running.
+
 ## Why the Connect button cannot be real yet
 
 The existing server issues a private **HTTPS subscription URL** to an
@@ -75,14 +105,16 @@ no Gradle wrapper JAR is committed.
 
 1. A **Mac with Xcode** and `xcodegen` is necessary; iOS native
    applications cannot be compiled or signed from Netlify alone.
-2. Run `cd native/ios && xcodegen generate`.
-3. Open the generated `VainahVPN.xcodeproj` and select a simulator for
+2. Run `swift native/ios/scripts/generate-icon.swift` at the repository
+   root to generate the website-matching V app icon.
+3. Run `cd native/ios && xcodegen generate`.
+4. Open the generated `VainahVPN.xcodeproj` and select a simulator for
    an initial UI build. The Network Extension requires a properly
    configured Apple Developer capability for device use.
-4. Set your legal app Bundle ID, development team, and Packet Tunnel
+5. Set your legal app Bundle ID, development team, and Packet Tunnel
    extension Bundle ID. Enable the Network Extensions **packet-tunnel-provider**
    entitlement and App Group under the associated developer account.
-5. Run the app. Keychain local import is testable; tunnel transport is
+6. Run the app. Keychain local import is testable; tunnel transport is
    not implemented, so connection is not yet possible.
 
 Store distribution requires appropriate developer programs and review;
