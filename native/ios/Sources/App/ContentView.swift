@@ -468,6 +468,23 @@ struct ContentView: View {
                             notice = "Вставь корректную HTTPS-ссылку из кабинета Vainah VPN."
                         }
                     }
+                    callToAction("Проверить формат H1Cloud") {
+                        Task {
+                            guard let link = SecureSubscription.load() else {
+                                notice = "Сначала сохрани HTTPS-ссылку подписки."
+                                return
+                            }
+                            do {
+                                let result = try await H1SubscriptionDiscovery.inspect(link)
+                                let kinds = H1SubscriptionDiscovery.Transport.allCases
+                                    .filter { result.transports.contains($0) }
+                                    .map { $0.rawValue.uppercased() }
+                                notice = "Найдено Reality-профилей: \(result.realityProfiles). Транспорт: \(kinds.isEmpty ? "не определён" : kinds.joined(separator: ", ")). Это проверка формата, VPN пока не подключён."
+                            } catch {
+                                notice = "Не удалось проверить подписку. Ссылка и секреты не отображаются."
+                            }
+                        }
+                    }
                     callToAction("Удалить с устройства") {
                         showErase = true
                     }
