@@ -24,3 +24,9 @@ test('sanitized errors never reflect private configuration',()=>{
  assert.equal(result.compatible,false);
  assert.doesNotMatch(JSON.stringify(result),/SECRET|123e|vpn.example/);
 });
+
+test('missing Reality transport is not guessed',()=>{
+ const result=preflightVlessReality(base.replace('&type=tcp',''));
+ assert.equal(result.compatible,false);
+ assert.equal(result.code,'TRANSPORT');
+});
