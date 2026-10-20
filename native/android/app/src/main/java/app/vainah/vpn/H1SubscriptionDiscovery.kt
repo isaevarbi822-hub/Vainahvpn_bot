@@ -30,9 +30,18 @@ object H1SubscriptionDiscovery {
             val declaredLength = connection.contentLengthLong
             if (declaredLength > MAX_BYTES) throw IllegalStateException("SUBSCRIPTION_TOO_LARGE")
             val payload = connection.inputStream.use { source ->
-                val bytes = source.readNBytes(MAX_BYTES + 1)
-                if (bytes.size > MAX_BYTES) throw IllegalStateException("SUBSCRIPTION_TOO_LARGE")
-                bytes.toString(Charsets.UTF_8)
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = source.read(buffer)
+                    if (count < 0) break
+                    if (count == 0) continue
+                    if (output.size() + count > MAX_BYTES) {
+                        throw IllegalStateException("SUBSCRIPTION_TOO_LARGE")
+                    }
+                    output.write(buffer, 0, count)
+                }
+                output.toString(Charsets.UTF_8.name())
             }
             parse(payload)
         } finally {
