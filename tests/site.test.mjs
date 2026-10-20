@@ -7,7 +7,8 @@ const pages=['index.html','features.html','plans.html','servers.html','devices.h
  'guide.html','security.html','speed.html','troubleshooting.html','help.html',
  'contact.html','about.html','privacy.html','terms.html','thanks.html','404.html',
  'start.html','glossary.html','checklist.html','account.html',
- 'assistant.html','device-center.html','library.html','compare.html','status.html'];
+ 'assistant.html','device-center.html','library.html','compare.html','status.html',
+ 'hub.html','diagnostics.html'];
 test('all Vainah public pages exist and have complete HTML and styling',()=>{
  for(const page of pages){
   const location=new URL(page,root);
