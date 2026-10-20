@@ -29,5 +29,23 @@ test('H1 health reports rejected credentials without leaking response',async()=>
 });
 test('H1 health does not expose network failures',async()=>{
   const result=await inspectH1Panel({env:base,fetcher:async()=>{throw Error('private backend details')}});
-  assert.deepEqual(result,{ok:false,panel:'unavailable'});
+  assert.deepEqual(result,{ok:false,panel:'unavailable',reason:'connection_failed'});
+});
+
+test('H1 probe reports gateway errors rather than misleading JSON failures',async()=>{
+  for(const status of [500,502,503,504]){
+    const r=await inspectH1Panel({env:base,fetcher:async()=>new Response('<html>private error</html>',{status})});
+    assert.deepEqual(r,{ok:false,panel:'unavailable',reason:'server_error'});
+    assert.equal(JSON.stringify(r).includes('private'),false);
+  }
+});
+test('H1 probe reports upstream rate limiting without exposing body',async()=>{
+  const r=await inspectH1Panel({env:base,fetcher:async()=>new Response('private', {status:429})});
+  assert.deepEqual(r,{ok:false,panel:'unavailable',reason:'rate_limited'});
+});
+test('H1 probe distinguishes invalid JSON and unexpected API response',async()=>{
+  const malformed=await inspectH1Panel({env:base,fetcher:async()=>new Response('<html>oops</html>',{status:200})});
+  assert.deepEqual(malformed,{ok:false,panel:'unavailable',reason:'invalid_response'});
+  const apiError=await inspectH1Panel({env:base,fetcher:async()=>new Response(JSON.stringify({ok:false,error:'private'}),{status:404})});
+  assert.deepEqual(apiError,{ok:false,panel:'unavailable',reason:'api_error'});
 });
