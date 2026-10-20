@@ -232,12 +232,12 @@ struct ContentView: View {
                          "После входа посмотри свой тариф и срок действия."),
                         ("03", "Настрой устройство",
                          "Используй мастер, пока VLESS-движок ещё не встроен.")
-                    ].enumerated()), id: \\.offset) { _, step in
+                    ].enumerated()), id: \.offset) { item in
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(step.0 + "  " + step.1)
+                            Text(item.element.0 + "  " + item.element.1)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(VainahDesign.ink)
-                            Text(step.2)
+                            Text(item.element.2)
                                 .font(.system(size: 12))
                                 .foregroundStyle(VainahDesign.muted)
                         }
