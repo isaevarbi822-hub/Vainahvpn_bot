@@ -54,6 +54,15 @@ jobs:
       - name: Build Android arm64 library
         working-directory: upstream
         run: go run ./cmd/internal/build_libbox -target android -platform android/arm64
+      - name: Verify Android client can link the generated AAR
+        run: |
+          mkdir -p native/android/app/libs
+          cp upstream/libbox.aar native/android/app/libs/libbox.aar
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Compile Android client with bundled native core (VPN remains disabled)
+        run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
       - name: Retain upstream license with native library
         run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
       - uses: actions/upload-artifact@v4
