@@ -52,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="android-ui-preview-v0.1.0"
+          tag="android-ui-preview-v0.2.0"
           cat > preview/RELEASE_NOTES.md <<'NOTES'
           # Vainah VPN — ранний Android-предпросмотр интерфейса
 
@@ -61,7 +61,7 @@ jobs:
 
           Что уже можно проверить:
           - оформление под оригинальный сайт Vainah VPN, фирменный логотип и цвета;
-          - вкладки Главная, Тарифы, Кабинет, Помощь;
+          - вкладки Главная, Тарифы, Кабинет, Помощь и понятный старт в 3 шага;
           - шесть тарифов, как на сайте; никаких реальных платежей в приложении;
           - сохранение своей HTTPS-ссылки подписки в Android Keystore;
           - открытие личного кабинета в браузере.
@@ -75,7 +75,7 @@ jobs:
           не отключайте защиту устройства ради тестирования.
           NOTES
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" preview/VainahVPN-Android-UI-Preview.apk preview/SHA256SUMS.txt --clobber
+            echo "Preview release already exists; keeping the published binaries unchanged."
           else
-            gh release create "$tag" preview/VainahVPN-Android-UI-Preview.apk preview/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Vainah VPN Android — только UI-предпросмотр (без VPN)" --notes-file preview/RELEASE_NOTES.md --prerelease --latest=false
+            gh release create "$tag" preview/VainahVPN-Android-UI-Preview.apk preview/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Vainah VPN Android 0.2 — понятный UI-просмотр (без VPN)" --notes-file preview/RELEASE_NOTES.md --prerelease --latest=false
           fi

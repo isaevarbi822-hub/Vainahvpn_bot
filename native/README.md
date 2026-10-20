@@ -1,6 +1,6 @@
 # Vainah VPN — native apps for Android and iPhone
 
-**Status: platform foundation (v0.1), NOT a working VPN tunnel.**
+**Status: platform foundation (Android UI-preview v0.2), NOT a working VPN tunnel.**
 
 This is a real native mobile codebase added **alongside**, not in place of,
 the existing Vainah VPN website and Telegram bot. Branch-only development;
