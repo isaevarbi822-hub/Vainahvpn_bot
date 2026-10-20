@@ -68,8 +68,14 @@
             <h2 id="connection-heading">Не подключено</h2>
             <p id="connection-status" aria-live="polite">VPN-движок H1Cloud/VLESS ещё не подключён. Трафик не защищён.</p>
             <p id="reality-capabilities" class="hint">VLESS + Reality: проверка совместимости TCP, gRPC и XHTTP. VPN не активен.</p>
-            <button class="button primary full" id="connect-button">⏻ Проверить подключение</button>
-            <small class="hint">Приложение честно показывает отсутствие соединения.</small>
+            <label class="hint" for="engine-link">Личная HTTPS-ссылка подписки H1Cloud (не передавай её другим)</label>
+            <input id="engine-link" type="password" autocomplete="off" spellcheck="false"
+              maxlength="2048" placeholder="https://…/подписка" aria-label="Приватная ссылка VPN"
+              style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #a98bff;border-radius:9px;background:#121626;color:#fff">
+            <button class="button secondary full" id="choose-core">Выбрать sing-box 1.14 на компьютере</button>
+            <button class="button primary full" id="connect-button">⏻ Запустить проверочное соединение</button>
+            <button class="button secondary full" id="stop-engine">Остановить VPN-процесс</button>
+            <small class="hint">Экспериментально: запуск не гарантирует защиту. Требуется проверка маршрутов и DNS. Права администратора автоматически не запрашиваются.</small>
           </div>
         </div>
         <div class="section-heading"><div><span class="eyebrow">ВАШ VPN-ЦЕНТР</span><h2>Всё под рукой.</h2></div><button class="text-link" data-view="guide">Как это работает →</button></div>
