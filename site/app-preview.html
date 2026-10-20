@@ -25,6 +25,8 @@ h1{font-size:clamp(42px,6.7vw,76px);line-height:1.09;letter-spacing:-.055em;marg
 footer{color:#8892ad;font-size:12px;border-top:1px solid #ffffff1c;margin-top:50px;padding-top:26px}
 @media(max-width:680px){.wrap{padding:18px 18px 48px}header{align-items:flex-start}.toplink{max-width:110px;text-align:right}.grid,.tiles{grid-template-columns:1fr}main{padding-top:39px}.card{padding:23px}}
 </style>
+<link rel="stylesheet" href="site-shell.css">
+<script src="site-shell.js" defer></script>
 </head>
 <body>
 <div class="wrap">
@@ -35,7 +37,7 @@ footer{color:#8892ad;font-size:12px;border-top:1px solid #ffffff1c;margin-top:50
 <main>
 <div class="eyebrow">НАТИВНОЕ ПРИЛОЖЕНИЕ · ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР</div>
 <h1>Тот же Vainah VPN.<br><span>Теперь и на телефоне.</span></h1>
-<p class="lead">Мы создаём нативное приложение для Android и iPhone в стиле сайта: те же тарифы, логотип, цвета, личный кабинет и большая кнопка подключения.</p>
+<p class="lead">Мы создаём нативное приложение для Android, iPhone, Windows и macOS в стиле сайта: те же тарифы, логотип, цвета, личный кабинет и большая кнопка подключения.</p>
 <div class="notice" role="note"><strong>Важно:</strong> это тестовая версия интерфейса, а не готовый VPN. Туннель H1Cloud/VLESS ещё не подключён, поэтому <strong>интернет-трафик не защищается</strong>. Для реального VPN пока используй уже работающий совместимый клиент.</div>
 <section class="grid" aria-label="Версии приложения">
 <article class="card featured">
@@ -51,6 +53,20 @@ footer{color:#8892ad;font-size:12px;border-top:1px solid #ffffff1c;margin-top:50
 <p>Нативное приложение SwiftUI уже собирается для симулятора. Для установки на настоящий iPhone необходима подписанная сборка через TestFlight или App Store.</p>
 <a class="btn alt" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/pull/13" rel="noopener noreferrer">Посмотреть разработку iOS ↗</a>
 <small class="small">Публичной подписанной версии для iPhone пока нет</small>
+</article>
+<article class="card featured">
+<div class="tag">WINDOWS · ТЕСТОВЫЙ УСТАНОВЩИК</div>
+<h2>Vainah VPN для Windows</h2>
+<p>Полноценное настольное приложение интерфейса: быстрый старт, шесть тарифов, кабинет, устройства и понятная помощь. Настоящий VPN-туннель ещё не встроен.</p>
+<a class="btn" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/releases/tag/desktop-ui-preview-v0.2.0" rel="noopener noreferrer">Открыть версию для Windows ↗</a>
+<small class="small">GitHub · тестовый неподписанный EXE · не обходит системные предупреждения</small>
+</article>
+<article class="card">
+<div class="tag">MACOS · INTEL И APPLE SILICON</div>
+<h2>Vainah VPN для Mac</h2>
+<p>Отдельные сборки интерфейса для Mac Intel и Apple Silicon. Пока нет Apple-подписи и нотариального заверения, система может запретить запуск.</p>
+<a class="btn alt" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/releases/tag/desktop-ui-preview-v0.2.0" rel="noopener noreferrer">Открыть версии для macOS ↗</a>
+<small class="small">GitHub · неподписанные тестовые DMG · не для рабочего VPN</small>
 </article>
 </section>
 <section class="features">
