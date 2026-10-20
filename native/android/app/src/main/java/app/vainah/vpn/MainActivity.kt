@@ -3,14 +3,24 @@ package app.vainah.vpn
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.RadialGradient
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.method.PasswordTransformationMethod
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -18,189 +28,409 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.net.Uri
 
-/** Pure Android UI. No hidden WebView, tracking SDK or embedded service tokens. */
+/** Site-matched Vainah VPN native UI. No WebView, bogus billing or fake tunnel. */
 class MainActivity : Activity() {
+    private enum class Tab { HOME, PLANS, ACCOUNT, HELP }
+    private var tab = Tab.HOME
+    private var deviceFilter = 0
     private lateinit var vault: SecureSubscription
-    private lateinit var state: TextView
-    private lateinit var profile: TextView
-    private lateinit var connect: Button
+    private val d get() = VainahDesign
     private val requestVpn = 4519
-
-    private val bg = Color.rgb(9, 12, 25)
-    private val surface = Color.rgb(22, 25, 44)
-    private val light = Color.rgb(245, 240, 255)
-    private val dim = Color.rgb(174, 177, 202)
-    private val lavender = Color.rgb(178, 149, 255)
+    private fun dp(n: Int) = (resources.displayMetrics.density * n).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vault = SecureSubscription(this)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
-        render()
+        tab = savedInstanceState?.getString("page")?.let {
+            runCatching { Tab.valueOf(it) }.getOrNull()
+        } ?: Tab.HOME
+        deviceFilter = savedInstanceState?.getInt("devices") ?: 0
+        window.statusBarColor = d.background
+        window.navigationBarColor = d.background
+        renderPage()
     }
 
-    private fun rounded(color: Int, radius: Float = 22f): GradientDrawable {
-        return GradientDrawable().apply {
-            setColor(color)
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("page", tab.name)
+        outState.putInt("devices", deviceFilter)
+        super.onSaveInstanceState(outState)
+    }
+
+    private fun shape(start: Int, end: Int = start, radius: Float = 22f,
+                      border: Int = d.border): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(start, end)).apply {
             cornerRadius = radius * resources.displayMetrics.density
+            setStroke(dp(1), border)
         }
-    }
 
-    private fun dp(n: Int): Int = (resources.displayMetrics.density * n).toInt()
-    private fun text(value: String, size: Float, color: Int, bold: Boolean = false): TextView {
-        return TextView(this).apply {
-            this.text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            setPadding(0, dp(3), 0, dp(3))
-        }
+    private fun column(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    private fun row(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
     }
-    private fun column(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-    }
-    private fun add(parent: LinearLayout, child: View, space: Int = 0) {
+    private fun add(parent: LinearLayout, child: View, top: Int = 0) {
         parent.addView(child, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(space) })
+        ).apply { topMargin = dp(top) })
     }
-    private fun panel(): LinearLayout = column().apply {
-        background = rounded(surface)
-        setPadding(dp(20), dp(20), dp(20), dp(21))
+    private fun text(value: String, size: Float = 14f, color: Int = d.ink,
+                     bold: Boolean = false): TextView = TextView(this).apply {
+        this.text = value; textSize = size; setTextColor(color)
+        if (bold) typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        setLineSpacing(dp(2).toFloat(), 1.04f)
+        setPadding(0, dp(2), 0, dp(2))
     }
-    private fun action(label: String, important: Boolean = false): Button {
-        return Button(this).apply {
-            text = label
-            isAllCaps = false
-            textSize = 15f
-            setTextColor(if (important) Color.rgb(20, 13, 43) else light)
-            background = rounded(if (important) lavender else Color.rgb(46, 42, 77), 16f)
-            minHeight = dp(53)
-            contentDescription = label
-        }
+    private fun overline(value: String) = text(value,10f,d.purple,true).apply { letterSpacing = .12f }
+    private fun panel(featured: Boolean = false): LinearLayout = column().apply {
+        background = if(featured) shape(d.previewTop,d.previewBottom,23f,d.purple)
+                     else shape(Color.rgb(30,34,57),Color.rgb(17,23,37),23f)
+        setPadding(dp(20),dp(20),dp(20),dp(21))
     }
-    private fun render() {
-        val root = column().apply {
-            setBackgroundColor(bg)
-            setPadding(dp(20), dp(23), dp(20), dp(35))
-        }
+    private fun action(title: String, primary: Boolean = false): Button = Button(this).apply {
+        text = title; isAllCaps = false; textSize = 13f
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        setTextColor(if(primary) Color.rgb(18,13,34) else d.ink)
+        background = if(primary) shape(Color.rgb(212,185,255),Color.rgb(145,113,255),14f,d.purple)
+                     else shape(d.surface2,d.surface2,14f,Color.rgb(65,70,95))
+        minHeight = dp(49); contentDescription = title
+    }
+    private fun switch(destination: Tab) { tab = destination; renderPage() }
+    private fun openSite(page: String) {
+        if (!page.matches(Regex("[a-z-]+\\.html"))) return
+        startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(
+            "https://vainahvpnbot0.netlify.app/" + page
+        )))
+    }
+    private fun notice(message: String) {
+        AlertDialog.Builder(this).setTitle("Vainah VPN").setMessage(message)
+            .setPositiveButton("Понятно",null).show()
+    }
+
+    private fun renderPage() {
+        val root = column().apply { setBackgroundColor(d.background) }
         val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            isVerticalScrollBarEnabled = false
+            isFillViewport = true; isVerticalScrollBarEnabled = false
         }
-        scroll.addView(root)
-        setContentView(scroll)
+        val body = column().apply { setPadding(dp(20),dp(22),dp(20),dp(38)) }
+        scroll.addView(body)
+        root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
+        root.addView(bottomBar(),LinearLayout.LayoutParams(-1,dp(69)))
+        setContentView(root)
+        brandHeader(body)
+        when(tab) {
+            Tab.HOME -> home(body)
+            Tab.PLANS -> plans(body)
+            Tab.ACCOUNT -> account(body)
+            Tab.HELP -> help(body)
+        }
+        add(body,text("Vainah VPN · Android · Нативное приложение",11f,d.muted),26)
+    }
 
-        add(root, text("✦ VAINAH VPN", 13f, lavender, true))
-        add(root, text("Свобода\nна связи.", 37f, light, true), 13)
-        add(root, text("Приложение для Android · нативная версия", 13f, dim), 5)
-        val card = panel()
-        add(root, card, 27)
-        add(card, text("ВАШЕ СОЕДИНЕНИЕ", 11f, lavender, true))
-        state = text("Не подключено", 25f, light, true)
-        add(card, state, 9)
-        add(card, text("Безопасное подключение появится после интеграции проверенного H1Cloud/VLESS-движка. Сейчас трафик НЕ проходит через Vainah VPN.", 13f, dim), 7)
-        connect = action("⏻  Подключиться", true)
-        add(card, connect, 23)
+    private fun brandHeader(parent: LinearLayout) {
+        val header = row()
+        header.addView(VainahMark(this),LinearLayout.LayoutParams(dp(44),dp(44)))
+        val brand = column().apply { setPadding(dp(12),0,0,0) }
+        add(brand,text("VAINAH VPN",16f,d.ink,true).apply { letterSpacing=.07f })
+        add(brand,text("ТВОЁ СОЕДИНЕНИЕ. ТВОИ ПРАВИЛА.",9f,d.muted,true))
+        header.addView(brand,LinearLayout.LayoutParams(0,-2,1f))
+        add(parent,header)
+    }
+    private fun intro(parent: LinearLayout,kicker: String,heading: String,
+                      description: String,emphasis: String="") {
+        add(parent,overline("●  "+kicker),29)
+        val title = text(heading,35f,d.ink,true).apply {
+            letterSpacing = -.045f
+            if (emphasis.isNotEmpty() && heading.contains(emphasis)) {
+                val start = heading.lastIndexOf(emphasis)
+                val s = SpannableString(heading)
+                s.setSpan(ForegroundColorSpan(d.purple),start,
+                    start+emphasis.length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setText(s)
+            }
+        }
+        add(parent,title,12)
+        add(parent,text(description,13f,d.muted),9)
+    }
+    private fun home(parent: LinearLayout) {
+        intro(parent,"VAINAH VPN · ТВОЙ СЕРВИС ПОДПИСКИ",
+            "Интернет под твоим контролем.",
+            "Выбирай тарифы, управляй подпиской и находи помощь за пару нажатий.",
+            "контролем.")
+        val planButton=action("Выбрать тариф   ↗",true)
+        add(parent,planButton,19)
+        planButton.setOnClickListener { switch(Tab.PLANS) }
+        val accountButton=action("Мой кабинет")
+        add(parent,accountButton,9)
+        accountButton.setOnClickListener { switch(Tab.ACCOUNT) }
+
+        val preview=panel(true)
+        add(parent,preview,22)
+        val bar=row()
+        bar.addView(overline("✦ VAINAH VPN"),LinearLayout.LayoutParams(0,-2,1f))
+        bar.addView(text("Нативный клиент",10f,d.green,true))
+        add(preview,bar)
+        add(preview,overline("ВАШЕ СОЕДИНЕНИЕ"),24)
+        val power=VainahPower(this).apply {
+            contentDescription="Подключиться к VPN. Движок VLESS пока не встроен."
+            isClickable=true;isFocusable=true
+            setOnClickListener { requestConnection() }
+        }
+        preview.addView(power,LinearLayout.LayoutParams(-1,dp(196)))
+        add(preview,text("Не подключено",25f,d.ink,true).apply{
+            gravity=Gravity.CENTER
+        })
+        add(preview,text("VPN-движок H1Cloud/VLESS пока не встроен. Трафик не защищён.",
+            12f,d.muted).apply{ gravity=Gravity.CENTER },8)
+        val connect=action("⏻   Подключиться",true)
+        add(preview,connect,17)
         connect.setOnClickListener { requestConnection() }
-        refreshStatus()
+        add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
 
-        val saved = panel()
-        add(root, saved, 17)
-        add(saved, text("МОЯ ПОДПИСКА", 11f, lavender, true))
-        profile = text("Профиль не добавлен", 18f, light, true)
-        add(saved, profile, 11)
-        val input = EditText(this).apply {
-            hint = "https://... (ссылка подписки)"
-            setHintTextColor(dim)
-            setTextColor(light)
-            textSize = 13f
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            transformationMethod = PasswordTransformationMethod.getInstance()
+        val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
+        for ((head,sub) in listOf("6 тарифов" to "от 30 дней",
+                                 "3 / 6" to "устройств",
+                                 "Безлимит" to "трафик")) {
+            val box=column().apply{gravity=Gravity.CENTER}
+            add(box,text(head,14f,d.ink,true).apply{gravity=Gravity.CENTER})
+            add(box,text(sub,10f,d.muted).apply{gravity=Gravity.CENTER})
+            stats.addView(box,LinearLayout.LayoutParams(0,dp(73),1f))
+        }
+        add(parent,stats,18)
+
+        add(parent,overline("ЛИЧНЫЙ КАБИНЕТ"),28)
+        val overview=panel()
+        add(parent,overview,10)
+        add(overview,text("Всё важное.\nВ одном месте.",27f,d.ink,true))
+        add(overview,text("Подписка и срок · устройства · история покупок · VPN-доступ",
+            12f,d.muted),9)
+        val go=action("Открыть кабинет  ↗")
+        add(overview,go,15);go.setOnClickListener{switch(Tab.ACCOUNT)}
+        val help=panel()
+        add(parent,help,13)
+        add(help,text("Центр поддержки",21f,d.ink,true))
+        add(help,text("Проверка сервисов и инструкции для устройств.",
+            12f,d.muted),9)
+        val guide=action("Открыть помощь  ↗")
+        add(help,guide,13);guide.setOnClickListener{switch(Tab.HELP)}
+    }
+    private fun plans(parent: LinearLayout) {
+        intro(parent,"ТАРИФЫ VAINAH",
+            "Выбери свой формат доступа.",
+            "Все тарифы с безлимитным трафиком; цены как на нашем сайте.",
+            "формат доступа.")
+        val filter=panel()
+        add(parent,filter,20)
+        add(filter,overline("ФИЛЬТР ПО КОЛИЧЕСТВУ УСТРОЙСТВ"))
+        val choices=row()
+        for((value,name) in listOf(0 to "Все",3 to "3",6 to "6")) {
+            val btn=action(name,value==deviceFilter)
+            choices.addView(btn,LinearLayout.LayoutParams(0,dp(49),1f).apply {
+                marginEnd=dp(6)
+            })
+            btn.setOnClickListener{deviceFilter=value;renderPage()}
+        }
+        add(filter,choices,10)
+        val filtered=VainahPlans.all.filter{deviceFilter==0 || it.deviceLimit==deviceFilter}
+        add(parent,text(filtered.size.toString()+" тарифов · безлимитный трафик",
+            12f,d.muted),14)
+        for(plan in filtered) {
+            val tile=panel(plan.deviceLimit==6)
+            add(parent,tile,13)
+            add(tile,overline(plan.badge))
+            add(tile,text(plan.title,22f,d.ink,true),12)
+            add(tile,text(plan.priceRub.toString()+" ₽",34f,d.ink,true),4)
+            add(tile,text(plan.days.toString()+" дней · "+plan.deviceLimit.toString()+
+                " устройства · Безлимитный трафик",12f,d.muted),4)
+            val more=action("Подробнее на сайте   ↗",true)
+            add(tile,more,18)
+            more.setOnClickListener{openSite("plans.html")}
+        }
+        val note=panel(true)
+        add(parent,note,19)
+        add(note,overline("ПРОЗРАЧНЫЕ УСЛОВИЯ"))
+        add(note,text("Оплата в приложении пока отключена. Просмотр тарифов ничего не списывает.",
+            12f,d.muted),8)
+        val compare=action("Сравнить все тарифы ↗")
+        add(note,compare,13);compare.setOnClickListener{openSite("compare.html")}
+    }
+    private fun account(parent: LinearLayout) {
+        intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
+            "Моя подписка.",
+            "Данные о покупках доступны в защищённом кабинете сайта после входа.",
+            "подписка.")
+        val vaultCard=panel(true)
+        add(parent,vaultCard,23)
+        add(vaultCard,overline("МОЙ VPN-ПРОФИЛЬ"))
+        val present=vault.load()!=null
+        add(vaultCard,text(if(present)"✓ Профиль сохранён локально"
+            else "Профиль не добавлен",20f,d.ink,true),12)
+        add(vaultCard,text("Ссылка хранится на устройстве в Android Keystore. Это не является подтверждением оплаченной подписки.",
+            12f,d.muted),8)
+        val input=EditText(this).apply{
+            hint="https://... (личная ссылка подписки)"
+            setHintTextColor(d.muted);setTextColor(d.ink);textSize=13f
+            inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            transformationMethod=PasswordTransformationMethod.getInstance()
             setSingleLine(true)
-            background = rounded(Color.rgb(15, 18, 33), 12f)
-            setPadding(dp(13), dp(14), dp(13), dp(14))
-            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            background=shape(Color.rgb(14,21,38),Color.rgb(14,21,38),12f)
+            setPadding(dp(14),dp(15),dp(14),dp(15))
+            importantForAutofill=View.IMPORTANT_FOR_AUTOFILL_NO
         }
-        add(saved, input, 13)
-        val save = action("Сохранить ссылку на устройстве")
-        add(saved, save, 11)
-        save.setOnClickListener {
-            if (vault.save(input.text.toString())) {
-                input.text.clear()
-                refreshStatus()
-                showNotice("Ссылка сохранена в Android Keystore. Она не отправлялась на сервер.")
-            } else showNotice("Нужна корректная HTTPS-ссылка подписки из личного кабинета.")
+        add(vaultCard,input,15)
+        val save=action("Сохранить профиль",true)
+        add(vaultCard,save,12)
+        save.setOnClickListener{
+            if(vault.save(input.text.toString())){
+                input.text.clear();renderPage()
+                notice("Ссылка сохранена локально и зашифрована с помощью Android Keystore.")
+            }else notice("Нужна корректная HTTPS-ссылка подписки из кабинета.")
         }
-        val remove = action("Удалить ссылку с устройства")
-        add(saved, remove, 9)
-        remove.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Удалить VPN-профиль?")
-                .setMessage("Будет удалена только локальная зашифрованная ссылка.")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Удалить") { _, _ ->
-                    vault.delete()
-                    refreshStatus()
-                }.show()
+        val delete=action("Удалить с устройства")
+        add(vaultCard,delete,9)
+        delete.setOnClickListener{
+            AlertDialog.Builder(this).setTitle("Удалить VPN-профиль?")
+                .setMessage("Удалится только локально сохранённая ссылка.")
+                .setNegativeButton("Отмена",null)
+                .setPositiveButton("Удалить"){_,_->vault.delete();renderPage()}
+                .show()
         }
-        add(saved, text("Внимание: ссылка подписки — секрет доступа. Не публикуйте её. Самостоятельный импорт нужен только до появления безопасного входа в приложение.", 12f, dim), 14)
+        add(vaultCard,text("VPN-ссылку нельзя публиковать или отправлять посторонним.",
+            11f,d.muted),13)
+        val cabinet=panel()
+        add(parent,cabinet,16)
+        add(cabinet,overline("ПОДПИСКА И ИСТОРИЯ"))
+        add(cabinet,text("Тариф · срок · устройства · покупки",20f,d.ink,true),10)
+        add(cabinet,text("Приложение пока не считывает личные покупки. Реальные данные после Telegram Login показывает сайт.",
+            12f,d.muted),8)
+        val web=action("Войти в личный кабинет ↗",true)
+        add(cabinet,web,13);web.setOnClickListener{openSite("account.html")}
+        val hub=action("Центр управления ↗")
+        add(cabinet,hub,8);hub.setOnClickListener{openSite("hub.html")}
+    }
+    private fun help(parent: LinearLayout) {
+        intro(parent,"ЦЕНТР ПОДДЕРЖКИ",
+            "Помощь всегда рядом.",
+            "Инструкции для устройств, диагностика и состояние сервисов.",
+            "рядом.")
+        val links=listOf(
+            Triple("◉  Диагностика VPN","Вход, импорт, скорость и подключение.","diagnostics.html"),
+            Triple("◇  Статус сервисов","Проверка базы данных и H1Cloud.","status.html"),
+            Triple("▣  Мои устройства","iPhone, iPad, Android и другие.","device-center.html"),
+            Triple("?  Вопросы и ответы","Помощь с тарифами и подпиской.","help.html"),
+            Triple("⛨  Безопасность","Защита аккаунта и VPN-конфигурации.","security.html")
+        )
+        for((title,detail,page) in links){
+            val tile=panel()
+            add(parent,tile,13)
+            add(tile,text(title,19f,d.ink,true))
+            add(tile,text(detail,12f,d.muted),8)
+            val button=action("Открыть раздел  ↗")
+            add(tile,button,13);button.setOnClickListener{openSite(page)}
+        }
+        val faq=panel(true);add(parent,faq,17)
+        add(faq,overline("ЧТО НУЖНО ЗНАТЬ"))
+        add(faq,text("Когда заработает подключение?",18f,d.ink,true),10)
+        add(faq,text("После безопасной интеграции и испытаний нативного VLESS-движка. Пока интернет не проходит через Vainah VPN.",
+            12f,d.muted),8)
+    }
+    private fun bottomBar(): LinearLayout {
+        val nav=row().apply{
+            setBackgroundColor(d.surface);setPadding(dp(6),dp(6),dp(6),dp(6))
+        }
+        for((destination,icon,title) in listOf(
+            Triple(Tab.HOME,"⌂","Главная"),
+            Triple(Tab.PLANS,"▦","Тарифы"),
+            Triple(Tab.ACCOUNT,"◇","Кабинет"),
+            Triple(Tab.HELP,"?","Помощь")
+        )){
+            val selected=tab==destination
+            val tile=column().apply{
+                gravity=Gravity.CENTER
+                background=if(selected)shape(Color.rgb(51,42,81),Color.rgb(51,42,81),
+                    13f,Color.rgb(92,75,136))else null
+                isClickable=true;isFocusable=true
+                contentDescription=title+(if(selected)" — текущая вкладка"else "")
+                setOnClickListener{switch(destination)}
+            }
+            add(tile,text(icon,20f,if(selected)d.purple else d.muted,true).apply{
+                gravity=Gravity.CENTER
+            })
+            add(tile,text(title,10f,if(selected)d.ink else d.muted,selected).apply{
+                gravity=Gravity.CENTER
+            })
+            nav.addView(tile,LinearLayout.LayoutParams(0,-1,1f).apply{marginEnd=dp(2)})
+        }
+        return nav
+    }
+    private fun requestConnection(){
+        if(vault.load()==null){
+            notice("Сначала добавь HTTPS-ссылку подписки из личного кабинета.");return
+        }
+        if(!EngineRegistry.active.ready){
+            notice("VPN-движок H1Cloud/VLESS пока не интегрирован. Подключение не установлено, трафик не защищён.");return
+        }
+        val consent=VpnService.prepare(this)
+        if(consent!=null)startActivityForResult(consent,requestVpn)else startTunnel()
+    }
+    @Deprecated("Compatibility VPN permission callback")
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
+        super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode==requestVpn){
+            if(resultCode==RESULT_OK)startTunnel()
+            else notice("Разрешение Android на VPN не предоставлено.")
+        }
+    }
+    private fun startTunnel(){
+        if(!EngineRegistry.active.ready||vault.load()==null)return
+        val intent=Intent(this,VainahVpnService::class.java).apply{
+            action=VainahVpnService.ACTION_CONNECT
+        }
+        if(Build.VERSION.SDK_INT>=26)startForegroundService(intent)else startService(intent)
+    }
+}
 
-        val links = panel()
-        add(root, links, 17)
-        add(links, text("АККАУНТ И ПОМОЩЬ", 11f, lavender, true))
-        val cabinet = action("Открыть личный кабинет ↗")
-        add(links, cabinet, 12)
-        cabinet.setOnClickListener { openHttps("https://vainahvpnbot0.netlify.app/account.html") }
-        val guide = action("Инструкции и диагностика ↗")
-        add(links, guide, 10)
-        guide.setOnClickListener { openHttps("https://vainahvpnbot0.netlify.app/diagnostics.html") }
-        add(root, text("Vainah VPN 0.1 · платформа подготовлена · VPN-движок ещё не подключён", 11f, dim), 25)
-    }
-    private fun openHttps(url: String) {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    }
-    private fun showNotice(message: String) {
-        AlertDialog.Builder(this).setMessage(message).setPositiveButton("Понятно", null).show()
-    }
-    private fun refreshStatus() {
-        val hasProfile = vault.load() != null
-        if (::profile.isInitialized)
-            profile.text = if (hasProfile) "✓ Профиль сохранён локально" else "Профиль не добавлен"
-        state.text = "Не подключено"
-        connect.contentDescription = "Подключить VPN (требуется VPN-движок)"
-        connect.alpha = if (hasProfile) 1f else 0.8f
-    }
-    private fun requestConnection() {
-        if (vault.load() == null) {
-            showNotice("Сначала добавь HTTPS-ссылку подписки из кабинета.")
-            return
+private class VainahMark(activity:Activity):View(activity){
+    private val p=Paint(Paint.ANTI_ALIAS_FLAG)
+    override fun onDraw(c:Canvas){
+        super.onDraw(c)
+        val w=width.toFloat();val h=height.toFloat()
+        p.shader=android.graphics.LinearGradient(0f,0f,w,h,
+            intArrayOf(Color.rgb(189,159,255),Color.rgb(101,60,224)),
+            null,Shader.TileMode.CLAMP)
+        c.drawRoundRect(0f,0f,w,h,w*.28f,h*.28f,p)
+        p.shader=null;p.color=Color.WHITE
+        p.style=Paint.Style.STROKE;p.strokeWidth=w*.105f
+        p.strokeCap=Paint.Cap.ROUND;p.strokeJoin=Paint.Join.ROUND
+        val mark=Path().apply{
+            moveTo(w*.22f,h*.30f);lineTo(w*.50f,h*.76f);lineTo(w*.79f,h*.30f)
         }
-        if (!EngineRegistry.active.ready) {
-            showNotice("Настоящее VPN-подключение пока не реализовано. VLESS-движок должен быть встроен и проверен на устройстве. Системный VPN не будет запущен.")
-            return
-        }
-        val consent = VpnService.prepare(this)
-        if (consent != null) startActivityForResult(consent, requestVpn)
-        else startTunnel()
+        c.drawPath(mark,p)
+        p.color=Color.rgb(209,247,255);p.strokeWidth=w*.055f
+        c.drawPath(Path().apply{
+            moveTo(w*.50f,h*.17f);lineTo(w*.65f,h*.44f);lineTo(w*.50f,h*.78f)
+        },p)
+        p.style=Paint.Style.FILL
     }
-    @Deprecated("Uses the compatibility permission flow; replace with Activity Result API in production.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == requestVpn) {
-            if (resultCode == RESULT_OK) startTunnel()
-            else showNotice("Разрешение Android на VPN не предоставлено.")
-        }
-    }
-    private fun startTunnel() {
-        if (!EngineRegistry.active.ready || vault.load() == null) return
-        val intent = Intent(this, VainahVpnService::class.java).apply {
-            action = VainahVpnService.ACTION_CONNECT
-        }
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
-        else startService(intent)
+}
+
+private class VainahPower(activity:Activity):View(activity){
+    private val p=Paint(Paint.ANTI_ALIAS_FLAG)
+    override fun onDraw(c:Canvas){
+        super.onDraw(c)
+        val cx=width/2f;val cy=height/2f
+        val radius=Math.min(width,height)*.45f
+        p.shader=RadialGradient(cx,cy,radius,
+            intArrayOf(Color.rgb(75,54,130),Color.rgb(38,28,74),Color.TRANSPARENT),
+            floatArrayOf(0f,.57f,1f),Shader.TileMode.CLAMP)
+        c.drawCircle(cx,cy,radius,p)
+        p.shader=null;p.style=Paint.Style.STROKE
+        p.color=Color.rgb(169,139,255);p.strokeWidth=width*.009f
+        c.drawCircle(cx,cy,radius*.64f,p)
+        p.color=Color.rgb(204,182,255);p.strokeWidth=width*.035f
+        p.strokeCap=Paint.Cap.ROUND
+        val r=radius*.32f
+        c.drawArc(RectF(cx-r,cy-r,cx+r,cy+r),-47f,274f,false,p)
+        c.drawLine(cx,cy-r*1.28f,cx,cy,p)
+        p.style=Paint.Style.FILL
     }
 }
