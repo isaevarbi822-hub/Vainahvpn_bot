@@ -41,6 +41,14 @@ export async function readH1ClientStatus(telegramId,options={}) {
       signal:AbortSignal.timeout(8000)
     });
   }catch{throw new H1StatusError('PANEL_UNREACHABLE');}
+  // Classify HTTP failures before parsing. H1 or its proxy may return an
+  // HTML error page during an outage, which is not an invalid client response.
+  if(response.status===401 || response.status===403)
+    throw new H1StatusError('PANEL_UNAUTHORIZED');
+  if(response.status===429)
+    throw new H1StatusError('PANEL_RATE_LIMITED');
+  if(Number.isInteger(response.status) && response.status>=500 && response.status<=599)
+    throw new H1StatusError('PANEL_SERVER_ERROR');
   let data;
   try{
     if(Number(response.headers?.get('content-length')||0)>100000)throw Error('Too large');
@@ -50,9 +58,6 @@ export async function readH1ClientStatus(telegramId,options={}) {
   }catch{throw new H1StatusError('PANEL_INVALID_RESPONSE');}
   if(response.status===404 && data?.error==='user_not_found'){
     return {panelReady:true,found:false,active:false,expiresAt:null};
-  }
-  if(response.status===401 || response.status===403){
-    throw new H1StatusError('PANEL_UNAUTHORIZED');
   }
   if(!response.ok || data?.ok!==true){
     throw new H1StatusError('PANEL_API_ERROR');
