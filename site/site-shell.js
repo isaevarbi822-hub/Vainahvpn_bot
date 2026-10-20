@@ -61,6 +61,13 @@
     const toggle=header.querySelector('[data-menu-button]');
     const mobile=header.querySelector('[data-mobile-nav]');
     if(toggle&&mobile){
+      // Delegated listener also closes dynamically added navigation links.
+      mobile.addEventListener('click',event=>{
+        if(!event.target.closest('a'))return;
+        mobile.classList.remove('open');
+        toggle.setAttribute('aria-expanded','false');
+        toggle.setAttribute('aria-label','Открыть меню');
+      });
       document.addEventListener('keydown',event=>{
         if(event.key==='Escape'&&mobile.classList.contains('open')){
           mobile.classList.remove('open');
