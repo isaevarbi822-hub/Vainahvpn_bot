@@ -11,12 +11,12 @@
     email:root.querySelector('[data-auth-message="email"]'),
     phone:root.querySelector('[data-auth-message="phone"]')
   };
-  let clerk=null,current=null,signedIn=null,busy=false,initialized=false;
+  let clerk=null,current=null,signedIn=null,userButtonZone=null,busy=false,initialized=false;
   const write=(type,value)=>{if(status[type])status[type].textContent=value};
   function domainFromKey(key){
     if(!/^pk_live_[A-Za-z0-9_-]{25,}$/.test(key))throw Error('Неверный публичный ключ');
-    const encoded=key.split('_')[2];
-    const domain=atob(encoded).replace(/\$$/,'');
+    const encoded=key.slice('pk_live_'.length).replace(/-/g,'+').replace(/_/g,'/');
+    const domain=atob(encoded).replace(/\$/,'');
     if(!/^[a-z0-9][a-z0-9.-]{2,230}[a-z0-9]$/i.test(domain)||
        domain.includes('..')||domain.includes('localhost'))
       throw Error('Некорректный адрес Clerk');
@@ -38,11 +38,11 @@
   function resetMount(){
     if(!clerk||!current)return;
     try{
-      if(signedIn)clerk.unmountUserButton(panes[current]);
+      if(signedIn&&userButtonZone)clerk.unmountUserButton(userButtonZone);
       else clerk.unmountSignIn(panes[current]);
     }catch{}
     panes[current].replaceChildren();
-    current=null;
+    userButtonZone=null;current=null;
   }
   function activate(method){
     if(!['email','phone'].includes(method))return;
@@ -68,10 +68,11 @@
       button.textContent='Подтвердить вход в Vainah VPN';
       button.addEventListener('click',()=>void continueToSite(method,button));
       pane.append(userZone,button);
+      userButtonZone=userZone;
       clerk.mountUserButton(userZone);
       write(method,'Clerk подтвердил сессию. Нажми кнопку для безопасного входа на сайт.');
     }else{
-      clerk.mountSignIn(pane,{fallbackRedirectUrl:window.location.origin+'/account.html'});
+      clerk.mountSignIn(pane,{fallbackRedirectUrl:window.location.origin+'/account.html',withSignUp:true,signUpFallbackRedirectUrl:window.location.origin+'/account.html'});
       write(method,'Используй официальную форму Clerk. Если вход по телефону не предлагается, включи SMS в настройках Clerk.');
     }
   }
@@ -126,6 +127,10 @@
         write(method,(error.message||'Clerk временно недоступен')+'. Telegram и Яндекс остаются доступными.');
     }
   }
+  // Signing out of the Vainah bridge should also close the Clerk session.
+  window.VainahClerkSignOut=async()=>{
+    if(clerk?.isSignedIn&&typeof clerk.signOut==='function')await clerk.signOut();
+  };
   window.addEventListener('vainah:auth-panel',event=>{
     const method=event.detail?.method;
     if(['phone','email'].includes(method))activate(method);
