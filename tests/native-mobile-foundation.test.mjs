@@ -32,7 +32,10 @@ test('Android manifest reserves VPN service exclusively for OS and uses foregrou
   assert.match(xml,/android:foregroundServiceType="systemExempted"/);
   assert.match(xml,/android:usesCleartextTraffic="false"/);
   assert.match(xml,/android:allowBackup="false"/);
-  assert.match(xml,/android:name="\.VainahVpnService"[\\s\\S]*?android:exported="true"[\\s\\S]*?android:permission="android\\.permission\\.BIND_VPN_SERVICE"/);
+  const serviceTag=xml.slice(xml.indexOf('<service'),xml.indexOf('</service>'));
+  assert.ok(serviceTag.includes('android:name=".VainahVpnService"'));
+  assert.ok(serviceTag.includes('android:exported="true"'));
+  assert.ok(serviceTag.includes('android:permission="android.permission.BIND_VPN_SERVICE"'));
   assert.doesNotMatch(xml,/READ_SMS|READ_CONTACTS|QUERY_ALL_PACKAGES/);
 });
 
