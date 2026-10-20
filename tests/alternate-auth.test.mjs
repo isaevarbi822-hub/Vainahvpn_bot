@@ -240,7 +240,12 @@ test('account page has four visible methods and never links to bot purchase',()=
   assert.match(html,/id="account-telegram-retry"/);
   assert.match(html,/id="account-alt-private"[^>]*hidden/);
   assert.match(html,/id="account-yandex-start"/);
-  assert.match(client,/action:'check'/);
+  const clerk=readFileSync(new URL('../site/clerk-login.js',import.meta.url),'utf8');
+  assert.match(clerk,/\.mountSignIn\(/);
+  assert.match(clerk,/clerk-auth-config/);
+  assert.match(clerk,/clerk-session/);
+  assert.match(html,/id="account-clerk-email"/);
+  assert.match(html,/id="account-clerk-phone"/);
   assert.match(client,/alternate-login/);
   assert.match(widget,/data-telegram-login/);
   assert.doesNotMatch(client,/innerHTML\s*=/);
