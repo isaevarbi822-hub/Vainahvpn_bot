@@ -17,7 +17,7 @@
     historyCount:$('account-history-count'),historyHint:$('account-history-hint'),
     refresh:$('account-refresh')
   };
-  let user=null,overview=null,vpnUrl=null,epoch=0;
+  let user=null,overview=null,vpnUrl=null,epoch=0,loginAttempt=0;
   const uuid=/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i;
   const rub=(value)=>Number.isFinite(Number(value))?new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value))+' ₽':'—';
   const date=(value)=>{
@@ -71,6 +71,10 @@
     epoch++;
     overview=null;
     clearVpnLink();
+    el.plan.textContent='Загружаем…';el.expiry.textContent='—';el.devices.textContent='—';
+    el.planName.textContent='Загружаем…';el.planSub.textContent='Проверяем покупки';
+    el.planPrice.textContent='—';el.historyCount.textContent='0';
+    el.deviceLimit.textContent='—';el.getVpn.disabled=true;
     el.login.hidden=!!user;
     el.private.hidden=!user;
     el.logout.hidden=!user;
@@ -196,7 +200,7 @@
       const url=new URL(data.subscriptionUrl);
       if(url.protocol!=='https:'||!url.hostname||url.username||url.password)throw Error('Некорректная VPN-ссылка');
       vpnUrl=data.subscriptionUrl;
-      el.openVpn.href=vpnUrl;
+      el.openVpn.href=vpnUrl;el.openVpn.referrerPolicy='no-referrer';
       el.openVpn.hidden=false;el.copyVpn.hidden=false;
       el.accessStatus.textContent='Ссылка готова. Не передавай её посторонним — она даёт доступ к твоему VPN.';
     }catch(error){
@@ -213,6 +217,7 @@
   });
   el.refresh.addEventListener('click',refreshAll);
   el.logout.addEventListener('click',async()=>{
+    loginAttempt++;
     el.logout.disabled=true;
     try{
       await request('telegram-account',{method:'POST',
@@ -223,6 +228,7 @@
     }finally{el.logout.disabled=false}
   });
   window.onVainahAccountAuth=async function(data){
+    loginAttempt++;
     try{
       el.auth.textContent='Подтверждаем вход через Telegram…';
       const result=await request('telegram-account',{method:'POST',
@@ -244,10 +250,13 @@
     el.widget.appendChild(script);
   }
   mountWidget();
+  const initialAttempt=loginAttempt;
   request('telegram-account').then(result=>{
+    if(loginAttempt!==initialAttempt)return;
     showSession(result.user);
     if(result.user)refreshAll();
   }).catch(()=>{
+    if(loginAttempt!==initialAttempt)return;
     showSession(null);
     el.auth.textContent='Не получилось проверить вход. Проверь соединение и повтори позже.';
   });
