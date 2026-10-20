@@ -32,10 +32,19 @@ export function recommendPlan(plans,requestedDays,requestedDevices){
     .sort((a,b)=>a.priceKopeks-b.priceKopeks||a.days-b.days)[0]||null;
 }
 
+function normalizeQuery(value){
+  return String(value||'').trim().toLocaleLowerCase('ru')
+    .replace(/телеграмм?/g,'telegram')
+    .replace(/айпад/g,'ipad')
+    .replace(/айфон/g,'iphone')
+    .replace(/виндовс/g,'windows')
+    .replace(/андроид/g,'android')
+    .replace(/роллипей/g,'rollypay');
+}
 export function filterLibrary(items,category,query){
-  const q=String(query||'').trim().toLocaleLowerCase('ru');
+  const q=normalizeQuery(query);
   return items.filter(item=>(category==='all'||item.category===category) &&
-    (!q || (item.title+' '+item.description+' '+item.category).toLocaleLowerCase('ru').includes(q)));
+    (!q || normalizeQuery(item.title+' '+item.description+' '+item.category).includes(q)));
 }
 
 export function setupInstructions(platform,stage){
