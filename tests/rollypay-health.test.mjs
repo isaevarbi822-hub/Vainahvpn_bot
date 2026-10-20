@@ -55,3 +55,29 @@ test('reports rate limiting and connection timeout separately',async()=>{
   assert.deepEqual(await inspectRollypay({env,fetcher:async()=>{const e=Error('private');e.name='TimeoutError';throw e;}}),
     {ok:false,provider:'unavailable',reason:'timeout'});
 });
+
+test('recognizes documented terminal ID errors but never reflects arbitrary error bodies',async()=>{
+  const required=await inspectRollypay({env,fetcher:async()=>new Response(
+    JSON.stringify({error:'terminal_id is required',secret:'do-not-expose'}),{status:400})});
+  assert.deepEqual(required,{ok:false,provider:'http_error',httpStatus:400,reason:'terminal_id_required'});
+  const missing=await inspectRollypay({env,fetcher:async()=>new Response(
+    JSON.stringify({error:'terminal not found',secret:'do-not-expose'}),{status:400})});
+  assert.equal(missing.reason,'terminal_not_found');
+  const unknown=await inspectRollypay({env,fetcher:async()=>new Response(
+    JSON.stringify({error:'private account 123',secret:'do-not-expose'}),{status:400})});
+  assert.deepEqual(unknown,{ok:false,provider:'http_error',httpStatus:400,reason:'bad_request'});
+  assert.ok(!JSON.stringify(unknown).includes('private'));
+});
+test('supports explicit terminal UUID without exposing it in the result',async()=>{
+  const id='d290f1ee-6c54-4b01-90e6-d701748f0851';
+  const result=await inspectRollypay({env:{...env,ROLLYPAY_TERMINAL_ID:id},fetcher:async(url)=>{
+    assert.equal(url,'https://rollypay.io/api/v1/balance?terminal_id='+id);
+    return new Response(JSON.stringify({terminal_id:id,available_usdt:'0',hold_usdt:'0'}));
+  }});
+  assert.deepEqual(result,{ok:true,provider:'reachable',authentication:'accepted'});
+  assert.ok(!JSON.stringify(result).includes(id));
+});
+test('invalid terminal ID stops before request',async()=>{
+  const result=await inspectRollypay({env:{...env,ROLLYPAY_TERMINAL_ID:'not a uuid'},fetcher:()=>{throw Error('should not fetch')}});
+  assert.deepEqual(result,{ok:false,provider:'invalid_configuration',field:'ROLLYPAY_TERMINAL_ID'});
+});
