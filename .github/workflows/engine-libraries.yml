@@ -99,6 +99,19 @@ jobs:
       - name: Build Apple iOS libbox XCFramework
         working-directory: upstream
         run: go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
+      - name: Prepare native iOS extension with real libbox framework
+        run: python3 native/ios/scripts/link-libbox-preview.py upstream/Libbox.xcframework
+      - name: Generate native iOS project
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift native/ios/scripts/generate-icon.swift
+          cd native/ios && xcodegen generate
+      - name: Compile iOS extension with libbox linked (VPN remains disabled)
+        run: >
+          xcodebuild -project native/ios/VainahVPN.xcodeproj
+          -scheme VainahVPN -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
       - name: Retain upstream license with native library
         run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
       - uses: actions/upload-artifact@v4
