@@ -1,4 +1,6 @@
 /* Vainah VPN account — polished, accessible and mobile-first additions. */
+.account-shell [hidden]{display:none!important}
+
 .account-shell{padding-top:50px;padding-bottom:30px}
 .account-hero{position:relative;isolation:isolate;overflow:hidden;border:1px solid #514c78;border-radius:28px;background:radial-gradient(ellipse at 85% 18%,#8762cc55,transparent 58%),radial-gradient(ellipse at 11% 90%,#318aa940,transparent 52%),linear-gradient(130deg,#23213e,#101b2b 78%);padding:43px 44px;display:grid;grid-template-columns:1.5fr .65fr;gap:22px;align-items:center;box-shadow:0 24px 75px #0004}
 .account-hero:after{content:"";position:absolute;border:1px solid #b8afff30;width:310px;height:310px;right:-75px;bottom:-210px;border-radius:50%;box-shadow:0 0 0 54px #a98bff0b,0 0 0 115px #a98bff08;pointer-events:none;z-index:-1}
