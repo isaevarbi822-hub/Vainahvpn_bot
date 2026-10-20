@@ -95,10 +95,13 @@ test('No legacy website checkout code or secrets are included in native sources'
 });
 
 test('User retains existing site for web login and diagnostic flow',()=>{
-  for(const path of [android+'MainActivity.kt',ios+'App/ContentView.swift']){
-    const code=read(path);
-    assert.ok(code.includes('https://vainahvpnbot0.netlify.app/account.html'));
-    assert.ok(code.includes('https://vainahvpnbot0.netlify.app/diagnostics.html'));
+  const androidApp=read(android+'MainActivity.kt');
+  const iosApp=read(ios+'App/ContentView.swift');
+  for(const code of [androidApp,iosApp])
+    assert.ok(code.includes('https://vainahvpnbot0.netlify.app/'));
+  for(const page of ['account.html','diagnostics.html']){
+    assert.ok(androidApp.includes('"'+page+'"'));
+    assert.ok(iosApp.includes('"'+page+'"'));
   }
   assert.match(read('ios/project.yml'),/packet-tunnel-provider/);
   assert.match(read('android/app/src/main/AndroidManifest.xml'),/<service/);
