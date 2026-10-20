@@ -1,0 +1,152 @@
+name: Vainah VPN Desktop Windows macOS preview
+
+on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - "desktop/**"
+      - "tests/native-desktop-preview.test.mjs"
+      - ".github/workflows/desktop-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vainah-desktop-ui-preview
+  cancel-in-progress: false
+
+jobs:
+  safety:
+    name: Desktop source, design and security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check desktop JS syntax
+        run: |
+          for file in desktop/src/*.cjs desktop/shared/*.cjs desktop/ui/*.js desktop/tests/*.cjs; do
+            node --check "$file"
+          done
+      - name: Run desktop and repo parity tests
+        run: |
+          node --test desktop/tests/*.test.cjs
+          node --test tests/native-desktop-preview.test.mjs tests/native-site-parity.test.mjs
+
+  windows:
+    name: Windows x64 preview installer
+    runs-on: windows-latest
+    needs: safety
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install desktop dependencies
+        run: npm install --prefix desktop --no-audit --no-fund
+      - name: Build Windows NSIS installer
+        run: npm run --prefix desktop dist:win
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-windows-ui-preview
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macOS Intel and Apple Silicon previews
+    runs-on: macos-latest
+    needs: safety
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install desktop dependencies
+        run: npm install --prefix desktop --no-audit --no-fund
+      - name: Build macOS DMG for both architectures
+        run: npm run --prefix desktop dist:mac
+      - name: Upload macOS previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-macos-ui-preview
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Public GitHub prerelease of UI previews
+    runs-on: ubuntu-latest
+    needs: [safety, windows, macos]
+    permissions:
+      contents: write
+    # Never publish installers from untrusted forks or PRs.
+    if: github.repository == 'isaevarbi822-hub/Vainahvpn_bot' && github.ref == 'refs/heads/feature/native-ios-android-vpn-foundation'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vainah-*-ui-preview
+          path: preview
+          merge-multiple: true
+      - name: Check all platform installers and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(preview/*.exe preview/*.dmg)
+          [[ ${#files[@]} -ge 3 ]] || { echo "Windows and both macOS versions required"; exit 1; }
+          for file in "${files[@]}"; do test -s "$file"; done
+          cd preview
+          sha256sum *.exe *.dmg > SHA256SUMS.txt
+      - name: Publish explicitly labeled prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="desktop-ui-preview-v0.2.0"
+          cat > /tmp/VainahDesktopNotes.md <<'NOTES'
+          # Vainah VPN Desktop: первые версии Windows и macOS
+
+          **ВНИМАНИЕ! ТЕСТОВЫЕ СБОРКИ НЕ ПОДКЛЮЧАЮТ VPN И НЕ ЗАЩИЩАЮТ ТРАФИК.**
+          Это ранний просмотр интерфейса нативных приложений. Используй
+          работающий совместимый VPN-клиент для настоящего соединения.
+
+          Платформы:
+          - Windows 10/11, x64: установщик NSIS (.exe).
+          - macOS, Intel: DMG x64.
+          - macOS, Apple Silicon: DMG arm64.
+
+          Доступно: фирменный дизайн Vainah VPN, 6 тарифов как на сайте,
+          старт за три шага, инструкции, кабинет через официальный сайт,
+          устройства, помощь, понятная диагностика доступности функций.
+
+          Пока НЕТ: системного H1Cloud/VLESS-туннеля, встроенного входа,
+          денежных операций, импорта секретных ссылок, магазинов приложений.
+          **Никакой защиты VPN через эти файлы нет.**
+
+          Сборки без цифровой подписи и Apple notarization. ОС может запретить
+          запуск; не обходите предупреждения безопасности. Для массового
+          распространения нужны подписанные проверенные версии.
+
+          Скачивай только из официального GitHub-репозитория проекта.
+          Контрольные суммы SHA256 в приложенном файле.
+          NOTES
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Tag already published: refusing to silently replace binaries. Bump version for another release."
+            exit 1
+          fi
+          gh release create "$tag" preview/*.exe preview/*.dmg preview/SHA256SUMS.txt \
+            -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Vainah VPN Desktop 0.2 — Windows и macOS (ТОЛЬКО UI, без VPN)" \
+            --notes-file /tmp/VainahDesktopNotes.md \
+            --prerelease --latest=false
