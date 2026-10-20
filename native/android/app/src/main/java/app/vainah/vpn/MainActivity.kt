@@ -88,7 +88,7 @@ class MainActivity : Activity() {
             setPadding(dp(20), dp(23), dp(20), dp(35))
         }
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             isVerticalScrollBarEnabled = false
         }
         scroll.addView(root)
