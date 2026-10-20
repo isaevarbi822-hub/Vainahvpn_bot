@@ -39,5 +39,19 @@ test('does not accept unexpected body or network failure',async()=>{
   assert.deepEqual(await inspectRollypay({env,fetcher:async()=>new Response('wrong',{status:200})}),
     {ok:false,provider:'invalid_response'});
   assert.deepEqual(await inspectRollypay({env,fetcher:async()=>{throw Error('secret trace')}}),
-    {ok:false,provider:'unavailable'});
+    {ok:false,provider:'unavailable',reason:'network_error'});
+});
+
+test('distinguishes HTTP 404 and 502 from invalid keys without leaking upstream responses',async()=>{
+  for(const code of [404,502]){
+    const result=await inspectRollypay({env,fetcher:async()=>new Response('PRIVATE PROVIDER RESPONSE',{status:code})});
+    assert.deepEqual(result,{ok:false,provider:'http_error',httpStatus:code});
+    assert.ok(!JSON.stringify(result).includes('PRIVATE'));
+  }
+});
+test('reports rate limiting and connection timeout separately',async()=>{
+  assert.deepEqual(await inspectRollypay({env,fetcher:async()=>new Response('',{status:429})}),
+    {ok:false,provider:'rate_limited'});
+  assert.deepEqual(await inspectRollypay({env,fetcher:async()=>{const e=Error('private');e.name='TimeoutError';throw e;}}),
+    {ok:false,provider:'unavailable',reason:'timeout'});
 });
