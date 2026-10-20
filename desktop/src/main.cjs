@@ -50,6 +50,7 @@ app.whenReady().then(()=>{
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?PREVIEW_STATUS:null);
+  ipcMain.handle('vainah:capabilities',event=>authorizedSender(event)?PUBLIC_CAPABILITIES:null);
   ipcMain.handle('vainah:open-official',async(event,name)=>{
     if(!authorizedSender(event))return {ok:false};
     const url=safePage(name);
