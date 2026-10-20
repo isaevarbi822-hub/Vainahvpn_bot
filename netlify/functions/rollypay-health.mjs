@@ -7,13 +7,17 @@ let cached=null;
 export async function inspectRollypay({env=process.env,fetcher=fetch,now=Date.now()}={}){
   const key=String(env.ROLLYPAY_API_KEY||'').trim();
   if(!key)return {ok:false,provider:'not_configured'};
+  // Optional in RollyPay docs, but certain terminal configurations may require it.
+  const terminalId=String(env.ROLLYPAY_TERMINAL_ID||'').trim();
+  if(terminalId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(terminalId))
+    return {ok:false,provider:'invalid_configuration',field:'ROLLYPAY_TERMINAL_ID'};
   // Coalesce ordinary repeated public checks on a warm function instance.
   // Cache only sanitized status, and only for the real server environment.
   if(env===process.env && fetcher===fetch && cached && now-cached.at<60000)return cached.result;
   const result=await (async()=>{
     let response;
     try{
-      response=await fetcher('https://rollypay.io/api/v1/balance',{
+      response=await fetcher('https://rollypay.io/api/v1/balance'+(terminalId?'?terminal_id='+encodeURIComponent(terminalId):''),{
         method:'GET',redirect:'error',cache:'no-store',
         headers:{'X-API-Key':key,'X-Nonce':randomUUID(),Accept:'application/json'},
         signal:AbortSignal.timeout(8000)
@@ -26,6 +30,24 @@ export async function inspectRollypay({env=process.env,fetcher=fetch,now=Date.no
     if(response?.status===401)return {ok:false,provider:'reachable',authentication:'rejected'};
     if(response?.status===403)return {ok:false,provider:'reachable',authentication:'forbidden'};
     if(response?.status===429)return {ok:false,provider:'rate_limited'};
+    if(response?.status===400){
+      // RollyPay documents {"error":"..."}; return only a fixed diagnostic code.
+      // Never reflect an arbitrary provider-supplied message or merchant information.
+      let reason='bad_request';
+      try {
+        if(Number(response.headers?.get('content-length')||0)<=1024){
+          const raw=await response.text();
+          if(raw.length<=1024){
+            const value=JSON.parse(raw)?.error;
+            if(typeof value==='string'){
+              if(/^terminal_id is required$/i.test(value.trim()))reason='terminal_id_required';
+              else if(/^terminal not found$/i.test(value.trim()))reason='terminal_not_found';
+            }
+          }
+        }
+      }catch{}
+      return {ok:false,provider:'http_error',httpStatus:400,reason};
+    }
     if(!response?.ok){
       // Status code is safe to disclose; response bodies may contain private account data.
       const code=Number(response?.status);
