@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: vainah-integration-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     name: Verify account policy and exact website copy
