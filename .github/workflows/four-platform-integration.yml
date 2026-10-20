@@ -29,8 +29,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --test tests/control-plane-device-policy.test.mjs tests/profile-format.test.mjs tests/reality-compat.test.mjs tests/engine-readiness.test.mjs tests/singbox-reality-adapter.test.mjs
+      - run: node --test tests/control-plane-device-policy.test.mjs tests/profile-format.test.mjs tests/reality-compat.test.mjs tests/engine-readiness.test.mjs tests/singbox-reality-adapter.test.mjs tests/desktop-tun-config.test.mjs
       - run: node --test desktop/tests/*.test.cjs
+      - name: Check experimental TCP Reality TUN config with pinned sing-box
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3             'https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-amd64.tar.gz' -o /tmp/vainah-singbox.tgz
+          echo 'e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee  /tmp/vainah-singbox.tgz' | sha256sum --check
+          tar -xzf /tmp/vainah-singbox.tgz -C /tmp
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {createDesktopTunConfig} from './services/control-plane/desktop-tun-config.mjs';
+          const link='vless://123e4567-e89b-42d3-a456-426614174000@vpn.example.org:443?security=reality&type=tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome';
+          fs.writeFileSync('/tmp/vainah-schema-example.json',JSON.stringify(createDesktopTunConfig(link,'darwin')));
+          JS
+          /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c /tmp/vainah-schema-example.json
+
       - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs
 
   android:
