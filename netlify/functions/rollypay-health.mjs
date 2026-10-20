@@ -18,10 +18,20 @@ export async function inspectRollypay({env=process.env,fetcher=fetch,now=Date.no
         headers:{'X-API-Key':key,'X-Nonce':randomUUID(),Accept:'application/json'},
         signal:AbortSignal.timeout(8000)
       });
-    }catch{return {ok:false,provider:'unavailable'}}
+    }catch(error){
+      const timeout=error?.name==='TimeoutError'||error?.name==='AbortError'||
+        error?.cause?.code==='ETIMEDOUT';
+      return {ok:false,provider:'unavailable',reason:timeout?'timeout':'network_error'};
+    }
     if(response?.status===401)return {ok:false,provider:'reachable',authentication:'rejected'};
     if(response?.status===403)return {ok:false,provider:'reachable',authentication:'forbidden'};
-    if(!response?.ok)return {ok:false,provider:'unavailable'};
+    if(response?.status===429)return {ok:false,provider:'rate_limited'};
+    if(!response?.ok){
+      // Status code is safe to disclose; response bodies may contain private account data.
+      const code=Number(response?.status);
+      return {ok:false,provider:'http_error',httpStatus:
+        Number.isInteger(code)&&code>=300&&code<=599?code:null};
+    }
     try{
       if(Number(response.headers?.get('content-length')||0)>8192)
         return {ok:false,provider:'invalid_response'};
