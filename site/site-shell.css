@@ -10,6 +10,27 @@ body > header,body > .site-header{
   background:linear-gradient(110deg,#101323f5,#11172cf5)!important;
   border-bottom:1px solid #524d793e!important
 }
+/* Nested section headings must NEVER inherit old global header{position:sticky}
+   rules from legacy HTML. The last version only fixed body > header. */
+main header, main .ux-page-hero, main .tool-intro {
+  position:static!important;
+  top:auto!important;
+  bottom:auto!important;
+  left:auto!important;
+  right:auto!important;
+  inset:auto!important;
+  z-index:auto!important;
+  transform:none!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+main header::before, main header::after {
+  pointer-events:none;
+}
+
 body > header nav,body > .site-header nav{scroll-margin-top:0}
 :is(.container,.ux-wide,.tool-grid,.ux-card,.panel,.paper,.card,.account-panel){
   min-width:0
