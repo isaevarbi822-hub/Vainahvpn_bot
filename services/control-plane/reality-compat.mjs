@@ -31,7 +31,9 @@ export function preflightVlessReality(input){
  if(!B64URL.test(u.searchParams.get('pbk')||''))return reject('KEY');
  const sni=u.searchParams.get('sni')||'';
  if(!HOST.test(sni)||!sni.includes('.'))return reject('SERVER_NAME');
- const transport=u.searchParams.get('type')||'tcp';
+ const transport=u.searchParams.get('type');
+ // Missing transport is ambiguous: do not silently assume TCP.
+ if(!transport)return reject('TRANSPORT');
  if(!ALLOWED_TRANSPORTS.has(transport))return reject('TRANSPORT');
  const fp=u.searchParams.get('fp')||'chrome';
  if(!['chrome','firefox','safari','ios','android','edge'].includes(fp))return reject('FINGERPRINT');
