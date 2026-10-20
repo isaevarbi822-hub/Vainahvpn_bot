@@ -163,3 +163,34 @@ export async function latestDeliveredWebsiteOrder(telegramId){
       ORDER BY paid_at DESC NULLS LAST LIMIT 1`,[telegramId]);
   return r.rows[0]||null;
 }
+
+
+/**
+ * Read-only account overview. Order rows never expose provider IDs, payment
+ * links, VPN credentials or other customers' details.
+ * Limits history to 30 website orders to keep serverless responses bounded.
+ */
+export async function websiteAccountOverview(telegramId,db=null){
+  if(!/^[1-9][0-9]{0,17}$/.test(String(telegramId||'')))
+    throw Error('INVALID_CUSTOMER_ID');
+  const pool=db||await getPool();
+  const [orders,entitlement]=await Promise.all([
+    pool.query(
+      `SELECT id,plan_days,device_limit,amount_kopeks,currency,status,
+              delivery_state,created_at,paid_at,target_expires_at
+         FROM vpn_orders
+        WHERE telegram_id=$1 AND source='website' AND is_test=false
+        ORDER BY created_at DESC,id DESC LIMIT 30`,
+      [telegramId]),
+    pool.query(
+      'SELECT expires_at FROM vpn_entitlements WHERE telegram_id=$1',
+      [telegramId])
+  ]);
+  const rows=orders.rows||[];
+  const lastDelivered=rows.find(o=>o.status==='paid'&&o.delivery_state==='delivered')||null;
+  return {
+    orders:rows,
+    entitlementExpiresAt:entitlement.rows?.[0]?.expires_at||null,
+    latestDeliveredOrderId:lastDelivered?.id||null
+  };
+}
