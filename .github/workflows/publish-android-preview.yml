@@ -1,0 +1,81 @@
+name: Publish Vainah VPN Android UI preview
+
+on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - "native/android/**"
+      - "native/README.md"
+      - "tests/native-*.test.mjs"
+      - ".github/workflows/publish-android-preview.yml"
+  workflow_dispatch:
+
+# The workflow only publishes a prerelease build, never production APK.
+permissions:
+  contents: write
+
+concurrency:
+  group: vainah-android-ui-preview
+  cancel-in-progress: false
+
+jobs:
+  public-preview:
+    # Cannot be silently repurposed by a fork.
+    if: github.repository == 'isaevarbi822-hub/Vainahvpn_bot' && github.ref == 'refs/heads/feature/native-ios-android-vpn-foundation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify native app does not claim a working VPN
+        run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build Android preview and unit tests
+        run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
+      - name: Check preview file
+        run: |
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+          mkdir -p preview
+          cp native/android/app/build/outputs/apk/debug/app-debug.apk preview/VainahVPN-Android-UI-Preview.apk
+          sha256sum preview/VainahVPN-Android-UI-Preview.apk > preview/SHA256SUMS.txt
+      - name: Publish GitHub pre-release with honest limitations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="android-ui-preview-v0.1.0"
+          cat > preview/RELEASE_NOTES.md <<'NOTES'
+          # Vainah VPN — ранний Android-предпросмотр интерфейса
+
+          **ВНИМАНИЕ: ЭТА СБОРКА ПОКА НЕ ПОДКЛЮЧАЕТ VPN И НЕ ЗАЩИЩАЕТ ИНТЕРНЕТ-ТРАФИК.**
+          Это тестовая Android-сборка для проверки оформления будущего нативного приложения.
+
+          Что уже можно проверить:
+          - оформление под оригинальный сайт Vainah VPN, фирменный логотип и цвета;
+          - вкладки Главная, Тарифы, Кабинет, Помощь;
+          - шесть тарифов, как на сайте; никаких реальных платежей в приложении;
+          - сохранение своей HTTPS-ссылки подписки в Android Keystore;
+          - открытие личного кабинета в браузере.
+
+          Чего **нет**: рабочего H1Cloud/VLESS-туннеля, проверки VPN-защиты,
+          встроенной авторизации и публикации в Google Play.
+          Нажатие «Подключиться» не создаёт VPN-соединение.
+
+          Только для демонстрации интерфейса на своём разрешённом Android-устройстве.
+          Устанавливайте файлы исключительно из официального репозитория Vainah VPN,
+          не отключайте защиту устройства ради тестирования.
+          NOTES
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" preview/VainahVPN-Android-UI-Preview.apk preview/SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" preview/VainahVPN-Android-UI-Preview.apk preview/SHA256SUMS.txt --target "$GITHUB_SHA" --title "Vainah VPN Android — только UI-предпросмотр (без VPN)" --notes-file preview/RELEASE_NOTES.md --prerelease --latest=false
+          fi
