@@ -40,6 +40,17 @@ jobs:
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
           go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
           "$(go env GOPATH)/bin/gomobile" init
+      - name: Omit NaiveProxy/Cronet from VLESS Reality Android library
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("upstream/cmd/internal/build_libbox/main.go")
+          original = path.read_text()
+          token = '"with_naive_outbound", '
+          if original.count(token) != 1:
+              raise SystemExit("Unexpected upstream build tags; refusing to patch")
+          path.write_text(original.replace(token, ""))
+          PY
       - name: Build Android arm64 library
         working-directory: upstream
         run: go run ./cmd/internal/build_libbox -target android -platform android/arm64
