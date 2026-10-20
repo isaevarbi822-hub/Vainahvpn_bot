@@ -84,7 +84,10 @@ class EngineHost {
       fs.writeFileSync(filename,JSON.stringify(config),{mode:0o600,flag:'wx'});
       if(!await this.runCheck(this.executable,['check','-c',filename],10000))
         throw Error('CONFIG_REJECTED');
-      if(generation!==this.generation)return {ok:false,code:'CANCELLED'};
+      if(generation!==this.generation){
+        this.cleanup();
+        return {ok:false,code:'CANCELLED'};
+      }
       const processHandle=spawn(this.executable,['run','-c',filename],{
         shell:false,windowsHide:true,stdio:'ignore'
       });
