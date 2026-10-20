@@ -1,5 +1,6 @@
 import {parseRubPrice} from './plan-catalog.mjs';
 import {randomUUID} from 'node:crypto';
+import {validPaymentId,PAY_URL_PATH_PATTERN} from './rollypay-identifiers.mjs';
 const API='https://rollypay.io/api/v1/payments';
 async function requestRollypay(path,options={}) {
   const key=process.env.ROLLYPAY_API_KEY;
@@ -34,13 +35,13 @@ export async function createInvoice({orderId,amountKopeks,telegramId,description
   if(data.test===true || data.environment==='sandbox' || data.order_id!==orderId || data.payment_currency!=='RUB'||parseRubPrice(String(data.amount??''))!==amountKopeks) {
     throw Error('ROLLYPAY_INVOICE_MISMATCH');
   }
-  if(typeof data.payment_id!=='string'||!/^pay_[\w-]{8,100}$/.test(data.payment_id))throw Error('ROLLYPAY_BAD_PAYMENT_ID');
+  if(!validPaymentId(data.payment_id))throw Error('ROLLYPAY_BAD_PAYMENT_ID');
   if(typeof data.pay_url!=='string')throw Error('ROLLYPAY_BAD_PAYMENT_URL');
   const url=new URL(data.pay_url);
-  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||url.port||url.username||url.password||url.search||url.hash||!/^\/pay\/[a-zA-Z0-9_-]{6,256}\/?$/.test(url.pathname))throw Error('ROLLYPAY_BAD_PAYMENT_URL');
+  if(url.protocol!=='https:'||url.hostname!=='pay.rollypay.io'||url.port||url.username||url.password||url.search||url.hash||!PAY_URL_PATH_PATTERN.test(url.pathname))throw Error('ROLLYPAY_BAD_PAYMENT_URL');
   return {paymentId:data.payment_id,payUrl:data.pay_url};
 }
 export async function fetchPayment(paymentId) {
-  if(!/^pay_[\w-]{8,100}$/.test(paymentId||'')) throw Error('INVALID_PAYMENT_ID');
+  if(!validPaymentId(paymentId)) throw Error('INVALID_PAYMENT_ID');
   return requestRollypay('/'+encodeURIComponent(paymentId));
 }
