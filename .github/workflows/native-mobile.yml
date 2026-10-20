@@ -43,6 +43,13 @@ jobs:
           gradle-version: "8.10.2"
       - name: Build and test Android
         run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Upload Android UI preview (no VPN transport)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainahvpn-android-ui-preview-no-tunnel
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
 
   ios:
     name: iOS Simulator unsigned compile
