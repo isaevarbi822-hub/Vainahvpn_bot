@@ -3,26 +3,23 @@ package app.vainah.vpn
 import android.net.VpnService
 
 /**
- * Native protocol transport boundary. Not yet implemented for H1Cloud VLESS.
- * A production transport MUST establish its remote encrypted session and
- * forward BOTH directions of the VPN TUN packet stream before claiming "up".
- *
- * No mock engine is allowed to pretend packets are protected.
+ * Adapter for a future H1Cloud/VLESS packet-forwarding engine.
+ * No mock or fake success: ready is false until a reviewed transport ships.
  */
 interface TunnelEngine {
     val ready: Boolean
-    suspend fun connect(service: VpnService, subscriptionUrl: String): Result<Unit>
-    suspend fun disconnect()
+    fun connect(service: VpnService, subscriptionUrl: String): Result<Unit>
+    fun disconnect()
 }
 
 object UnavailableTunnelEngine : TunnelEngine {
-    override val ready: Boolean = false
-    override suspend fun connect(service: VpnService, subscriptionUrl: String): Result<Unit> =
-        Result.failure(UnsupportedOperationException("H1Cloud VLESS engine not integrated"))
-    override suspend fun disconnect() = Unit
+    override val ready = false
+    override fun connect(service: VpnService, subscriptionUrl: String): Result<Unit> =
+        Result.failure(UnsupportedOperationException("VLESS engine not integrated"))
+    override fun disconnect() = Unit
 }
 
 object EngineRegistry {
-    // Replace only after a reviewed, packet-forwarding VLESS engine is integrated.
+    // Replace only after VPN egress/DNS/IPv6/leak tests pass.
     val active: TunnelEngine = UnavailableTunnelEngine
 }
