@@ -1,0 +1,95 @@
+name: Vainah VPN native engine libraries (integration artifacts)
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - ".github/workflows/engine-libraries.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Source-built upstream GPL-3.0 libraries, not installable VainahVPN apps.
+# Must NOT be published as a finished VPN client.
+jobs:
+  android-libbox:
+    name: Build libbox AAR for Android arm64 (integration only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain pinned upstream sing-box source
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: 7054cac5124465ffdb145870d7c01885566711b1
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache: false
+      - name: Install pinned upstream gomobile tools
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
+          "$(go env GOPATH)/bin/gomobile" init
+      - name: Build Android arm64 library
+        working-directory: upstream
+        run: go run ./cmd/internal/build_libbox -target android -platform android/arm64
+      - name: Retain upstream license with native library
+        run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libbox-android-arm64-1.14.3-gpl-source-build
+          path: |
+            upstream/libbox.aar
+            upstream/LIBBOX-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 3
+
+  apple-libbox:
+    name: Build libbox XCFramework for iOS simulator and device
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain pinned upstream sing-box source
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: 7054cac5124465ffdb145870d7c01885566711b1
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache: false
+      - name: Install pinned upstream gomobile tools
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
+          "$(go env GOPATH)/bin/gomobile" init
+      - name: Build Apple iOS libbox XCFramework
+        working-directory: upstream
+        run: go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
+      - name: Retain upstream license with native library
+        run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libbox-apple-ios-1.14.3-gpl-source-build
+          path: |
+            upstream/Libbox.xcframework
+            upstream/LIBBOX-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 3
+
+# These AAR/XCFramework files are engine prerequisites, not permission,
+# routing or packet forwarding in Vainah VPN itself. No secrets are used,
+# no release is created, and production deployments are unchanged.
