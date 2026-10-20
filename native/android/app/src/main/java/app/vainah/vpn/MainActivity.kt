@@ -301,6 +301,29 @@ class MainActivity : Activity() {
                 notice("Ссылка сохранена локально и зашифрована с помощью Android Keystore.")
             }else notice("Нужна корректная HTTPS-ссылка подписки из кабинета.")
         }
+        val check=action("Проверить формат H1Cloud")
+        add(vaultCard,check,9)
+        check.setOnClickListener {
+            val profile=vault.load()
+            if (profile == null) {
+                notice("Сначала сохрани HTTPS-ссылку подписки.")
+            } else {
+                check.isEnabled=false
+                Thread {
+                    val result=H1SubscriptionDiscovery.inspect(profile)
+                    runOnUiThread {
+                        check.isEnabled=true
+                        val summary=result.getOrNull()
+                        if (summary != null) {
+                            val kinds=summary.transports.map { it.name }.sorted().joinToString(", ")
+                            notice("Найдено Reality-профилей: ${summary.realityProfiles}. " +
+                                "Транспорт: ${kinds.ifBlank { "не определён" }}. " +
+                                "Это проверка формата, VPN пока не подключён.")
+                        } else notice("Не удалось проверить подписку. Секреты не отображаются.")
+                    }
+                }.start()
+            }
+        }
         val delete=action("Удалить с устройства")
         add(vaultCard,delete,9)
         delete.setOnClickListener{
