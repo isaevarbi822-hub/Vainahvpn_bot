@@ -6,7 +6,8 @@ const root=new URL('../site/',import.meta.url);
 const pages=['index.html','features.html','plans.html','servers.html','devices.html',
  'guide.html','security.html','speed.html','troubleshooting.html','help.html',
  'contact.html','about.html','privacy.html','terms.html','thanks.html','404.html',
- 'start.html','glossary.html','checklist.html','account.html'];
+ 'start.html','glossary.html','checklist.html','account.html',
+ 'assistant.html','device-center.html','library.html','compare.html','status.html'];
 test('all Vainah public pages exist and have complete HTML and styling',()=>{
  for(const page of pages){
   const location=new URL(page,root);
@@ -31,10 +32,16 @@ test('all public page links point to existing local files',()=>{
   }
  }
 });
-test('login account exists but no production checkout has been activated',()=>{
+test('Telegram login stays separate from website checkout; production checkout locked',()=>{
  const account=readFileSync(new URL('account.html',root),'utf8');
- assert.match(account,/data-telegram-login/);
- assert.doesNotMatch(account,/href="checkout.html"/);
+ const loginCode=readFileSync(new URL('account-dashboard.js',root),'utf8');
+ const plans=readFileSync(new URL('plans.html',root),'utf8');
+ const serverCatalog=readFileSync(new URL('../netlify/functions/lib/plan-catalog.mjs',root),'utf8');
+ assert.match(account,/id="account-auth-panel"/);
+ assert.match(loginCode,/data-telegram-login/);
+ assert.match(loginCode,/Vainahvpn_bot/);
  assert.match(readFileSync(new URL('index.html',root),'utf8'),/href="account\.html"/);
- assert.doesNotMatch(readFileSync(new URL('plans.html',root),'utf8'),/href="checkout\.html"/);
+ assert.match(plans,/href="checkout\.html\?plan=30"/);
+ assert.match(serverCatalog,/export function checkoutReady/);
+ assert.match(serverCatalog,/return false;/);
 });
