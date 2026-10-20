@@ -10,7 +10,11 @@
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:mac": "electron-builder --mac dmg --x64 --arm64 --publish never"
+    "dist:mac": "electron-builder --mac dmg --x64 --arm64 --publish never",
+    "sync:site": "node scripts/sync-site.cjs",
+    "prestart": "npm run sync:site",
+    "predist:win": "npm run sync:site",
+    "predist:mac": "npm run sync:site"
   },
   "devDependencies": {
     "electron": "44.9.0",
@@ -24,7 +28,8 @@
       "src/**/*",
       "ui/**/*",
       "shared/**/*",
-      "package.json"
+      "package.json",
+      "site-mirror/**/*"
     ],
     "directories": {
       "output": "dist"
