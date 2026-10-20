@@ -5,6 +5,7 @@ import {Script} from 'node:vm';
 
 const html=readFileSync(new URL('../site/account.html',import.meta.url),'utf8');
 const client=readFileSync(new URL('../site/account-dashboard.js',import.meta.url),'utf8');
+const telegram=readFileSync(new URL('../site/telegram-login-widget.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../site/account-dashboard.css',import.meta.url),'utf8');
 test('dashboard client code parses as valid JavaScript',()=>{
  assert.doesNotThrow(()=>new Script(client,{filename:'account-dashboard.js'}));
@@ -18,8 +19,8 @@ test('Telegram Login kept and private account is hidden until server login',()=>
  assert.match(html,/id="account-private"[^>]*hidden/);
  assert.match(html,/id="account-auth-panel"/);
  assert.match(css,/\.account-shell \[hidden\]\{display:none!important\}/);
- assert.match(client,/telegram\.org\/js\/telegram-widget/);
- assert.match(client,/data-telegram-login','Vainahvpn_bot'/);
+ assert.match(telegram,/telegram\.org\/js\/telegram-widget/);
+ assert.match(telegram,/data-telegram-login','Vainahvpn_bot'/);
  assert.match(client,/telegram-account/);
  assert.doesNotMatch(client,/send-my-vpn/);
 });

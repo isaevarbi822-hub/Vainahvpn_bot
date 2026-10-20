@@ -5,6 +5,7 @@
   const api='/.netlify/functions/';
   const el={
     login:$('account-auth-panel'),private:$('account-private'),
+    altPrivate:$('account-alt-private'),altProvider:$('account-alt-provider'),altExit:$('account-alt-exit'),
     auth:$('account-auth-status'),widget:$('account-widget'),
     user:$('account-user'),avatar:$('account-avatar'),logout:$('account-exit'),
     plan:$('metric-plan'),expiry:$('metric-expiry'),devices:$('metric-devices'),
@@ -77,6 +78,7 @@
     el.deviceLimit.textContent='—';el.getVpn.disabled=true;
     el.login.hidden=!!user;
     el.private.hidden=!user;
+    el.altPrivate.hidden=true;
     el.logout.hidden=!user;
     el.user.textContent=user?(user.username?'@'+user.username:'Telegram ID '+user.telegramId):'Гость';
     el.avatar.textContent=user?(user.firstName||user.username||'T').slice(0,1).toUpperCase():'V';
@@ -86,6 +88,37 @@
       el.getVpn.disabled=true;
     }
   }
+  function showAlternateSession(session){
+    const labels={phone:'Мобильный телефон',email:'Электронная почта',yandex:'Яндекс ID'};
+    if(!session||!Object.prototype.hasOwnProperty.call(labels,session.provider))return;
+    showSession(null);
+    el.login.hidden=true;
+    el.altPrivate.hidden=false;
+    el.user.textContent='Подтверждённый вход';
+    el.avatar.textContent=session.provider==='yandex'?'Я':session.provider==='email'?'@':'☎';
+    el.altProvider.textContent='Способ авторизации: '+labels[session.provider]+'.';
+  }
+  window.onVainahAltLogin=async function(){
+    loginAttempt++;
+    const current=loginAttempt;
+    try{
+      const result=await request('alternate-login');
+      if(current!==loginAttempt)return;
+      if(result.authenticated&&result.user)showAlternateSession(result.user);
+      else throw Error('Сервер не подтвердил вход');
+    }catch(error){
+      if(current===loginAttempt)el.auth.textContent='Ошибка подтверждения: '+error.message;
+    }
+  };
+  el.altExit.addEventListener('click',async()=>{
+    loginAttempt++;el.altExit.disabled=true;
+    try{
+      await request('alternate-login',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'logout'})});
+      showSession(null);
+    }catch(error){el.altProvider.textContent='Не удалось выйти: '+error.message}
+    finally{el.altExit.disabled=false}
+  });
   function renderOverview(data){
     overview=data;
     const subscription=data.subscription;
@@ -240,21 +273,22 @@
       el.auth.textContent='Ошибка входа: '+error.message;
     }
   };
-  function mountWidget(){
-    const script=document.createElement('script');
-    script.async=true;script.src='https://telegram.org/js/telegram-widget.js?22';
-    script.setAttribute('data-telegram-login','Vainahvpn_bot');
-    script.setAttribute('data-size','large');
-    // Login only. The website does not require permission for the bot to message the customer.
-    script.setAttribute('data-onauth','onVainahAccountAuth(user)');
-    el.widget.appendChild(script);
-  }
-  mountWidget();
   const initialAttempt=loginAttempt;
-  request('telegram-account').then(result=>{
+  request('telegram-account').then(async result=>{
     if(loginAttempt!==initialAttempt)return;
-    showSession(result.user);
-    if(result.user)refreshAll();
+    if(result.user){
+      showSession(result.user);
+      refreshAll();
+      return;
+    }
+    try{
+      const alternate=await request('alternate-login');
+      if(loginAttempt!==initialAttempt)return;
+      if(alternate.authenticated&&alternate.user)showAlternateSession(alternate.user);
+      else showSession(null);
+    }catch{
+      if(loginAttempt===initialAttempt)showSession(null);
+    }
   }).catch(()=>{
     if(loginAttempt!==initialAttempt)return;
     showSession(null);
