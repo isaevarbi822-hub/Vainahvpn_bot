@@ -89,7 +89,7 @@
     }
   }
   function showAlternateSession(session){
-    const labels={phone:'Мобильный телефон',email:'Электронная почта',yandex:'Яндекс ID'};
+    const labels={phone:'Мобильный телефон',email:'Электронная почта',yandex:'Яндекс ID',clerk:'Clerk (почта / телефон)'};
     if(!session||!Object.prototype.hasOwnProperty.call(labels,session.provider))return;
     showSession(null);
     el.login.hidden=true;

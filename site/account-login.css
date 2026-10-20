@@ -20,3 +20,16 @@
 .account-alt-private h2{margin:13px 0;font-size:clamp(24px,3.8vw,36px);letter-spacing:-.04em}
 .account-alt-private p{font-size:13px;line-height:1.75;color:#bdc7d8}
 @media(max-width:650px){.account-auth-choice{grid-template-columns:repeat(2,minmax(0,1fr))}.account-auth-method{padding:18px}.account-auth-buttons{flex-direction:column;align-items:stretch}.account-auth-buttons button,.account-auth-buttons a{width:100%}.account-alt-private{padding:21px}}
+
+/* Clerk embeds its own responsive form; keep it within site layout. */
+.account-clerk-widget{max-width:100%;min-height:96px;overflow:visible;isolation:isolate}
+.account-clerk-widget > div{max-width:100%}
+.account-clerk-widget button.auth-primary{cursor:pointer}
+.account-auth-method .account-clerk-widget .auth-primary{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:43px;border-radius:12px;padding:11px 18px;
+  font-size:13px;font-weight:800;border:none;
+  background:linear-gradient(120deg,#b89eff,#866ce0);color:#170f2c;
+  margin-top:15px;cursor:pointer;
+}
+.account-auth-method .account-clerk-widget .auth-primary:disabled{opacity:.55;cursor:not-allowed}
