@@ -3,6 +3,7 @@ const path = require('node:path');
 const { app, BrowserWindow, ipcMain, session, shell, Menu } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
+const { PUBLIC_CAPABILITIES } = require('../shared/h1-protocol.cjs');
 
 let mainWindow;
 const PREVIEW_STATUS = Object.freeze({
