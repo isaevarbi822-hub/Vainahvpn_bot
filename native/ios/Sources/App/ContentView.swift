@@ -221,6 +221,43 @@ struct ContentView: View {
                 }
             }
             .padding(.top, 13)
+
+            VainahCard(featured: true) {
+                VStack(alignment: .leading, spacing: 13) {
+                    overline("ПЕРВЫЙ ЗАПУСК · 3 ПРОСТЫХ ШАГА")
+                    ForEach(Array([
+                        ("01", "Войди в аккаунт",
+                         "Выбери Telegram, почту, телефон или Яндекс на сайте."),
+                        ("02", "Проверь подписку",
+                         "После входа посмотри свой тариф и срок действия."),
+                        ("03", "Настрой устройство",
+                         "Используй мастер, пока VLESS-движок ещё не встроен.")
+                    ].enumerated()), id: \\.offset) { _, step in
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(step.0 + "  " + step.1)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(VainahDesign.ink)
+                            Text(step.2)
+                                .font(.system(size: 12))
+                                .foregroundStyle(VainahDesign.muted)
+                        }
+                        .padding(.top, 4)
+                    }
+                    Link(destination: URL(string: "https://vainahvpnbot0.netlify.app/device-center.html")!) {
+                        Text("Открыть мастер подключения ↗")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(14)
+                            .background(VainahDesign.accentGradient,
+                                        in: RoundedRectangle(cornerRadius: 13))
+                    }
+                    Text("Предварительная версия интерфейса. Настоящий VPN ещё не подключается.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(VainahDesign.muted)
+                }
+            }
+            .padding(.top, 17)
         }
     }
 

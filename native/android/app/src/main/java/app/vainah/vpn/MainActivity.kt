@@ -212,6 +212,22 @@ class MainActivity : Activity() {
             12f,d.muted),9)
         val guide=action("Открыть помощь  ↗")
         add(help,guide,13);guide.setOnClickListener{switch(Tab.HELP)}
+
+        val start=panel(true)
+        add(parent,start,17)
+        add(start,overline("ПЕРВЫЙ ЗАПУСК · 3 ПРОСТЫХ ШАГА"))
+        for ((index,title,explain) in listOf(
+            Triple("01","Войди в аккаунт","Открой настоящий сайт и выбери удобный способ входа."),
+            Triple("02","Проверь подписку","Посмотри свой тариф, срок и доступ только после подтверждения."),
+            Triple("03","Настрой устройство","Используй официальный мастер, пока движок VLESS ещё не встроен.")
+        )) {
+            add(start,text(index+"  "+title,16f,d.ink,true),13)
+            add(start,text(explain,12f,d.muted),4)
+        }
+        val setup=action("Открыть мастер подключения ↗",true)
+        add(start,setup,17)
+        setup.setOnClickListener{openSite("device-center.html")}
+        add(start,text("Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
     }
     private fun plans(parent: LinearLayout) {
         intro(parent,"ТАРИФЫ VAINAH",

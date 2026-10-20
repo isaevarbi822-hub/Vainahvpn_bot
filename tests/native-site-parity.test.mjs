@@ -80,3 +80,13 @@ test('all native support links resolve to existing public website pages',()=>{
   assert.match(androidApp,/https:\/\/vainahvpnbot0\.netlify\.app\//);
   assert.match(iosApp,/https:\/\/vainahvpnbot0\.netlify\.app\//);
 });
+
+test('first-run walkthrough is clear on Android and iOS and never claims real VPN',()=>{
+  for(const code of [androidApp,iosApp]){
+    assert.match(code,/ПЕРВЫЙ ЗАПУСК · 3 ПРОСТЫХ ШАГА/);
+    for(const term of ['Войди в аккаунт','Проверь подписку','Настрой устройство','мастер подключения']){
+      assert.ok(code.toLowerCase().includes(term.toLowerCase()),term);
+    }
+    assert.match(code,/VPN (пока )?не подключается|VPN ещё не подключается/);
+  }
+});
