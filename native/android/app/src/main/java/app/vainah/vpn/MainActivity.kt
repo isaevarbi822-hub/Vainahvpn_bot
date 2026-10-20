@@ -306,6 +306,17 @@ class MainActivity : Activity() {
         add(cabinet,web,13);web.setOnClickListener{openSite("account.html")}
         val hub=action("Центр управления ↗")
         add(cabinet,hub,8);hub.setOnClickListener{openSite("hub.html")}
+
+        val providers=panel()
+        add(parent,providers,16)
+        add(providers,overline("СПОСОБЫ ВХОДА"))
+        add(providers,text("Telegram · Телефон · Почта · Яндекс ID",
+            17f,d.ink,true),11)
+        add(providers,text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не выдаёт покупки другого аккаунта.",
+            12f,d.muted),8)
+        val login=action("Выбрать способ входа ↗")
+        add(providers,login,12)
+        login.setOnClickListener{openSite("account.html")}
     }
     private fun help(parent: LinearLayout) {
         intro(parent,"ЦЕНТР ПОДДЕРЖКИ",

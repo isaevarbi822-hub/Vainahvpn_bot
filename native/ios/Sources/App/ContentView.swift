@@ -455,6 +455,20 @@ struct ContentView: View {
                 }
             }
             .padding(.top, 16)
+
+            VainahCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    overline("СПОСОБЫ ВХОДА")
+                    Text("Telegram · Телефон · Почта · Яндекс ID")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(VainahDesign.ink)
+                    Text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не открывает заказы другого аккаунта.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VainahDesign.muted)
+                    websiteButton("Выбрать способ входа ↗", "account.html")
+                }
+            }
+            .padding(.top, 16)
         }
     }
 
