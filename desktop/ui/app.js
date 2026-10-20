@@ -90,11 +90,18 @@
       document.getElementById('platform-chip').textContent='Предпросмотр';
       return;
     }
-    const [info,catalog,status]=await Promise.all([
+    const [info,catalog,status,capabilities]=await Promise.all([
       window.vainah.getInfo().catch(()=>null),
       window.vainah.getPlans().catch(()=>[]),
-      window.vainah.getTunnelStatus().catch(()=>null)
+      window.vainah.getTunnelStatus().catch(()=>null),
+      window.vainah.getH1Capabilities().catch(()=>null)
     ]);
+    const capabilityText=document.getElementById('reality-capabilities');
+    if(capabilityText && capabilities?.protocol==='VLESS + Reality' && capabilities.vpnEngineReady===false){
+      capabilityText.textContent='H1Cloud: VLESS + Reality ('+
+        capabilities.configurationTransports.filter(x=>['tcp','grpc','xhttp'].includes(x)).join(', ')+
+        '). Сетевой движок ещё не встроен.';
+    }
     if(info){
       document.getElementById('platform-chip').textContent=
         info.platform==='win32'?'Windows':info.platform==='darwin'?'macOS':'Компьютер';
