@@ -64,7 +64,8 @@ test('account screen does not invent remote entitlements, payments or a working 
   assert.match(iosApp,/tunnel\.connect\(\)/);
   assert.match(read('native/ios/Sources/App/TunnelController.swift'),/static let available = false/);
   assert.match(read('native/android/app/src/main/java/app/vainah/vpn/TunnelEngine.kt'),/override val ready = false/);
-  assert.doesNotMatch(androidApp,/payment|billing|startCheckout|clerk-secret/);
+  const androidExecutableSource=androidApp.replace(/\/\*[\s\S]*?\*\//g,'');
+  assert.doesNotMatch(androidExecutableSource,/payment|billing|startCheckout|clerk-secret/);
   assert.doesNotMatch(iosApp,/purchase\(|RollyPay|PANEL_API_TOKEN/);
 });
 

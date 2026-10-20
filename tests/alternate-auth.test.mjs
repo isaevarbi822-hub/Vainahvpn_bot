@@ -69,8 +69,9 @@ test('sessions are signed, provider isolated, scoped and expire',()=>{
   const r=req('/.netlify/functions/alternate-login',null,
     altCookieName+'='+phone);
   assert.deepEqual(altSession(r,secret),{provider:'phone'});
+  const tamperedPhone = phone.slice(0,-1)+(phone.endsWith('0')?'1':'0');
   assert.equal(altSession(req('/.netlify/functions/alternate-login',null,
-    altCookieName+'='+phone.replace(/.$/,'0')),secret),null);
+    altCookieName+'='+tamperedPhone),secret),null);
   assert.ok(!phone.includes('4712345678'));
 });
 
