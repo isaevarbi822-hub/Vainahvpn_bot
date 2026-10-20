@@ -6,6 +6,7 @@
 
     <application
         android:label="@string/app_name"
+        android:icon="@drawable/ic_vainah"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="false"
         android:allowBackup="false"
