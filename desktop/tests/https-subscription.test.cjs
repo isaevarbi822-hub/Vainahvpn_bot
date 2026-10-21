@@ -34,3 +34,22 @@ test('base64 subscription imports a supported VLESS server',async()=>{
  assert.equal(result.count,1);
  assert.equal(result.profiles[0].outbounds[0].protocol,'vless');
 });
+
+test('plaintext HTTPS subscription accepts multiple VLESS links',async()=>{
+ const {EventEmitter}=require('node:events');
+ const list=[sample,sample.replace('example.invalid','second.example')].join('\n');
+ const result=await fetchSubscription('https://subscription.example.com/list',{
+  resolver:async()=>[{address:'8.8.8.8',family:4}],
+  request:(_url,_options,callback)=>{
+   const req=new EventEmitter();
+   req.destroy=error=>req.emit('error',error);
+   const res=new EventEmitter();
+   res.statusCode=200;
+   res.resume=()=>{};
+   queueMicrotask(()=>{callback(res);res.emit('data',Buffer.from(list));res.emit('end')});
+   return req;
+  }
+ });
+ assert.equal(result.count,2);
+ assert.equal(result.profiles[1].outbounds[0].settings.vnext[0].address,'second.example');
+});
