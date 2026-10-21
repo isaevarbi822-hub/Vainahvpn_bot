@@ -7,6 +7,32 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var startup: Task<Void, Never>?
     #if canImport(Libbox)
     private var runtime: VainahLibboxRuntime?
+    // Startup invokes synchronous libbox and opens OS TUN routes.
+    // Serialize it with teardown; never stop a half-initialized native core.
+    private let nativeLock = NSLock()
+
+    private func startNative(_ config: String, keepRunning: () -> Bool) throws {
+        nativeLock.lock()
+        defer { nativeLock.unlock() }
+        guard keepRunning() else { throw CancellationError() }
+        let engine = VainahLibboxRuntime(self)
+        runtime = engine
+        do {
+            try engine.start(config)
+            guard keepRunning() else { throw CancellationError() }
+        } catch {
+            engine.stop()
+            runtime = nil
+            throw error
+        }
+    }
+
+    private func stopNative() {
+        nativeLock.lock()
+        defer { nativeLock.unlock() }
+        runtime?.stop()
+        runtime = nil
+    }
     #endif
 
     override func startTunnel(
@@ -30,11 +56,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let config = try MobileRealityConfig.fromSubscription(plaintext)
                 try Task.checkCancellation()
                 #if canImport(Libbox)
-                let engine = VainahLibboxRuntime(self)
-                runtime = engine
-                // Native libbox config check, PacketTunnel settings, and
-                // full TUN startup must succeed before iOS can signal start.
-                try engine.start(config)
+                // Keep libbox initialization and teardown serialized.
+                // Recheck cancellation after libbox opens the system TUN.
+                try startNative(config, keepRunning: { !Task.isCancelled })
                 try Task.checkCancellation()
                 completionHandler(nil)
                 #else
@@ -46,8 +70,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 #endif
             } catch {
                 #if canImport(Libbox)
-                runtime?.stop()
-                runtime = nil
+                stopNative()
                 #endif
                 // Never expose URLSession/NSError details: errors can contain
                 // secret query parameters, UUIDs or upstream credentials.
@@ -63,10 +86,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         startup?.cancel()
         startup = nil
         #if canImport(Libbox)
-        runtime?.stop()
-        runtime = nil
-        #endif
+        // Do not block the NetworkExtension callback while libbox is starting.
+        // Complete only after cleanup of the native daemon and OS routes.
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            stopNative()
+            completionHandler()
+        }
+        #else
         completionHandler()
+        #endif
     }
 
     private func failure(_ code: Int, _ description: String) -> NSError {
