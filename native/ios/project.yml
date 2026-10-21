@@ -70,6 +70,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.PacketTunnel
         GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      # libbox uses UIDevice in its iOS support code; NetworkExtension
+      # must explicitly link UIKit when the native framework is present.
+      # Does not use the extension-unavailable UIApplication singleton.
+      - sdk: UIKit.framework
 
   VainahVPNTests:
     type: bundle.unit-test
