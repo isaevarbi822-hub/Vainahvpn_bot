@@ -49,7 +49,13 @@ internal object MobileRealityConfig {
     }
 
     fun fromSubscription(content: String): String {
-        val lines = plain(content).lines().map { it.trim() }.filter { it.isNotEmpty() }
+        require(content.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) { "SUBSCRIPTION_TOO_LARGE" }
+        val trimmed = content.trim()
+        val lines = if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+            H1SingBoxJson.candidates(trimmed)
+        } else {
+            plain(content).lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }
         require(lines.size <= 256) { "SUBSCRIPTION_TOO_LARGE" }
         // Always prefer TCP when present. gRPC is a separate supported
         // transport, never a disguised downgrade of XHTTP or Reality flow.
