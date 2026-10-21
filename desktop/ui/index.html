@@ -30,7 +30,7 @@
       <button class="nav-link" data-view="help"><span aria-hidden="true">?</span>Поддержка</button>
     </nav>
     <div class="sidebar-bottom">
-      <div class="sidebar-notice"><span class="dot amber" aria-hidden="true"></span><div><b>Тестовая версия</b><p>VPN-туннель ещё не встроен. Это просмотр приложения.</p></div></div>
+      <div class="sidebar-notice"><span class="dot amber" aria-hidden="true"></span><div><b>Тестовая версия</b><p>Windows: экспериментальный запуск движка; полноценная защита ещё не подтверждена.</p></div></div>
       <button class="button ghost full" data-link="home">Открыть наш сайт ↗</button>
       <small class="version">Vainah VPN Desktop <span id="app-version">0.2.0</span></small>
     </div>
@@ -94,7 +94,7 @@
       <section class="view" id="view-plans" aria-labelledby="plans-title" hidden>
         <div class="eyebrow">● ТАРИФЫ VAINAH</div>
         <h1 id="plans-title">Выбери свой <em>формат доступа.</em></h1>
-        <p class="lead">Тарифы совпадают с нашим сайтом. Покупки в этой демонстрации отключены: просмотр ничего не списывает.</p>
+        <p class="lead">Выбери тариф и переходи на официальный сайт для покупки. Оплата внутри этого окна приложения пока не реализована.</p>
         <div class="filterbar"><strong>Сколько устройств нужно?</strong><div class="filter-buttons" role="group" aria-label="Фильтр по числу устройств">
           <button class="filter active" data-devices="0" aria-pressed="true">Все</button>
           <button class="filter" data-devices="3" aria-pressed="false">До 3</button>
@@ -107,19 +107,19 @@
       <section class="view" id="view-account" aria-labelledby="account-title" hidden>
         <div class="eyebrow">● ЛИЧНЫЙ КАБИНЕТ</div>
         <h1 id="account-title">Моя <em>подписка.</em></h1>
-        <p class="lead">Подписка, устройства и история покупок — только после подтверждённого входа.</p>
+        <p class="lead">Авторизуйся на официальном сайте Vainah VPN. Там отображаются срок действия подписки, устройства и история покупок.</p>
         <div class="two-columns">
           <article class="large-card highlighted">
             <span class="eyebrow">БЕЗОПАСНЫЙ ВХОД</span><h2>Твои данные останутся твоими.</h2>
-            <p>Эта версия приложения пока не хранит логин и не получает твои VPN-ключи. Нажми кнопку: откроется настоящий сайт Vainah VPN в обычном браузере.</p>
-            <button class="button primary" data-link="account">Войти в кабинет ↗</button>
+            <p>Нажми кнопку: официальный сайт откроется в браузере. После входа проверь оставшиеся дни подписки в личном кабинете. Автоматический перенос авторизации обратно в приложение ещё не подключён.</p>
+            <button class="button primary" data-link="account">Войти через сайт ↗</button>
           </article>
           <article class="large-card"><span class="eyebrow">СПОСОБЫ ВХОДА</span>
             <div class="signins"><span>✈ Telegram</span><span>✉ Почта</span><span>☎ Телефон</span><span>Я Яндекс</span></div>
             <p>Наличие способов зависит от их настройки на рабочем сайте. Telegram-покупки не становятся доступны через другой аккаунт автоматически.</p>
           </article>
         </div>
-        <div class="warning" role="note"><b>Важное:</b> не вставляй ссылку подписки в неизвестные формы и не присылай её никому. В демонстрации для ПК импорт секретной ссылки отключён, пока нет безопасного хранилища.</div>
+        <div class="info-panel"><div><b>Продлить или купить VPN</b><p>Оплата откроется на официальном сайте Vainah VPN. Приложение не запрашивает данные банковской карты.</p></div><button class="button primary" data-link="plans">Купить подписку ↗</button></div><div class="warning" role="note"><b>Безопасность:</b> не отправляй приватную ссылку подписки посторонним. Импорт HTTPS-ссылки выполняется по защищённому соединению; секреты не выводятся в интерфейс.</div>
       </section>
 
       <section class="view" id="view-devices" aria-labelledby="devices-title" hidden>
