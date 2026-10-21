@@ -36,9 +36,15 @@ class SingBoxSession {
         const finish=()=>{
           if(settled)return;
           settled=true;
-          if(this.child===child)this.child=null;
-          if(this.state!=='stopping')this.state='stopped';
-          resolve();
+          if(this.child===child){
+            this.child=null;
+            this.state='stopped';
+            const dir=this.temp;
+            this.temp=null;
+            // Also remove credentials after an unexpected engine exit.
+            if(dir)void fs.rm(dir,{recursive:true,force:true}).catch(()=>{}).finally(resolve);
+            else resolve();
+          } else resolve();
         };
         child.once('exit',finish);child.once('error',finish);
       });
