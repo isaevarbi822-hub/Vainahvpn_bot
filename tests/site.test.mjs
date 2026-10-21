@@ -40,7 +40,7 @@ test('Telegram login stays separate from website checkout; production checkout l
  const serverCatalog=readFileSync(new URL('../netlify/functions/lib/plan-catalog.mjs',root),'utf8');
  assert.match(account,/id="account-auth-panel"/);
  assert.match(loginCode,/data-telegram-login/);
- assert.match(loginCode,/Vainahvpn_bot/);
+ assert.match(loginCode,/VainahVPNbot/);
  assert.match(readFileSync(new URL('index.html',root),'utf8'),/href="account\.html"/);
  assert.match(plans,/href="checkout\.html\?plan=30"/);
  assert.match(serverCatalog,/export function checkoutReady/);
