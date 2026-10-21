@@ -89,7 +89,7 @@ class EngineHost {
         if(output.length>4096){child.kill();done(false)}
       });
       child.once('error',()=>done(false));
-      child.once('close',code=>done(code===0&&/^sing-box version 1\\.14\\.3(?:\\s|$)/m.test(output)));
+      child.once('close',code=>done(code===0&&/^sing-box version 1\.14\.3(?:\s|$)/m.test(output)));
     });
   }
   async start(secret){
