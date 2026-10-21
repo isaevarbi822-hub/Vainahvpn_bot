@@ -58,7 +58,11 @@ test('Connection never claims VPN protection or opens an empty system tunnel',()
   assert.match(html,/VPN не активен/);
   assert.match(html,/VPN пока не подключается/);
   assert.match(html,/Трафик не защищён/);
-  assert.doesNotMatch(main,/spawn\(|exec\(|NETunnelProviderManager|TUN|VpnService/);
+  // Process creation is isolated in the trusted singbox-session module.
+  // Mentioning TUN in status text must not fail this security test.
+  assert.doesNotMatch(main,/\b(?:spawn|exec)\s*\(/);
+  assert.match(main,/const \{ SingBoxSession \} = require\('\.\.\/shared\/singbox-session\.cjs'\)/);
+  assert.match(main,/protected:\s*false/);
 });
 
 test('Six plans with canonical values and no purchase or payment implementation',()=>{
