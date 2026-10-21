@@ -97,6 +97,8 @@
            '. Транспорты: '+[...new Set(profiles.map(x=>x.transport))].join(', ')+
            '. Это проверка структуры, VPN ещё не подключён.'
           :'Подходящих профилей VLESS + REALITY не найдено.';
+        if(result.engineCheck?.ok)status.textContent+=' Проверка синтаксиса sing-box прошла.';
+        else status.textContent+=' Проверка движком sing-box не пройдена: '+(result.engineCheck?.reason||'движок недоступен')+'.';
       }
     } catch {status.textContent='Не удалось проверить файл.'}
     finally {inspectButton.disabled=false}
