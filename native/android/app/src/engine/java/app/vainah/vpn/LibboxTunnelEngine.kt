@@ -219,8 +219,12 @@ private class VainahAndroidPlatform(private val service: VainahVpnService) : Pla
     }
 }
 private class VainahStrings(values: List<String>) : StringIterator {
-    private val iterator = values.iterator()
+    // libbox uses len() to size the address, DNS and gateway lists.
+    // Returning 0 falsely signals no physical network interfaces and may
+    // leave Reality's underlying sockets without an OS route.
+    private val items = values.toList()
+    private val iterator = items.iterator()
     override fun hasNext() = iterator.hasNext()
     override fun next(): String = iterator.next()
-    override fun len(): Int = 0
+    override fun len(): Int = items.size
 }
