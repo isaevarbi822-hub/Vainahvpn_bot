@@ -68,10 +68,14 @@
             <h2 id="connection-heading">Не подключено</h2>
             <p id="connection-status" aria-live="polite">VPN-движок H1Cloud/VLESS ещё не подключён. Трафик не защищён.</p>
             <p id="reality-capabilities" class="hint">VLESS + Reality: проверка совместимости TCP, gRPC и XHTTP. VPN не активен.</p>
-            <label class="hint" for="engine-link">Личная HTTPS-ссылка подписки H1Cloud (не передавай её другим)</label>
-            <input id="engine-link" type="password" autocomplete="off" spellcheck="false"
-              maxlength="2048" placeholder="https://…/подписка" aria-label="Приватная ссылка VPN"
+            <label class="hint" for="engine-link">Моя HTTPS-ссылка подписки H1Cloud</label>
+            <input id="engine-link" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+              maxlength="2048" placeholder="Вставь личную HTTPS-ссылку" aria-label="Секретная ссылка подписки"
               style="box-sizing:border-box;width:100%;padding:12px;border:1px solid #a98bff;border-radius:9px;background:#121626;color:#fff">
+            <p id="saved-subscription-status" role="status" aria-live="polite" class="hint">Проверяем защищённое хранилище…</p>
+            <button class="button primary full" id="save-subscription">Сохранить подписку на устройстве</button>
+            <button class="button secondary full" id="delete-subscription">Удалить сохранённую подписку</button>
+            <small class="hint">Ссылка шифруется средствами Windows или macOS. Приложение не показывает её после сохранения. Не отправляй ссылку другим людям.</small>
             <button class="button secondary full" id="choose-core">Выбрать sing-box 1.14 на компьютере</button>
             <button class="button primary full" id="connect-button">⏻ Запустить проверочное соединение</button>
             <button class="button secondary full" id="stop-engine">Остановить VPN-процесс</button>
