@@ -12,6 +12,7 @@ on:
       - "tests/control-plane-device-policy.test.mjs"
       - "tests/ios-provider-isolation.test.mjs"
       - "tests/native-engine-lifecycle.test.mjs"
+      - "tests/ios-reality-schema.swift"
       - "tests/check-android-reality-schema.cjs"
       - "tests/native-mobile-foundation.test.mjs"
       - "tests/native-site-parity.test.mjs"
@@ -226,6 +227,24 @@ jobs:
             chmod 755 "desktop/engines/sing-box-darwin-$arch"
           done
           curl --fail --location --silent --show-error             "https://raw.githubusercontent.com/SagerNet/sing-box/v1.14.3/LICENSE"             -o desktop/engines/sing-box-GPL-3.0.txt
+      - name: Compile iOS Swift Reality builder and validate TCP and gRPC with actual sing-box
+        shell: bash
+        run: |
+          set -euo pipefail
+          swiftc -parse-as-library \
+            native/ios/Sources/Shared/MobileRealityConfig.swift \
+            tests/ios-reality-schema.swift \
+            -o "$RUNNER_TEMP/vainah-ios-schema-test"
+          "$RUNNER_TEMP/vainah-ios-schema-test" "$RUNNER_TEMP"
+          case "$(uname -m)" in
+            arm64) arch=arm64 ;;
+            x86_64) arch=amd64 ;;
+            *) echo "Unsupported macOS runner architecture"; exit 1 ;;
+          esac
+          for transport in tcp grpc; do
+            desktop/engines/sing-box-darwin-$arch check \
+              -c "$RUNNER_TEMP/vainah-ios-$transport.json"
+          done
       - run: npm run --prefix desktop dist:mac
       - name: Verify both macOS architectures contain official sing-box and license
         shell: bash
