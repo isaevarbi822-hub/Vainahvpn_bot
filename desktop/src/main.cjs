@@ -20,7 +20,7 @@ const PREVIEW_STATUS = Object.freeze({
   state: 'unavailable',
   protected: false,
   label: 'VPN не подключён',
-  explanation: 'Это предварительная версия интерфейса. H1Cloud/VLESS-движок ещё не встроен. Интернет-трафик не защищён.'
+  explanation: 'VPN не активен. Тестовый запуск sing-box доступен после проверки Xray JSON, но защита трафика и TUN ещё не подтверждены.'
 });
 
 function authorizedSender(event) {
