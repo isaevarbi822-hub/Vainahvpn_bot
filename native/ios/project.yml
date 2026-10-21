@@ -51,6 +51,7 @@ targets:
       # Compile the same private config builder in the packet provider.
       # Do not add the app Keychain store until secure sharing is reviewed.
       - Sources/Shared/MobileRealityConfig.swift
+      - Sources/Shared/MobileTunnelRoutePlan.swift
     info:
       path: Generated/PacketTunnelInfo.plist
       properties:
