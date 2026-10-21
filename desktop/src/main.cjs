@@ -2,6 +2,7 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
+const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
@@ -85,7 +86,15 @@ app.whenReady().then(()=>{
       } finally {await handle.close()}
       const profiles=parseXrayProfiles(json);
       json=null;
-      return {ok:true,profiles};
+      // Check the bundled engine, but never run a tunnel or claim protection.
+      // A validator failure does not disclose any part of the subscription.
+      const enginePath = app.isPackaged
+        ? path.join(process.resourcesPath,'engines','sing-box','sing-box.exe')
+        : path.join(__dirname,'..','vendor','sing-box','windows-x64','sing-box.exe');
+      const engineCheck = process.platform==='win32'
+        ? await validateWithSingBox(enginePath,json)
+        : {ok:false,reason:'Windows check only'};
+      return {ok:true,profiles,engineCheck};
     } catch {
       // Never expose file paths, secrets, or raw parser/OS errors.
       return {ok:false,message:'Не удалось прочитать Xray JSON. Проверь формат файла.'};
