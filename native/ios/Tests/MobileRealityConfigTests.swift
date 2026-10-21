@@ -81,6 +81,51 @@ final class MobileRealityConfigTests: XCTestCase {
         XCTAssertThrowsError(try MobileRealityConfig.fromVlessLink(tcp + "&spx=%2Fcustom"))
     }
 
+    func testSingBoxJSONSubscriptionPrefersTcpOverGrpcAndPreservesTunnelPrivacy() throws {
+        let grpc = tcp.replacingOccurrences(of: "type=tcp", with: "type=grpc")
+            + "&serviceName=vainah-test"
+        let tcpOutput = try MobileRealityConfig.fromVlessLink(tcp)
+        let grpcOutput = try MobileRealityConfig.fromVlessLink(grpc)
+        func outbound(_ text: String) throws -> [String: Any] {
+            let parsed = try XCTUnwrap(JSONSerialization.jsonObject(
+                with: Data(text.utf8)) as? [String: Any])
+            return try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        }
+        let json = try String(data: JSONSerialization.data(withJSONObject: [
+            "outbounds": [try outbound(grpcOutput), try outbound(tcpOutput)]
+        ]), encoding: .utf8)!
+        let selected = try MobileRealityConfig.fromSubscription(json)
+        XCTAssertTrue(selected.contains("vainah-primary"))
+        XCTAssertFalse(selected.contains("vainah-test"))
+        XCTAssertTrue(selected.contains("private-dns"))
+        let onlyGrpc = try String(data: JSONSerialization.data(withJSONObject: [
+            "outbounds": [try outbound(grpcOutput)]
+        ]), encoding: .utf8)!
+        XCTAssertTrue(try MobileRealityConfig.fromSubscription(onlyGrpc)
+            .contains("vainah-test"))
+    }
+
+    func testSingBoxJSONFailsClosedOnUnreviewedTLSAndXHTTP() throws {
+        let raw = try MobileRealityConfig.fromVlessLink(tcp)
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(raw.utf8)) as? [String: Any])
+        var outbound = try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        var tls = try XCTUnwrap(outbound["tls"] as? [String: Any])
+        tls["insecure"] = true
+        outbound["tls"] = tls
+        var xhttp = try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        xhttp["transport"] = ["type": "xhttp"]
+        var unknown = try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        unknown["unreviewed_setting"] = true
+        for record in [outbound, xhttp, unknown] {
+            let json = try String(data: JSONSerialization.data(
+                withJSONObject: ["outbounds": [record]]), encoding: .utf8)!
+            XCTAssertThrowsError(try MobileRealityConfig.fromSubscription(json))
+        }
+        XCTAssertThrowsError(try MobileRealityConfig.fromSubscription(
+            "{\"proxies\":[]}"))
+    }
+
     func testErrorsNeverIncludeSubscriptionSecrets() {
         do {
             _ = try MobileRealityConfig.fromSubscription("invalid-secret")
