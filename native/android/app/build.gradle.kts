@@ -3,7 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val nativeEngine = file("libs/libbox.aar").isFile
+
 android {
+    sourceSets {
+        getByName("main") {
+            if (nativeEngine) java.srcDir("src/engine/java")
+        }
+    }
     namespace = "app.vainah.vpn"
     compileSdk = 35
 
@@ -28,8 +35,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Only included by the isolated libbox build workflow. An AAR alone
     // does NOT make the VPN active; EngineRegistry remains fail-closed.
-    val optionalEngine = file("libs/libbox.aar")
-    if (optionalEngine.isFile) {
-        implementation(files(optionalEngine))
+    if (nativeEngine) {
+        implementation(files("libs/libbox.aar"))
     }
 }
