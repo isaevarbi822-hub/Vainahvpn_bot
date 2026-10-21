@@ -184,6 +184,13 @@ class MainActivity : Activity() {
         val connect=action("⏻   Подключиться",true)
         add(preview,connect,17)
         connect.setOnClickListener { requestConnection() }
+        add(preview,text(if(vault.load()!=null)"✓ HTTPS-подписка сохранена на устройстве"
+            else "Сначала добавь личную HTTPS-ссылку H1Cloud.",
+            12f,d.muted),13)
+        val profileButton=action(if(vault.load()!=null)"Изменить VPN-подписку"
+            else "Ввести ссылку подписки H1Cloud")
+        add(preview,profileButton,9)
+        profileButton.setOnClickListener { switch(Tab.ACCOUNT) }
         add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
 
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
