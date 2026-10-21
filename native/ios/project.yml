@@ -52,6 +52,8 @@ targets:
       # Do not add the app Keychain store until secure sharing is reviewed.
       - Sources/Shared/MobileRealityConfig.swift
       - Sources/Shared/MobileTunnelRoutePlan.swift
+      - Sources/Shared/SubscriptionLink.swift
+      - Sources/Shared/H1ExtensionSubscription.swift
     info:
       path: Generated/PacketTunnelInfo.plist
       properties:
