@@ -75,6 +75,12 @@ final class MobileRealityConfigTests: XCTestCase {
         }
     }
 
+    func testDefaultRealitySpiderXPathIsAllowedButCustomPathsFailClosed() throws {
+        let checked = try MobileRealityConfig.fromVlessLink(tcp + "&spx=%2F")
+        XCTAssertTrue(checked.contains("vainah-primary"))
+        XCTAssertThrowsError(try MobileRealityConfig.fromVlessLink(tcp + "&spx=%2Fcustom"))
+    }
+
     func testErrorsNeverIncludeSubscriptionSecrets() {
         do {
             _ = try MobileRealityConfig.fromSubscription("invalid-secret")
