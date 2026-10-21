@@ -111,10 +111,33 @@
     const link=field.value;
     field.value='';
     try{
-      const result=await window.vainah.importVlessLink(link);
+      const isHttps=link.startsWith('https://');
+      const result=isHttps
+        ? await window.vainah.importHttpsSubscription(link)
+        : await window.vainah.importVlessLink(link);
+      const picker=document.getElementById('subscription-server');
+      picker.replaceChildren();
+      if(result?.ok&&isHttps){
+        for(let i=0;i<result.count;i++){
+          const option=document.createElement('option');
+          option.value=String(i);
+          option.textContent='Сервер '+(i+1);
+          picker.append(option);
+        }
+        picker.disabled=false;
+      }else{
+        picker.disabled=true;
+        const option=document.createElement('option');
+        option.textContent='Сначала добавь подписку';
+        picker.append(option);
+      }
       status.textContent=result?.message||'Ошибка проверки ключа';
     }catch{status.textContent='Ошибка импорта VLESS-ключа';}
     finally{importButton.disabled=false;}
+  });
+  document.getElementById('subscription-server').addEventListener('change',async event=>{
+    const result=await window.vainah.selectSubscriptionServer(Number(event.target.value));
+    document.getElementById('vless-import-status').textContent=result?.message||'Не удалось выбрать сервер';
   });
   const inspectButton=document.getElementById('inspect-xray');
   inspectButton.addEventListener('click',async()=>{
