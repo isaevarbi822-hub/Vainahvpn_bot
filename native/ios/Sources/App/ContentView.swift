@@ -309,8 +309,27 @@ struct ContentView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(VainahDesign.muted)
                     .multilineTextAlignment(.center)
-                callToAction(saved ? "Изменить VPN-подписку" :
-                                     "Ввести ссылку подписки H1Cloud") {
+                SecureField("Вставь HTTPS-ссылку подписки H1Cloud", text: $subscription)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .textContentType(.password)
+                    .font(.system(size: 13))
+                    .padding(15)
+                    .background(VainahDesign.background.opacity(0.72),
+                                in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityLabel("Секретная HTTPS-ссылка VPN")
+                callToAction("Сохранить HTTPS-подписку", prominent: true) {
+                    if SecureSubscription.save(subscription) {
+                        saved = true
+                        subscription = ""
+                        notice = "Ссылка сохранена в Keychain только на этом устройстве."
+                    } else {
+                        subscription = ""
+                        notice = "Нужна корректная HTTPS-ссылка H1Cloud."
+                    }
+                }
+                callToAction("Управление VPN-подпиской") {
                     selected = .account
                 }
                 Text("Реальный статус, без имитации защиты.")
