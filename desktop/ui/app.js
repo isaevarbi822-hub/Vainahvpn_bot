@@ -74,29 +74,33 @@
     if(filter){deviceFilter=Number(filter.dataset.devices);renderPlans()}
   });
   const dialog=document.getElementById('connection-dialog');
-  document.getElementById('connect-button').addEventListener('click',async()=>{
-    if(window.vainah?.getTunnelStatus) {
-      const current=await window.vainah.getTunnelStatus().catch(()=>null);
-      if(current?.state==='running-unverified'){
-        const stopped=await window.vainah.stopEngine().catch(()=>({ok:false}));
-        document.getElementById('connection-status').textContent=stopped.ok
-          ?'Тестовый VPN-движок остановлен.':'Ошибка остановки.';
+  const connectButton=document.getElementById('connect-button');
+  connectButton.addEventListener('click',async()=>{
+    if(!window.vainah?.getTunnelStatus)return;
+    connectButton.disabled=true;
+    const statusLabel=document.getElementById('connection-status');
+    try {
+      const current=await window.vainah.getTunnelStatus();
+      if(['running-unverified','stop-failed'].includes(current?.state)){
+        const stopped=await window.vainah.stopEngine();
+        statusLabel.textContent=stopped?.ok
+          ?'VPN-движок остановлен. Защита трафика не активна.'
+          :'Не удалось остановить движок. Проверь процессы Windows.';
         return;
       }
-      const started=await window.vainah.startEngine().catch(()=>({ok:false}));
-      if(started.ok){
-        document.getElementById('connection-status').textContent=
-          'Движок работает, но сетевое VPN-подключение НЕ подтверждено.';
+      if(current?.state!=='stopped'){
+        statusLabel.textContent='Движок занят. Подожди завершения операции.';
         return;
       }
-      document.getElementById('connection-status').textContent=
-        started.message||'Сначала проверь Xray JSON в разделе «Устройства».';
+      const started=await window.vainah.startEngine();
+      statusLabel.textContent=started?.ok
+        ?'Движок запущен. Маршрутизация и защита VPN пока НЕ подтверждены.'
+        :(started?.message||'Не удалось запустить VPN-движок.');
+    } catch {
+      statusLabel.textContent='Ошибка управления VPN-движком.';
+    } finally {
+      connectButton.disabled=false;
     }
-
-    document.getElementById('dialog-title').textContent='VPN пока не подключается';
-    document.getElementById('dialog-description').textContent=
-      'Это демонстрация Vainah VPN. Движок H1Cloud/VLESS ещё не встроен, поэтому программа не шифрует трафик и не меняет системные VPN-настройки.';
-    dialog.showModal();
   });
   const inspectButton=document.getElementById('inspect-xray');
   inspectButton.addEventListener('click',async()=>{
