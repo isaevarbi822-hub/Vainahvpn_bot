@@ -67,6 +67,15 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
-    "publish": null
+    "publish": null,
+    "extraResources": [
+      {
+        "from": "engines",
+        "to": "engines",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }
