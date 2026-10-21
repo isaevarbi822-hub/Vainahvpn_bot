@@ -17,7 +17,7 @@ internal object MobileRealityConfig {
     private val shortId = Regex("^(?:[0-9a-f]{2}){0,8}$", RegexOption.IGNORE_CASE)
     private val hostname = Regex("^[a-zA-Z0-9.-]{1,253}$")
     private val grpcService = Regex("^[a-zA-Z0-9._/-]{1,128}$")
-    private val permitted = setOf("security", "type", "sni", "pbk", "sid", "fp", "flow", "encryption", "headerType", "serviceName")
+    private val permitted = setOf("security", "type", "sni", "pbk", "sid", "fp", "flow", "encryption", "headerType", "serviceName", "spx")
     private val fingerprints = setOf("chrome", "firefox", "safari", "ios", "android", "edge")
 
     private fun quote(input: String): String = buildString {
@@ -95,6 +95,9 @@ internal object MobileRealityConfig {
         val sid = query["sid"] ?: ""
         val fp = query["fp"] ?: "chrome"
         val flow = query["flow"] ?: ""
+        // Standard H1Cloud/Xray share URIs can specify spiderX='/'.
+        // Accept only the inert default path (no unreviewed camouflage).
+        require((query["spx"] ?: "/") == "/") { "PROFILE_UNSUPPORTED" }
         val serviceName = query["serviceName"] ?: ""
         require(pbk.matches(publicKey) && sni.matches(hostname) && sni.contains('.') &&
             sid.matches(shortId) && fp in fingerprints &&
