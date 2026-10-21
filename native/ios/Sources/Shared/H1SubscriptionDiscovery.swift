@@ -24,7 +24,9 @@ enum H1SubscriptionDiscovery {
         guard content.utf8.count <= maxBytes else { throw DiscoveryError.unavailable }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let plain: String
-        if trimmed.contains("vless://") {
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+            plain = try H1SingBoxJSON.candidates(trimmed).joined(separator: "\n")
+        } else if trimmed.contains("vless://") {
             plain = trimmed
         } else if let decoded = Data(base64Encoded: trimmed, options: .ignoreUnknownCharacters),
                   decoded.count <= maxBytes,
