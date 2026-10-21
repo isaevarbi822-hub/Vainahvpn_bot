@@ -32,6 +32,8 @@ jobs:
           node-version: "22"
       - run: node --test tests/control-plane-device-policy.test.mjs tests/profile-format.test.mjs tests/reality-compat.test.mjs tests/engine-readiness.test.mjs tests/singbox-reality-adapter.test.mjs tests/desktop-tun-config.test.mjs
       - run: node --test desktop/tests/*.test.cjs
+      - name: Prevent repeat iOS libbox linker-script regressions
+        run: python3 tests/ios-libbox-manifest.test.py
       - name: Check experimental TCP Reality TUN config with pinned sing-box
         shell: bash
         run: |
