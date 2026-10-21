@@ -19,6 +19,9 @@ const messages=Object.freeze({
   INVALID_URL:'H1_TEST_URL_INVALID',
   FETCH:'H1_SUBSCRIPTION_HTTPS_FAILED',
   PROFILE:'H1_SUPPORTED_REALITY_PROFILE_NOT_FOUND',
+  JSON:'H1_JSON_HAS_NO_SUPPORTED_REALITY_PROFILE',
+  FORMAT:'H1_SUBSCRIPTION_FORMAT_UNSUPPORTED',
+  VLESS:'H1_VLESS_PROFILES_NOT_COMPATIBLE',
   CORE:'H1_SINGBOX_CONFIG_REJECTED',
   PROXY:'H1_REALITY_PROXY_HTTPS_NOT_CONFIRMED',
 });
@@ -60,7 +63,18 @@ async function main(){
   catch{stopWithCode(messages.FETCH)}
   let outbound;
   try {outbound=fromSubscriptionText(plaintext)}
-  catch{stopWithCode(messages.PROFILE)}
+  catch(error){
+    // Return only allowlisted format categories. Never expose profile content,
+    // UUIDs, hostnames, paths, raw parser errors or certificate details.
+    const code=String(error?.message||'');
+    if(code==='SUBSCRIPTION_JSON_UNSUPPORTED'||code==='SUBSCRIPTION_JSON_INVALID')
+      stopWithCode(messages.JSON);
+    if(code==='SUBSCRIPTION_FORMAT_UNSUPPORTED'||code==='SUBSCRIPTION_INVALID')
+      stopWithCode(messages.FORMAT);
+    if(code==='REALITY_SUPPORTED_TRANSPORT_NOT_FOUND')
+      stopWithCode(messages.VLESS);
+    stopWithCode(messages.PROFILE);
+  }
   plaintext=null;
   // No H1Cloud URL/host/UUID is ever printed. Only a transport *label*.
   const transport=outbound.transport?.type==='grpc'?'gRPC':'TCP';
