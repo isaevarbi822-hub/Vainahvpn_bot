@@ -136,7 +136,7 @@ app.whenReady().then(()=>{
       const profile=vlessUriToXray(link);
       const checked=await validateWithSingBox(enginePath(),profile);
       if(!checked.ok)return {ok:false,message:'Ключ прочитан, но проверка sing-box не прошла'};
-      subscriptionProfiles=[];
+      subscriptionProfiles=[profile];
       chosenDirectProfile=profile;
       chosenFile=null;
       return {ok:true,message:'VLESS-ключ проверен. Можно тестировать запуск движка.'};
@@ -163,6 +163,14 @@ app.whenReady().then(()=>{
               : 'Не удалось прочитать HTTPS-подписку. Проверь ссылку и подключение к интернету.';
       return {ok:false,message};
     }
+  });
+  ipcMain.handle('vainah:subscription-servers',event=>{
+    if(!authorizedSender(event))return {ok:false,servers:[]};
+    return {ok:true,servers:subscriptionProfiles.map((profile,index)=>({
+      index,
+      label:'Сервер '+(index+1)+' · '+String(profile.outbounds?.[0]?.settings?.vnext?.[0]?.address||'VLESS').slice(0,80),
+      selected:chosenDirectProfile===profile
+    }))};
   });
   ipcMain.handle('vainah:select-subscription-server',async(event,index)=>{
     if(!authorizedSender(event)||!Number.isInteger(index)||index<0||index>=subscriptionProfiles.length)
