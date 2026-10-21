@@ -1,6 +1,8 @@
 'use strict';
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, session, shell, Menu } = require('electron');
+const fs = require('node:fs/promises');
+const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
+const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 
@@ -49,6 +51,26 @@ app.whenReady().then(()=>{
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?PREVIEW_STATUS:null);
+  ipcMain.handle('vainah:inspect-xray-file',async event=>{
+    if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    const selection=await dialog.showOpenDialog(mainWindow,{
+      title:'Проверить локальный Xray JSON (без сохранения)',
+      properties:['openFile'],
+      filters:[{name:'JSON',extensions:['json']}]
+    });
+    if(selection.canceled || !selection.filePaths?.length)return {ok:false,cancelled:true};
+    try {
+      const file=selection.filePaths[0];
+      const info=await fs.stat(file);
+      if(!info.isFile() || info.size>1024*1024)return {ok:false,message:'JSON слишком большой'};
+      const json=await fs.readFile(file,'utf8');
+      const profiles=parseXrayProfiles(json);
+      return {ok:true,profiles};
+    } catch {
+      // Never expose file paths, secrets, or raw parser/OS errors.
+      return {ok:false,message:'Не удалось прочитать Xray JSON. Проверь формат файла.'};
+    }
+  });
   ipcMain.handle('vainah:open-official',async(event,name)=>{
     if(!authorizedSender(event))return {ok:false};
     const url=safePage(name);
