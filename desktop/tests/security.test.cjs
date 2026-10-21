@@ -91,3 +91,12 @@ test('Selected Xray JSON is bounded on re-open before starting a native engine',
   assert.match(main,/size>1024\*1024/);
   assert.doesNotMatch(main,/fs\.readFile\(chosenFile/);
 });
+
+test('Electron waits for native engine cleanup before exiting',()=>{
+  const main=load('src/main.cjs');
+  assert.match(main,/app\.on\('before-quit',event=>/);
+  assert.match(main,/event\.preventDefault\(\)/);
+  assert.match(main,/engineSession\.stop\(\)\.then\(result=>/);
+  assert.match(main,/if\(result\.ok\)/);
+  assert.match(main,/quitCleanupDone=true/);
+});
