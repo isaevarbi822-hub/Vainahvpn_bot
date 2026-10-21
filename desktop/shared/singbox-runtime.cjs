@@ -29,9 +29,19 @@ async function validateWithSingBox(binaryPath, xrayPayload, options={}) {
         windowsHide:true,stdio:'ignore',shell:false,cwd:dir,env:{...process.env},
       });
       let completed=false;
-      const timer=setTimeout(()=>{if(!completed)child.kill();},12000);
-      child.on('error',err=>{completed=true;clearTimeout(timer);reject(err)});
-      child.on('exit',(exitCode)=>{completed=true;clearTimeout(timer);resolve(exitCode)});
+      const finish=(value,isError=false)=>{
+        if(completed)return;
+        completed=true;
+        clearTimeout(timer);
+        if(isError)reject(value);
+        else resolve(value);
+      };
+      const timer=setTimeout(()=>{
+        try { child.kill(); } catch {}
+        finish(null);
+      },12000);
+      child.once('error',err=>finish(err,true));
+      child.once('exit',exitCode=>finish(exitCode));
     });
     return code===0?{ok:true,validated:true,tunnelActive:false}:
       {ok:false,reason:'Engine rejected configuration'};
