@@ -43,7 +43,9 @@ test('Desktop uses the website design and guides users honestly',()=>{
     assert.match(html,new RegExp('id="view-'+page+'"'));
   assert.match(html,/VPN не активен/);
   assert.match(html,/Пока приложение не подключает VPN/);
-  assert.doesNotMatch(html,/<input[^>]+type="password"|<iframe|<webview/);
+  assert.match(html,/id="vless-key"/);
+  assert.match(html,/type="password"/);
+  assert.doesNotMatch(html,/<iframe|<webview/);
 });
 
 test('Desktop blocks sensitive IPC calls, native VPN impersonation and arbitrary browser links',()=>{
