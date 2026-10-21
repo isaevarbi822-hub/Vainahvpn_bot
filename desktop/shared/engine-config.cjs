@@ -5,7 +5,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const PBK=/^[a-zA-Z0-9_-]{43}$/;
 const SID=/^(?:[0-9a-f]{2}){0,8}$/i;
 const FINGERPRINTS=new Set(['chrome','firefox','safari','ios','android','edge']);
-const ALLOWED=new Set(['security','type','sni','pbk','sid','fp','flow','encryption','headerType']);
+const ALLOWED=new Set(['security','type','sni','pbk','sid','fp','flow','encryption','headerType','spx']);
 const GRPC_ALLOWED=new Set([...ALLOWED,'serviceName']);
 
 function validateReality(link,transport){
@@ -24,6 +24,11 @@ function validateReality(link,transport){
        ['','xtls-rprx-vision'].includes(params.get('flow')||''):
        (params.get('flow')||'')===''))
     
+    throw Error('PROFILE_UNSUPPORTED');
+  // Standard Reality share links can include the default spiderX path
+  // (spx=%2F). It has no native sing-box outbound mapping here. Accept ONLY
+  // the documented inert '/' default; reject any custom camouflage path.
+  if(params.has('spx') && params.get('spx')!=='/')
     throw Error('PROFILE_UNSUPPORTED');
   // Standard VLESS links frequently include explicit default parameters.
   // They do not change the outbound; non-default encryption/headers remain blocked.
