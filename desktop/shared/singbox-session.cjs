@@ -1,0 +1,66 @@
+'use strict';
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawn}=require('node:child_process');
+const {buildSingBoxConfig}=require('./singbox-config.cjs');
+
+// Low-level, opt-in Windows engine lifecycle. This is not an assertion of VPN protection.
+// The caller must independently check encrypted egress, routing and DNS before reporting CONNECTED.
+class SingBoxSession {
+  constructor({runner=spawn}={}) {
+    this.runner=runner; this.child=null; this.temp=null; this.state='stopped';
+    this.exitPromise=null;
+  }
+  get status() {return Object.freeze({state:this.state,protected:false});}
+  async start(binary,xrayJson) {
+    if(this.state!=='stopped')return {ok:false,reason:'Already running or starting'};
+    this.state='starting';
+    try {
+      if(process.platform!=='win32')throw Error('Windows-only engine');
+      if(typeof binary!=='string'||!path.isAbsolute(binary)||path.basename(binary).toLowerCase()!=='sing-box.exe')
+        throw Error('Invalid binary path');
+      const stat=await fs.stat(binary);
+      if(!stat.isFile())throw Error('Binary unavailable');
+      const config=buildSingBoxConfig(xrayJson);
+      this.temp=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-session-'));
+      await fs.chmod(this.temp,0o700);
+      const configPath=path.join(this.temp,'config.json');
+      await fs.writeFile(configPath,JSON.stringify(config),{mode:0o600,flag:'wx'});
+      const child=this.runner(binary,['run','-c',configPath],{
+        cwd:this.temp,windowsHide:true,shell:false,stdio:'ignore'
+      });
+      this.child=child;
+      this.exitPromise=new Promise(resolve=>{
+        let settled=false;
+        const finish=()=>{
+          if(settled)return;
+          settled=true;
+          this.child=null;this.state='stopped';
+          resolve();
+        };
+        child.once('exit',finish);child.once('error',finish);
+      });
+      this.state='running-unverified';
+      return {ok:true,started:true,protected:false};
+    } catch {
+      await this.stop();
+      return {ok:false,reason:'Could not start native engine',protected:false};
+    }
+  }
+  async stop() {
+    if(this.state==='stopped'&&!this.temp)return {ok:true,protected:false};
+    this.state='stopping';
+    const child=this.child;
+    if(child){
+      try {child.kill();}catch{}
+      // Never block UI forever waiting for a hung subprocess.
+      await Promise.race([this.exitPromise||Promise.resolve(),new Promise(resolve=>setTimeout(resolve,2000))]);
+    }
+    const temp=this.temp;
+    this.temp=null;this.child=null;this.state='stopped';
+    if(temp)await fs.rm(temp,{recursive:true,force:true}).catch(()=>{});
+    return {ok:true,protected:false};
+  }
+}
+module.exports={SingBoxSession};
