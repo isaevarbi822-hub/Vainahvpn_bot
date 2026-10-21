@@ -47,6 +47,24 @@ function createWindow() {
   mainWindow.webContents.on('will-attach-webview', e => e.preventDefault());
   mainWindow.loadFile(path.join(__dirname,'..','ui','index.html'));
   mainWindow.once('ready-to-show',()=>mainWindow?.show());
+  let closing=false;
+  let shutdownComplete=false;
+  mainWindow.on('close',event=>{
+    if(shutdownComplete||engineSession.status.state==='stopped')return;
+    event.preventDefault();
+    if(closing)return;
+    closing=true;
+    void engineSession.stop().then(result=>{
+      closing=false;
+      if(result.ok){
+        shutdownComplete=true;
+        if(mainWindow&&!mainWindow.isDestroyed())mainWindow.close();
+      }else if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();
+    }).catch(()=>{
+      closing=false;
+      if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();
+    });
+  });
 }
 app.whenReady().then(()=>{
   if(process.platform==='win32') app.setAppUserModelId('app.vainah.vpn.desktop');
