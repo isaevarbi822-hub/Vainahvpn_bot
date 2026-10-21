@@ -1,0 +1,42 @@
+name: Vainah VLESS Reality real-protocol loopback
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - "tests/reality-protocol-loopback.mjs"
+      - "desktop/shared/engine-config.cjs"
+      - ".github/workflows/reality-protocol-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vainah-protocol-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reality-tcp:
+    name: Exercise REAL encrypted Reality TCP handshake with disposable credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Obtain upstream sing-box 1.14.3 and check pinned SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            'https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-amd64.tar.gz' -o /tmp/vainah-reality-linux.tgz
+          echo 'e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee  /tmp/vainah-reality-linux.tgz' | sha256sum --check
+          tar -xzf /tmp/vainah-reality-linux.tgz -C /tmp
+      - name: Test actual VLESS Reality TCP handshake and HTTPS through the core
+        run: node tests/reality-protocol-loopback.mjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
+
+# Only generated test UUID/Reality keys and 127.0.0.1 endpoints are used.
+# No H1Cloud credentials, real VPN routing, or user data. No app release.
