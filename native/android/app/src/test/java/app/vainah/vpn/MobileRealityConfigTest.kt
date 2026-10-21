@@ -70,6 +70,15 @@ class MobileRealityConfigTest {
         }
     }
 
+    @Test fun acceptsDefaultSpiderXPathButRejectsCustomPath() {
+        val safe = MobileRealityConfig.fromVlessLink(tcp + "&spx=%2F")
+        assertTrue(safe.contains("\"type\":\"vless\""))
+        try {
+            MobileRealityConfig.fromVlessLink(tcp + "&spx=%2Fcustom")
+            fail("Unsafe unreviewed Reality path accepted")
+        } catch (_: IllegalArgumentException) { }
+    }
+
     @Test fun errorMessagesCannotExposeCredentials() {
         try {
             MobileRealityConfig.fromSubscription("not a subscription")
