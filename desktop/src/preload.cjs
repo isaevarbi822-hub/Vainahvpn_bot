@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('vainah',{
   startEngine:()=>ipcRenderer.invoke('vainah:start-engine'),
   stopEngine:()=>ipcRenderer.invoke('vainah:stop-engine'),
   inspectXrayFile:()=>ipcRenderer.invoke('vainah:inspect-xray-file'),
+  importVlessLink:link=>ipcRenderer.invoke('vainah:import-vless-link',link),
   openOfficialPage:name=>ipcRenderer.invoke('vainah:open-official',name)
 });
