@@ -61,10 +61,30 @@ app.whenReady().then(()=>{
     if(selection.canceled || !selection.filePaths?.length)return {ok:false,cancelled:true};
     try {
       const file=selection.filePaths[0];
-      const info=await fs.stat(file);
-      if(!info.isFile() || info.size>1024*1024)return {ok:false,message:'JSON слишком большой'};
-      const json=await fs.readFile(file,'utf8');
+      // Refuse symlinks and bound the read on a single opened descriptor.
+      const before=await fs.lstat(file);
+      if(!before.isFile() || before.size>1024*1024)
+        return {ok:false,message:'Нужен обычный JSON-файл не больше 1 МБ'};
+      const flags=require('node:fs').constants;
+      const handle=await fs.open(file,flags.O_RDONLY | (flags.O_NOFOLLOW || 0));
+      let json;
+      try {
+        const info=await handle.stat();
+        if(!info.isFile() || info.size>1024*1024)
+          return {ok:false,message:'JSON слишком большой'};
+        const buffer=Buffer.allocUnsafe(info.size+1);
+        let offset=0;
+        while(offset<buffer.length){
+          const {bytesRead}=await handle.read(buffer,offset,buffer.length-offset,offset);
+          if(bytesRead===0)break;
+          offset+=bytesRead;
+        }
+        if(offset>1024*1024)return {ok:false,message:'JSON слишком большой'};
+        json=buffer.toString('utf8',0,offset);
+        buffer.fill(0);
+      } finally {await handle.close()}
       const profiles=parseXrayProfiles(json);
+      json=null;
       return {ok:true,profiles};
     } catch {
       // Never expose file paths, secrets, or raw parser/OS errors.
