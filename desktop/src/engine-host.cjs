@@ -106,9 +106,33 @@ class EngineHost {
         shell:false,windowsHide:true,stdio:'ignore'
       });
       this.proc=processHandle;
-      this.phase='running';
+      // Node's spawn() returns before sing-box has opened its TUN. A missing
+      // OS permission may kill the process immediately. Keep PREPARING until
+      // it survives the first startup interval; never show false success.
       processHandle.once('error',()=>this.processStopped(processHandle));
       processHandle.once('close',()=>this.processStopped(processHandle));
+      const survived=await new Promise(resolve=>{
+        let finished=false;
+        let timer;
+        const complete=(alive)=>{
+          if(finished)return;
+          finished=true;
+          clearTimeout(timer);
+          processHandle.removeListener('error',failed);
+          processHandle.removeListener('close',failed);
+          resolve(alive);
+        };
+        const failed=()=>complete(false);
+        processHandle.once('error',failed);
+        processHandle.once('close',failed);
+        timer=setTimeout(()=>complete(true),1250);
+      });
+      if(generation!==this.generation)return {ok:false,code:'CANCELLED'};
+      if(!survived||this.proc!==processHandle){
+        this.phase='error';
+        return {ok:false,code:'ENGINE_START_FAILED'};
+      }
+      this.phase='running';
       return {ok:true,verified:false};
     }catch{
       if(generation===this.generation){
