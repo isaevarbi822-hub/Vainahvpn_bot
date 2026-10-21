@@ -10,7 +10,7 @@ enum MobileRealityConfig {
     private static let maxBytes = 256 * 1024
     private static let allowed = Set([
         "security", "type", "sni", "pbk", "sid", "fp",
-        "flow", "encryption", "headerType", "serviceName"
+        "flow", "encryption", "headerType", "serviceName", "spx"
     ])
     private static let fingerprints = Set([
         "chrome", "firefox", "safari", "ios", "android", "edge"
@@ -87,7 +87,8 @@ enum MobileRealityConfig {
                    matches(query["serviceName"] ?? "",
                            pattern: "^[a-zA-Z0-9._/-]{1,128}$"))),
               (query["encryption"] ?? "none") == "none",
-              (query["headerType"] ?? "none") == "none"
+              (query["headerType"] ?? "none") == "none",
+              (query["spx"] ?? "/") == "/"
         else { throw ConfigError.unavailable }
 
         var outbound: [String: Any] = [
