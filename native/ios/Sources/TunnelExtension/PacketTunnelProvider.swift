@@ -5,6 +5,9 @@ import NetworkExtension
 /// transient startVPNTunnel options; the URL is NEVER persisted in VPN prefs.
 final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var startup: Task<Void, Never>?
+    #if canImport(Libbox)
+    private var runtime: VainahLibboxRuntime?
+    #endif
 
     override func startTunnel(
         options: [String: NSObject]?,
@@ -24,22 +27,31 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             do {
                 let plaintext = try await H1ExtensionSubscription.download(secret)
                 try Task.checkCancellation()
-                guard NativeRealityPreflight.check(plaintext) else {
-                    throw failure(1003, "Конфигурация Reality отклонена движком.")
-                }
+                let config = try MobileRealityConfig.fromSubscription(plaintext)
                 try Task.checkCancellation()
-                // Next gate: instantiate libbox CommandServer with a correct
-                // NEPacketTunnelProvider PlatformInterface and verify packets.
-                // Until openTun + encrypted packet exchange exists, returning
-                // nil would misleadingly put iOS in a 'connected' state.
+                #if canImport(Libbox)
+                let engine = VainahLibboxRuntime(self)
+                runtime = engine
+                // Native libbox config check, PacketTunnel settings, and
+                // full TUN startup must succeed before iOS can signal start.
+                try engine.start(config)
+                try Task.checkCancellation()
+                completionHandler(nil)
+                #else
+                _ = config
                 completionHandler(failure(
                     1004,
-                    "Reality проверен; передача пакетов через iOS пока не подключена."
+                    "Для передачи пакетов нужен нативный движок libbox."
                 ))
+                #endif
             } catch {
+                #if canImport(Libbox)
+                runtime?.stop()
+                runtime = nil
+                #endif
                 // Never expose URLSession/NSError details: errors can contain
                 // secret query parameters, UUIDs or upstream credentials.
-                completionHandler(failure(1005, "VPN не удалось проверить безопасно."))
+                completionHandler(failure(1005, "VPN не удалось подключить безопасно."))
             }
         }
     }
@@ -50,6 +62,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) {
         startup?.cancel()
         startup = nil
+        #if canImport(Libbox)
+        runtime?.stop()
+        runtime = nil
+        #endif
         completionHandler()
     }
 
