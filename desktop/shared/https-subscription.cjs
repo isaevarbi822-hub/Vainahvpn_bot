@@ -43,6 +43,22 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
   req.on('error',reject);
  });
  const trimmed=data.trim();
+ // Some panels return an Xray-style JSON document rather than a link list.
+ if(trimmed.startsWith('{')){
+   let payload;
+   try{payload=JSON.parse(trimmed)}catch{throw Error('Unsupported subscription format')}
+   if(Array.isArray(payload?.outbounds)){
+     const profiles=[];
+     for(const outbound of payload.outbounds.slice(0,50)){
+       if(outbound?.protocol==='vless'&&outbound?.streamSettings?.security==='reality'&&
+         (!outbound.streamSettings.network||outbound.streamSettings.network==='tcp')){
+         if(outbound.settings?.vnext?.length===1)profiles.push({outbounds:[outbound]});
+       }
+     }
+     if(profiles.length)return {profiles,count:profiles.length};
+   }
+   throw Error('Unsupported subscription format');
+ }
  // Accept both ordinary newline-delimited VLESS lists and base64 lists.
  // Avoid interpreting malformed or mixed text as base64.
  const decoded=trimmed.startsWith('vless://')?trimmed:(/^[A-Za-z0-9+/=\s]+$/.test(trimmed)
