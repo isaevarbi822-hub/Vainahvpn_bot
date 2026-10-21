@@ -48,6 +48,22 @@ jobs:
           node-version: "22"
       - name: Install desktop dependencies
         run: npm install --prefix desktop --no-audit --no-fund
+      - name: Stage verified official sing-box Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-windows-amd64.zip'
+          $expected = 'c2d8bfff918755808781dfdeeb8581b6c91eb3a243d9a7b55483cfc0c0684d32'
+          $archive = Join-Path $env:RUNNER_TEMP 'sing-box.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'sing-box-unpacked'
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'sing-box archive SHA256 mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $extract
+          $binary = Get-ChildItem -Path $extract -Filter sing-box.exe -Recurse -File | Select-Object -First 1
+          if (-not $binary) { throw 'sing-box.exe not found in official archive' }
+          New-Item -ItemType Directory -Force -Path 'desktop/vendor/sing-box/windows-x64' | Out-Null
+          Copy-Item $binary.FullName 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
       - name: Build Windows NSIS installer
         run: npm run --prefix desktop dist:win
       - name: Upload Windows preview
