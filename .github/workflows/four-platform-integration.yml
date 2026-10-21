@@ -52,7 +52,7 @@ jobs:
           import {createRequire} from 'node:module';
           import {createDesktopTunConfig} from './services/control-plane/desktop-tun-config.mjs';
           const require=createRequire(import.meta.url);
-          const {fromSubscriptionText,toTunConfig}=require('./desktop/shared/engine-config.cjs');
+          const {fromSubscriptionText,toTunConfig,validateGrpcReality}=require('./desktop/shared/engine-config.cjs');
           const link='vless://123e4567-e89b-42d3-a456-426614174000@vpn.example.org:443?security=reality&type=tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome';
           for(const platform of ['darwin','win32']){
             fs.writeFileSync(`/tmp/vainah-prototype-${platform}.json`,
@@ -64,12 +64,16 @@ jobs:
             const grpc=link.replace('type=tcp','type=grpc')+'&serviceName=vainah-svc';
             fs.writeFileSync(`/tmp/vainah-grpc-${platform}.json`,
               JSON.stringify(createDesktopTunConfig(grpc,platform)));
+            // Check the exact Electron runtime config, not only the prototype.
+            fs.writeFileSync(`/tmp/vainah-runtime-grpc-${platform}.json`,
+              JSON.stringify(toTunConfig(validateGrpcReality(grpc),platform)));
           }
           JS
           for platform in darwin win32; do
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-prototype-${platform}.json"
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-runtime-${platform}.json"
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-grpc-${platform}.json"
+            /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-runtime-grpc-${platform}.json"
           done
           node tests/check-android-reality-schema.cjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
 
