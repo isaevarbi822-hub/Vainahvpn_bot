@@ -1,0 +1,51 @@
+name: Vainah PacketTunnel native bridge smoke
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - "native/ios/**"
+      - ".github/workflows/ios-bridge-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: vainah-ios-bridge-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native:
+    name: Compile current packet engine against pinned existing libbox XCFramework
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse pinned libbox from our prior successful source build
+        uses: actions/download-artifact@v4
+        with:
+          name: libbox-apple-ios-1.14.3-gpl-source-build
+          run-id: 39557412404
+          github-token: ${{ github.token }}
+          path: upstream
+      - name: Link real library only in integration Xcode project
+        run: |
+          test -d upstream/Libbox.xcframework
+          python3 native/ios/scripts/link-libbox-preview.py upstream/Libbox.xcframework
+      - name: Generate native project
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift native/ios/scripts/generate-icon.swift
+          cd native/ios && xcodegen generate
+      - name: Compile real VLESS+Reality PacketTunnel bridge without signing
+        run: >
+          xcodebuild -project native/ios/VainahVPN.xcodeproj
+          -scheme VainahVPN -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
+
+# Short-lived CI smoke uses a 3-day artifact; no IPA, release, credentials,
+# signature or claim of device packet protection.
