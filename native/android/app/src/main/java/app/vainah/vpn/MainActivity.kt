@@ -187,8 +187,30 @@ class MainActivity : Activity() {
         add(preview,text(if(vault.load()!=null)"✓ HTTPS-подписка сохранена на устройстве"
             else "Сначала добавь личную HTTPS-ссылку H1Cloud.",
             12f,d.muted),13)
-        val profileButton=action(if(vault.load()!=null)"Изменить VPN-подписку"
-            else "Ввести ссылку подписки H1Cloud")
+        val quickSubscription = EditText(this).apply {
+            hint="Вставь HTTPS-ссылку H1Cloud"
+            setHintTextColor(d.muted);setTextColor(d.ink);textSize=13f
+            inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            transformationMethod=PasswordTransformationMethod.getInstance()
+            setSingleLine(true)
+            background=shape(Color.rgb(14,21,38),Color.rgb(14,21,38),12f)
+            setPadding(dp(14),dp(15),dp(14),dp(15))
+            importantForAutofill=View.IMPORTANT_FOR_AUTOFILL_NO
+            contentDescription="Секретная HTTPS-ссылка VPN-подписки"
+        }
+        add(preview,quickSubscription,10)
+        val quickSave=action("Сохранить HTTPS-подписку",true)
+        add(preview,quickSave,9)
+        quickSave.setOnClickListener {
+            val saved=vault.save(quickSubscription.text.toString())
+            quickSubscription.text.clear()
+            if(saved) {
+                renderPage()
+                notice("VPN-подписка сохранена в защищённом хранилище Android.")
+            } else notice("Вставь корректную HTTPS-ссылку H1Cloud.")
+        }
+        val profileButton=action(if(vault.load()!=null)"Управление VPN-подпиской"
+            else "Открыть настройки VPN-подписки")
         add(preview,profileButton,9)
         profileButton.setOnClickListener { switch(Tab.ACCOUNT) }
         add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
