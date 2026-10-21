@@ -136,7 +136,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="desktop-windows-preview-v0.3.0"
+          tag="desktop-windows-preview-v0.3.0-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
           cat > /tmp/VainahDesktopNotes.md <<'NOTES'
           # Vainah VPN Desktop 0.3 — Windows engineering preview
 
@@ -147,7 +147,7 @@ jobs:
           **Этот установщик не подписан и предназначен для разработки, а не для массового использования.**
           NOTES
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Tag already published: refusing to silently replace binaries. Bump version for another release."
+            echo "This exact workflow attempt has already been published; refusing to overwrite its binaries."
             exit 1
           fi
           gh release create "$tag" preview/*.exe preview/SHA256SUMS.txt \
