@@ -45,8 +45,8 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
  const trimmed=data.trim();
  // Accept both ordinary newline-delimited VLESS lists and base64 lists.
  // Avoid interpreting malformed or mixed text as base64.
- const decoded=trimmed.startsWith('vless://')?trimmed:(/^[A-Za-z0-9+/=\\r\\n]+$/.test(trimmed)
-   ? Buffer.from(trimmed.replace(/\\s/g,''),'base64').toString('utf8')
+ const decoded=trimmed.startsWith('vless://')?trimmed:(/^[A-Za-z0-9+/=\s]+$/.test(trimmed)
+   ? Buffer.from(trimmed.replace(/\s/g,''),'base64').toString('utf8')
    : trimmed);
  const lines=decoded.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
  if(lines.length<1||lines.length>50)throw Error('Unsupported subscription');
