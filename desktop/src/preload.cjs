@@ -12,5 +12,6 @@ contextBridge.exposeInMainWorld('vainah',{
   deleteSubscription:()=>ipcRenderer.invoke('vainah:subscription:clear'),
   startLocalEngine:()=>ipcRenderer.invoke('vainah:engine:start'),
   stopLocalEngine:()=>ipcRenderer.invoke('vainah:engine:stop'),
+  testNetworkFamilies:()=>ipcRenderer.invoke('vainah:diagnostics:probe'),
   openOfficialPage:name=>ipcRenderer.invoke('vainah:open-official',name)
 });
