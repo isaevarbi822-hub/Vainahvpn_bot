@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {validateTcpReality,fromSubscriptionText,toTunConfig,loadSubscription}=require('../shared/engine-config.cjs');
+const {validateTcpReality,validateGrpcReality,fromSubscriptionText,toTunConfig,loadSubscription}=require('../shared/engine-config.cjs');
 const {EngineHost}=require('../src/engine-host.cjs');
 const uri='vless://123e4567-e89b-42d3-a456-426614174000@vpn.invalid:443?security=reality&type=tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome';
 test('TCP Reality profile becomes privacy-preserving full-route TUN settings',()=>{
@@ -25,12 +25,34 @@ test('multiple or unknown query fields fail closed',()=>{
  assert.throws(()=>validateTcpReality(uri+'&encryption=aes-128-gcm'),/PROFILE_UNSUPPORTED/);
  assert.throws(()=>validateTcpReality(uri+'&headerType=http'),/PROFILE_UNSUPPORTED/);
 });
-test('subscription parser selects only supported TCP Reality, not gRPC or XHTTP',()=>{
- const grpc=uri.replace('type=tcp','type=grpc');
+test('subscription parser prefers TCP, falls back to real gRPC and never substitutes XHTTP',()=>{
+ const grpc=uri.replace('type=tcp','type=grpc')+'&serviceName=vainah-service';
  const xhttp=uri.replace('type=tcp','type=xhttp');
- assert.equal(fromSubscriptionText([grpc,xhttp,uri].join('\n')).type,'vless');
- assert.equal(fromSubscriptionText(Buffer.from([grpc,uri].join('\n')).toString('base64')).type,'vless');
- assert.throws(()=>fromSubscriptionText([grpc,xhttp].join('\n')),/TCP_REALITY_NOT_FOUND/);
+ assert.equal(fromSubscriptionText([grpc,xhttp,uri].join('\n')).transport,undefined);
+ assert.equal(fromSubscriptionText(Buffer.from([grpc,uri].join('\n')).toString('base64')).transport,undefined);
+ assert.deepEqual(fromSubscriptionText([grpc,xhttp].join('\n')).transport,{
+  type:'grpc',service_name:'vainah-service'
+ });
+ assert.throws(()=>fromSubscriptionText(xhttp),/REALITY_SUPPORTED_TRANSPORT_NOT_FOUND/);
+ assert.throws(()=>validateTcpReality(grpc),/PROFILE_UNSUPPORTED/);
+ assert.throws(()=>validateGrpcReality(uri),/PROFILE_UNSUPPORTED/);
+});
+test('gRPC Reality generates a separate full-route config with pinned TLS security',()=>{
+ const grpc=uri.replace('type=tcp','type=grpc')+'&serviceName=h1-grpc';
+ const outbound=validateGrpcReality(grpc);
+ assert.deepEqual(outbound.transport,{type:'grpc',service_name:'h1-grpc'});
+ assert.equal(outbound.tls.reality.enabled,true);
+ for(const platform of ['win32','darwin']){
+  const config=toTunConfig(outbound,platform);
+  assert.deepEqual(config.outbounds[0].transport,outbound.transport);
+  assert.equal(config.route.final,'vainah-primary');
+  assert.equal(config.dns.final,'private-dns');
+  assert.equal(config.inbounds[0].auto_route,true);
+ }
+ assert.throws(()=>validateGrpcReality(grpc+'&serviceName=other'),/PROFILE_UNSUPPORTED/);
+ assert.throws(()=>validateGrpcReality(grpc+'&flow=xtls-rprx-vision'),/PROFILE_UNSUPPORTED/);
+ assert.throws(()=>validateGrpcReality(grpc.replace('serviceName=h1-grpc','serviceName=')),/PROFILE_UNSUPPORTED/);
+ assert.throws(()=>validateGrpcReality(grpc+'&allowInsecure=true'),/PROFILE_UNSUPPORTED/);
 });
 test('private subscription loader refuses redirects and unsafe credentials',async()=>{
  await assert.rejects(loadSubscription('http://vpn.invalid/t'),/SUBSCRIPTION_INVALID/);
