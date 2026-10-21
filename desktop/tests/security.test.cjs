@@ -123,3 +123,11 @@ test('Official site opens in isolated in-app window with strict origin checks',(
   assert.match(main,/openWebsiteInsideApp\(url\)/);
   assert.doesNotMatch(main,/shell\.openExternal\(url/);
 });
+
+test('Desktop restores unverified process state without claiming VPN protection',()=>{
+  const ui=load('ui/app.js');
+  assert.match(ui,/status\.state==='running-unverified'/);
+  assert.match(ui,/VPN-движок запущен, но защищённое соединение не подтверждено/);
+  assert.match(ui,/button\.textContent='⏻ Остановить движок'/);
+  assert.match(ui,/status\.state==='stop-failed'/);
+});
