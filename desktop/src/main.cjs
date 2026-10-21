@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
 const { vlessUriToXray } = require('../shared/vless-link.cjs');
+const { fetchSubscription } = require('../shared/https-subscription.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
@@ -13,6 +14,7 @@ let mainWindow;
 const engineSession = new SingBoxSession();
 let chosenFile = null;
 let chosenDirectProfile = null;
+let subscriptionProfiles = [];
 function enginePath() {
   return app.isPackaged
     ? path.join(process.resourcesPath,'engines','sing-box','sing-box.exe')
@@ -92,10 +94,28 @@ app.whenReady().then(()=>{
       const profile=vlessUriToXray(link);
       const checked=await validateWithSingBox(enginePath(),profile);
       if(!checked.ok)return {ok:false,message:'Ключ прочитан, но проверка sing-box не прошла'};
+      subscriptionProfiles=[];
       chosenDirectProfile=profile;
       chosenFile=null;
       return {ok:true,message:'VLESS-ключ проверен. Можно тестировать запуск движка.'};
     }catch{return {ok:false,message:'Нужен действительный vless:// ключ с TCP + REALITY'};}
+  });
+  ipcMain.handle('vainah:import-https-subscription',async(event,link)=>{
+    if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    try{
+      const result=await fetchSubscription(link);
+      subscriptionProfiles=result.profiles;
+      chosenDirectProfile=result.profiles[0];
+      chosenFile=null;
+      return {ok:true,count:result.count,message:'Подписка загружена. Поддерживаемых серверов: '+result.count+'. Для тестового запуска выбран первый.'};
+    }catch{return {ok:false,message:'Не удалось загрузить HTTPS-подписку или нет поддерживаемых VLESS TCP REALITY серверов'};}
+  });
+  ipcMain.handle('vainah:select-subscription-server',async(event,index)=>{
+    if(!authorizedSender(event)||!Number.isInteger(index)||index<0||index>=subscriptionProfiles.length)
+      return {ok:false,message:'Неверный сервер'};
+    if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи движок'};
+    chosenDirectProfile=subscriptionProfiles[index];
+    return {ok:true,message:'Сервер выбран'};
   });
   ipcMain.handle('vainah:start-engine',async event=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
