@@ -169,6 +169,14 @@ jobs:
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SagerNet/sing-box/v1.14.3/LICENSE" -OutFile desktop/engines/sing-box-GPL-3.0.txt
           if ((Get-Item desktop/engines/sing-box.exe).Length -le 1000000) { throw "Core too small" }
       - run: npm run --prefix desktop dist:win
+      - name: Verify official sing-box is inside unpacked Windows installer
+        shell: pwsh
+        run: |
+          $binary = "desktop/dist/win-unpacked/resources/engines/sing-box.exe"
+          $license = "desktop/dist/win-unpacked/resources/engines/sing-box-GPL-3.0.txt"
+          if (-not (Test-Path $binary -PathType Leaf)) { throw "Packaged Windows sing-box core missing" }
+          if ((Get-Item $binary).Length -lt 1000000) { throw "Packaged core truncated" }
+          if (-not (Test-Path $license -PathType Leaf)) { throw "Packaged GPL-3.0 license missing" }
       - uses: actions/upload-artifact@v4
         with:
           name: VainahVPN-Windows-integration-${{ github.run_number }}-unverified-core
@@ -211,6 +219,16 @@ jobs:
           done
           curl --fail --location --silent --show-error             "https://raw.githubusercontent.com/SagerNet/sing-box/v1.14.3/LICENSE"             -o desktop/engines/sing-box-GPL-3.0.txt
       - run: npm run --prefix desktop dist:mac
+      - name: Verify both macOS architectures contain official sing-box and license
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            matches=$(find desktop/dist -type f -path "*/Contents/Resources/engines/sing-box-darwin-$arch" | wc -l | tr -d ' ')
+            test "$matches" -ge 1 || { echo "Missing packaged $arch core"; exit 1; }
+          done
+          matches=$(find desktop/dist -type f -path "*/Contents/Resources/engines/sing-box-GPL-3.0.txt" | wc -l | tr -d ' ')
+          test "$matches" -ge 1 || { echo "Missing bundled core license"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: VainahVPN-macOS-integration-${{ github.run_number }}-unverified-core
