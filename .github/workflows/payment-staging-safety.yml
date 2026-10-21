@@ -1,0 +1,55 @@
+name: Vainah payment safety and desktop checkout staging
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - "desktop/shared/billing-bridge.cjs"
+      - "desktop/tests/billing-bridge.test.cjs"
+      - "desktop/src/main.cjs"
+      - "desktop/src/preload.cjs"
+      - "desktop/ui/app.js"
+      - "desktop/ui/index.html"
+      - "netlify/functions/lib/plan-catalog.mjs"
+      - "netlify/functions/lib/rollypay-client.mjs"
+      - "netlify/functions/rollypay-live-webhook.mjs"
+      - "netlify/functions/rollypay-sandbox.mjs"
+      - ".github/workflows/payment-staging-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safety:
+    name: No live charges, verified sandbox and guarded browser checkout
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify payment browser bridge and strict URL policy (no credentials)
+        run: node --test desktop/tests/billing-bridge.test.cjs
+      - name: Verify RollyPay sandbox, live checkout lock and webhook protections
+        run: >
+          node --test
+          tests/live-checkout.test.mjs
+          tests/rollypay-sandbox.test.mjs
+          tests/rollypay.test.mjs
+          tests/sandbox-h1-delivery.test.mjs
+          tests/subscription-reservation.test.mjs
+      - name: No card or live merchant secrets allowed in desktop renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check desktop/src/main.cjs
+          node --check desktop/src/preload.cjs
+          node --check desktop/ui/app.js
+          if grep -Ein 'ROLLYPAY_API_KEY|ROLLYPAY_SIGNING_SECRET|PANEL_API_TOKEN|TELEGRAM_BOT_TOKEN|createInvoice\(' desktop/ui/app.js desktop/ui/index.html; then
+            echo "Payment secret/server write found in desktop renderer"; exit 1
+          fi
+          echo "Live payments are not enabled by this workflow."
+# This test never reaches RollyPay, accesses card data, or deploys a website.
