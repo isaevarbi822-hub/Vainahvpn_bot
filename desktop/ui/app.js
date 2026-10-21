@@ -102,6 +102,24 @@
       connectButton.disabled=false;
     }
   });
+  async function refreshServers(){
+    const list=document.getElementById('home-server-list');
+    const result=await window.vainah?.getSubscriptionServers?.();
+    if(!list||!result?.ok)return;
+    list.replaceChildren();
+    if(!result.servers.length){list.append(element('p','', 'Подписка ещё не добавлена.'));return;}
+    for(const server of result.servers){
+      const button=element('button','button secondary server-choice'+(server.selected?' active':''),server.label);
+      button.type='button';
+      button.setAttribute('aria-pressed',String(server.selected));
+      button.addEventListener('click',async()=>{
+        const selected=await window.vainah.selectSubscriptionServer(server.index);
+        if(selected?.ok)await refreshServers();
+        else document.getElementById('connection-status').textContent=selected?.message||'Не удалось выбрать сервер';
+      });
+      list.append(button);
+    }
+  }
   const importButton=document.getElementById('import-vless');
   importButton.addEventListener('click',async()=>{
     const field=document.getElementById('vless-key');
@@ -120,30 +138,11 @@
       const result=isHttps
         ? await window.vainah.importHttpsSubscription(link)
         : await window.vainah.importVlessLink(link);
-      const picker=document.getElementById('subscription-server');
-      picker.replaceChildren();
-      if(result?.ok&&isHttps){
-        for(let i=0;i<result.count;i++){
-          const option=document.createElement('option');
-          option.value=String(i);
-          option.textContent='Сервер '+(i+1);
-          picker.append(option);
-        }
-        picker.disabled=false;
-      }else{
-        picker.disabled=true;
-        const option=document.createElement('option');
-        option.textContent='Сначала добавь подписку';
-        picker.append(option);
-      }
+      if(result?.ok)await refreshServers();
       status.textContent=result?.message||'Не удалось прочитать подписку.';
       if(result?.ok)field.value='';
     }catch{status.textContent='Не удалось импортировать ссылку. Проверь формат и доступность подписки.';}
     finally{importButton.disabled=false;}
-  });
-  document.getElementById('subscription-server').addEventListener('change',async event=>{
-    const result=await window.vainah.selectSubscriptionServer(Number(event.target.value));
-    document.getElementById('vless-import-status').textContent=result?.message||'Не удалось выбрать сервер';
   });
   const inspectButton=document.getElementById('inspect-xray');
   inspectButton.addEventListener('click',async()=>{
@@ -195,6 +194,7 @@
         Number.isInteger(p.days)&&[3,6].includes(p.deviceLimit));
       renderPlans();
     }
+    void refreshServers();
     if(status){
       const label=document.getElementById('connection-status');
       const button=document.getElementById('connect-button');
