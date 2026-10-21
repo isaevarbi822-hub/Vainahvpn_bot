@@ -7,6 +7,7 @@
   const pageNames={home:'Главная',guide:'С чего начать',plans:'Тарифы',account:'Мой кабинет',devices:'Устройства',help:'Поддержка'};
   let plans=[];
   let deviceFilter=0;
+  let billingReady=false;
 
   function showPage(name) {
     if(!Object.hasOwn(pageNames,name)) return;
@@ -39,9 +40,29 @@
     tile.append(element('h2','',plan.title));
     tile.append(element('div','plan-price',new Intl.NumberFormat('ru-RU').format(plan.priceRub)+' ₽'));
     tile.append(element('p','',plan.days+' дней · '+plan.deviceLimit+' устройств · Безлимитный трафик'));
-    const button=element('button','button primary','Подробнее на сайте ↗');
-    button.addEventListener('click',()=>openOfficial('plans'));
-    tile.append(button);
+    const buy=element('button','button primary',
+      billingReady?'Оформить на сайте ↗':'Оплата ещё не включена');
+    buy.disabled=!billingReady;
+    buy.addEventListener('click',async()=>{
+      if(!window.vainah?.openBillingPlan)return;
+      buy.disabled=true;
+      try{
+        const result=await window.vainah.openBillingPlan(plan.id).catch(()=>({ok:false}));
+        if(!result?.ok){
+          billingReady=false;
+          renderPlans();
+          document.getElementById('billing-status').textContent=
+            'Оформление на сайте недоступно. Заказ не создан, деньги не списаны.';
+          showNotice('Оплата пока недоступна',
+            'Сайт ещё не разрешил реальные покупки. Тарифы можно посмотреть, но счёт не создаётся.');
+        }
+        // Browser opening is NOT payment or confirmed VPN entitlement.
+      }finally{buy.disabled=!billingReady}
+    });
+    tile.append(buy);
+    const details=element('button','button secondary','Подробнее о тарифе ↗');
+    details.addEventListener('click',()=>openOfficial('plans'));
+    tile.append(details);
     return tile;
   }
   function renderPlans(){
@@ -179,12 +200,17 @@
       document.getElementById('platform-chip').textContent='Предпросмотр';
       return;
     }
-    const [info,catalog,status,capabilities]=await Promise.all([
+    const [info,catalog,status,capabilities,billing]=await Promise.all([
       window.vainah.getInfo().catch(()=>null),
       window.vainah.getPlans().catch(()=>[]),
       window.vainah.getTunnelStatus().catch(()=>null),
-      window.vainah.getH1Capabilities().catch(()=>null)
+      window.vainah.getH1Capabilities().catch(()=>null),
+      window.vainah.getBillingStatus?.().catch(()=>null) ?? Promise.resolve(null)
     ]);
+    billingReady=billing?.ready===true;
+    document.getElementById('billing-status').textContent=billingReady?
+      'Касса подтвердила готовность. Оформление откроется в обычном браузере; оплаченный заказ проверит только сайт.':
+      'Реальная оплата RollyPay пока отключена. Тарифы доступны для просмотра, никаких списаний нет.';
     const capabilityText=document.getElementById('reality-capabilities');
     if(capabilityText && capabilities?.protocol==='VLESS + Reality' && capabilities.vpnEngineReady===false){
       capabilityText.textContent='H1Cloud: VLESS + Reality ('+
