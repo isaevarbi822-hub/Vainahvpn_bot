@@ -69,6 +69,89 @@ jobs:
           test -f native/android/app/src/engine/java/app/vainah/vpn/LibboxTunnelEngine.kt
           gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
           test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Ensure experimental APK actually embeds native arm64 engine
+        run: |
+          APK=native/android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -Z1 "$APK" | grep -E '^lib/arm64-v8a/lib[^/]+\\.so
+          path: |
+            upstream/libbox.aar
+            upstream/LIBBOX-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 3
+
+  apple-libbox:
+    name: Build libbox XCFramework for iOS simulator and device
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain pinned upstream sing-box source
+        uses: actions/checkout@v4
+        with:
+          repository: SagerNet/sing-box
+          ref: 7054cac5124465ffdb145870d7c01885566711b1
+          path: upstream
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache: false
+      - name: Install pinned upstream gomobile tools
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
+          "$(go env GOPATH)/bin/gomobile" init
+      - name: Exclude unused NaiveProxy/Cronet from iOS packet extension
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("upstream/cmd/internal/build_libbox/main.go")
+          code = source.read_text()
+          token = '"with_naive_outbound", '
+          if code.count(token) != 1:
+              raise SystemExit("Unexpected upstream Apple build tags")
+          source.write_text(code.replace(token, ""))
+          PY
+      - name: Build Apple iOS libbox XCFramework
+        working-directory: upstream
+        run: go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
+      - name: Prepare native iOS extension with real libbox framework
+        run: python3 native/ios/scripts/link-libbox-preview.py upstream/Libbox.xcframework
+      - name: Generate native iOS project
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          swift native/ios/scripts/generate-icon.swift
+          cd native/ios && xcodegen generate
+      - name: Compile iOS extension with libbox linked (VPN remains disabled)
+        run: >
+          xcodebuild -project native/ios/VainahVPN.xcodeproj
+          -scheme VainahVPN -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Retain upstream license with native library
+        run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libbox-apple-ios-1.14.3-gpl-source-build
+          path: |
+            upstream/Libbox.xcframework
+            upstream/LIBBOX-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 3
+
+# These AAR/XCFramework files are engine prerequisites, not permission,
+# routing or packet forwarding in Vainah VPN itself. No secrets are used,
+# no release is created, and production deployments are unchanged.
+
+          test -s "$APK"
+          echo "Built an unsigned-for-store, debug-signed test client. No H1Cloud secrets embedded."
+      - name: Save SHORT-LIVED test APK for private device verification only
+        uses: actions/upload-artifact@v4
+        with:
+          name: VainahVPN-Android-arm64-LIBBOX-UNVERIFIED-TEST-DO-NOT-PUBLISH
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 2
       - name: Retain upstream license with native library
         run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
       - uses: actions/upload-artifact@v4
