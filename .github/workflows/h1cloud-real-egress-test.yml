@@ -1,0 +1,65 @@
+name: Vainah H1Cloud REAL test-client connectivity (opt-in only)
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - "tests/h1cloud-private-real-egress.mjs"
+      - ".github/workflows/h1cloud-real-egress-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vainah-h1cloud-opt-in-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-h1cloud:
+    name: Test disposable H1Cloud VLESS Reality over SOCKS, not device TUN
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Syntax check (no VPN secrets)
+        run: node --check tests/h1cloud-private-real-egress.mjs
+      - name: Detect disposable H1Cloud test-client secret
+        id: optin
+        env:
+          TEST_URL: ${{ secrets.VAINAH_H1_TEST_SUBSCRIPTION_URL }}
+        shell: bash
+        run: |
+          if [ -n "$TEST_URL" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "Disposable H1Cloud test profile configured — real network test enabled."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=H1Cloud opt-in needed::Add encrypted Actions secret VAINAH_H1_TEST_SUBSCRIPTION_URL for a disposable TCP Reality test user, then retrigger this workflow. No real H1Cloud request was made."
+          fi
+      - name: Obtain pinned upstream sing-box 1.14.3
+        if: steps.optin.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            'https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-linux-amd64.tar.gz' -o /tmp/vainah-h1-singbox.tgz
+          echo 'e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee  /tmp/vainah-h1-singbox.tgz' | sha256sum --check
+          tar -xzf /tmp/vainah-h1-singbox.tgz -C /tmp
+      - name: Verify real H1Cloud TCP/gRPC Reality HTTPS egress (no secret output)
+        if: steps.optin.outputs.configured == 'true'
+        shell: bash
+        env:
+          VAINAH_H1_TEST_SUBSCRIPTION_URL: ${{ secrets.VAINAH_H1_TEST_SUBSCRIPTION_URL }}
+        run: |
+          set +x
+          node tests/h1cloud-private-real-egress.mjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
+
+# Encrypted repo Actions secret belongs only to a disposable, least-privileged
+# test user. Revoke it after testing. Do not store a production subscription.
+# This workflow never uses H1Cloud admin API, never changes client plans,
+# and never declares device-wide TUN/DNS/IPv6 leak protection.
