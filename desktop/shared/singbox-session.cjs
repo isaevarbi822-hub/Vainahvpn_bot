@@ -49,8 +49,30 @@ class SingBoxSession {
         };
         child.once('exit',finish);child.once('error',finish);
       });
-      // A subprocess may emit an error or exit before start() returns.
-      if(this.child!==child)return {ok:false,reason:'Engine exited immediately',protected:false};
+      // Wait for OS spawn acknowledgement, not just the ChildProcess object.
+      const spawned=await new Promise(resolve=>{
+        if(child.pid && !child.exitCode && !child.killed)return resolve(true);
+        let done=false;
+        const finish=value=>{
+          if(done)return;
+          done=true;
+          clearTimeout(timer);
+          child.removeListener('spawn',onSpawn);
+          child.removeListener('error',onFailure);
+          child.removeListener('exit',onFailure);
+          resolve(value);
+        };
+        const onSpawn=()=>finish(true);
+        const onFailure=()=>finish(false);
+        child.once('spawn',onSpawn);
+        child.once('error',onFailure);
+        child.once('exit',onFailure);
+        const timer=setTimeout(()=>finish(false),3000);
+      });
+      if(!spawned||this.child!==child){
+        await this.stop();
+        return {ok:false,reason:'Engine did not start',protected:false};
+      }
       this.state='running-unverified';
       return {ok:true,started:true,protected:false};
     } catch {
