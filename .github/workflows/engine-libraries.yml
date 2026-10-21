@@ -6,6 +6,8 @@ on:
       - feature/vpn-scale-control-plane-foundation
     paths:
       - ".github/workflows/engine-libraries.yml"
+      - "native/ios/project.yml"
+      - "native/ios/Sources/TunnelExtension/**"
   workflow_dispatch:
 
 permissions:
