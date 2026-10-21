@@ -1,13 +1,15 @@
 'use strict';
 const path = require('node:path');
-const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, safeStorage } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { PUBLIC_CAPABILITIES } = require('../shared/h1-protocol.cjs');
 const { EngineHost } = require('./engine-host.cjs');
+const { SubscriptionStore } = require('./subscription-store.cjs');
 
 let mainWindow;
 const engine = new EngineHost();
+let subscriptions;
 const PREVIEW_STATUS = Object.freeze({
   state: 'unavailable',
   protected: false,
@@ -43,6 +45,7 @@ function createWindow() {
 app.whenReady().then(()=>{
   if(process.platform==='win32') app.setAppUserModelId('app.vainah.vpn.desktop');
   Menu.setApplicationMenu(null);
+  subscriptions = new SubscriptionStore(app.getPath('userData'), safeStorage);
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
   ipcMain.handle('vainah:info',event=>authorizedSender(event)?{
@@ -61,7 +64,18 @@ app.whenReady().then(()=>{
     if(result.canceled||result.filePaths.length!==1)return {ok:false,code:'CANCELLED'};
     return engine.setExecutable(result.filePaths[0]);
   });
-  ipcMain.handle('vainah:engine:start',(event,secret)=>authorizedSender(event)?engine.start(secret):{ok:false});
+  ipcMain.handle('vainah:subscription:status',event=>authorizedSender(event)?subscriptions.status():null);
+  ipcMain.handle('vainah:subscription:save',(event,secret)=>authorizedSender(event)?subscriptions.save(secret):{ok:false});
+  ipcMain.handle('vainah:subscription:clear',event=>{
+    if(!authorizedSender(event))return {ok:false};
+    engine.stop();
+    return subscriptions.clear();
+  });
+  ipcMain.handle('vainah:engine:start',event=>{
+    if(!authorizedSender(event))return {ok:false};
+    const secret=subscriptions.load();
+    return secret?engine.start(secret):{ok:false,code:'SUBSCRIPTION_REQUIRED'};
+  });
   ipcMain.handle('vainah:engine:stop',event=>authorizedSender(event)?engine.stop():{ok:false});
   ipcMain.handle('vainah:capabilities',event=>authorizedSender(event)?PUBLIC_CAPABILITIES:null);
   ipcMain.handle('vainah:open-official',async(event,name)=>{
