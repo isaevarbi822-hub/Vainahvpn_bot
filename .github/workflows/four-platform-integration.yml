@@ -137,7 +137,7 @@ jobs:
             test
 
   windows:
-    name: Windows test installer — UI only
+    name: Windows test installer — real core (VPN unverified)
     runs-on: windows-latest
     needs: verify
     timeout-minutes: 45
@@ -149,16 +149,35 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --prefix desktop --no-audit --no-fund
+      - name: Bundle upstream sing-box 1.14.3 Windows x64 (SHA-256 pinned)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-windows-amd64.zip"
+          $archive = Join-Path $env:RUNNER_TEMP "singbox-windows.zip"
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne "d8b86ef58936dba9230ec6a57ffa4243933f3c14ef4809828b6c553440ed1518") {
+            throw "Upstream sing-box release digest mismatch"
+          }
+          $unpack = Join-Path $env:RUNNER_TEMP "singbox-windows"
+          Expand-Archive $archive -DestinationPath $unpack
+          $binary = Get-ChildItem -Path $unpack -Filter sing-box.exe -File -Recurse | Select-Object -First 1
+          if (-not $binary) { throw "Expected sing-box.exe missing" }
+          New-Item -ItemType Directory -Path desktop/engines -Force | Out-Null
+          Copy-Item $binary.FullName desktop/engines/sing-box.exe
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SagerNet/sing-box/v1.14.3/LICENSE" -OutFile desktop/engines/sing-box-GPL-3.0.txt
+          if ((Get-Item desktop/engines/sing-box.exe).Length -le 1000000) { throw "Core too small" }
       - run: npm run --prefix desktop dist:win
       - uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-Windows-integration-${{ github.run_number }}-no-tunnel
+          name: VainahVPN-Windows-integration-${{ github.run_number }}-unverified-core
           path: desktop/dist/*.exe
           if-no-files-found: error
           retention-days: 7
 
   macos:
-    name: macOS test DMGs — UI only
+    name: macOS test DMGs — real core (VPN unverified)
     runs-on: macos-latest
     needs: verify
     timeout-minutes: 50
@@ -170,10 +189,31 @@ jobs:
         with:
           node-version: "22"
       - run: npm install --prefix desktop --no-audit --no-fund
+      - name: Bundle upstream sing-box 1.14.3 macOS universal variants (SHA-256 pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p desktop/engines
+          for arch in amd64 arm64; do
+            file="$RUNNER_TEMP/sing-box-1.14.3-darwin-$arch.tar.gz"
+            curl --fail --location --silent --show-error --retry 3               "https://github.com/SagerNet/sing-box/releases/download/v1.14.3/sing-box-1.14.3-darwin-$arch.tar.gz" -o "$file"
+            if [ "$arch" = amd64 ]; then
+              digest="6d002b74d03b478547349cc10af89e007868596e5aa931816d45da9f544715a9"
+            else
+              digest="0360ce634a04c26a6b4fd957517987bb4f6c8950f63435ce3c5af2fcae5860c5"
+            fi
+            echo "$digest  $file" | shasum -a 256 -c -
+            tar -xzf "$file" -C "$RUNNER_TEMP"
+            src="$RUNNER_TEMP/sing-box-1.14.3-darwin-$arch/sing-box"
+            test -s "$src"
+            cp "$src" "desktop/engines/sing-box-darwin-$arch"
+            chmod 755 "desktop/engines/sing-box-darwin-$arch"
+          done
+          curl --fail --location --silent --show-error             "https://raw.githubusercontent.com/SagerNet/sing-box/v1.14.3/LICENSE"             -o desktop/engines/sing-box-GPL-3.0.txt
       - run: npm run --prefix desktop dist:mac
       - uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-macOS-integration-${{ github.run_number }}-no-tunnel
+          name: VainahVPN-macOS-integration-${{ github.run_number }}-unverified-core
           path: desktop/dist/*.dmg
           if-no-files-found: error
           retention-days: 7
