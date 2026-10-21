@@ -1,10 +1,16 @@
 'use strict';
 // Offline translation for a single, explicit VLESS TCP REALITY Xray outbound.
 // NEVER log, return to renderer, or commit generated configs: they include credentials.
-function buildSingBoxConfig(xrayJson, outboundIndex=0) {
+function buildSingBoxConfig(xrayJson, outboundIndex) {
   const root=typeof xrayJson==='string'?JSON.parse(xrayJson):xrayJson;
   if(!root || !Array.isArray(root.outbounds))throw new Error('Invalid Xray config');
-  const outbound=root.outbounds[outboundIndex];
+  // Xray configs may start with direct/block/DNS outbounds; select VLESS by default.
+  const selected=outboundIndex===undefined
+    ? root.outbounds.findIndex(item=>item?.protocol==='vless' &&
+      item.streamSettings?.security==='reality' &&
+      (!item.streamSettings.network || item.streamSettings.network==='tcp'))
+    : outboundIndex;
+  const outbound=root.outbounds[selected];
   if(!outbound || outbound.protocol!=='vless')throw new Error('VLESS outbound required');
   const stream=outbound.streamSettings;
   if(!stream || (stream.network && stream.network!=='tcp') || stream.security!=='reality')
