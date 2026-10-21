@@ -19,11 +19,39 @@ class MobileRealityConfigTest {
     }
 
     @Test fun readsBase64SubscriptionAndSelectsTcp() {
-        val grpc = tcp.replace("type=tcp", "type=grpc")
+        val grpc = tcp.replace("type=tcp", "type=grpc") + "&serviceName=vainah-test"
         val payload = Base64.getEncoder().encodeToString((grpc + "\n" + tcp).toByteArray())
         val output = MobileRealityConfig.fromSubscription(payload)
         assertTrue(output.contains("\"type\":\"vless\""))
         assertTrue(output.contains("\"server_port\":443"))
+        assertFalse(output.contains("\"service_name\":\"vainah-test\""))
+    }
+
+    @Test fun selectsRealGrpcWhenTcpIsMissing() {
+        val grpc = tcp.replace("type=tcp", "type=grpc") + "&serviceName=vainah-test"
+        val xhttp = tcp.replace("type=tcp", "type=xhttp")
+        val output = MobileRealityConfig.fromSubscription(xhttp + "\n" + grpc)
+        assertTrue(output.contains("\"type\":\"grpc\""))
+        assertTrue(output.contains("\"service_name\":\"vainah-test\""))
+        assertTrue(output.contains("\"auto_route\":true"))
+        assertTrue(output.contains("\"dns_mode\":\"hijack\""))
+        assertTrue(output.contains("\"final\":\"vainah-primary\""))
+    }
+
+    @Test fun invalidGrpcAndXhttpFailClosed() {
+        val grpc = tcp.replace("type=tcp", "type=grpc") + "&serviceName=vainah-test"
+        for (bad in listOf(
+            grpc + "&serviceName=other",
+            grpc + "&flow=xtls-rprx-vision",
+            grpc.replace("serviceName=vainah-test", "serviceName="),
+            grpc + "&allowInsecure=true",
+            tcp.replace("type=tcp", "type=xhttp")
+        )) {
+            try {
+                MobileRealityConfig.fromVlessLink(bad)
+                fail("Unreviewed Reality transport accepted")
+            } catch (_: IllegalArgumentException) { }
+        }
     }
 
     @Test fun rejectsUnreviewedRealityTransportsAndSecurityOverrides() {
