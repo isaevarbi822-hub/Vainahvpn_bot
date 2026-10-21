@@ -5,10 +5,12 @@ on:
     branches:
       - feature/vpn-scale-control-plane-foundation
     paths:
+      # Rebuild expensive source-built Go libraries only when their build
+      # integration changes, NOT for every Swift PacketTunnel edit.
+      # Swift edits are checked against pinned existing binaries by
+      # ios-bridge-check.yml; Android engine edits by android-full-engine-test.yml.
       - ".github/workflows/engine-libraries.yml"
       - "native/ios/project.yml"
-      - "native/ios/Sources/TunnelExtension/**"
-      - "native/ios/scripts/link-libbox-preview.py"
   workflow_dispatch:
 
 permissions:
