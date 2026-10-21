@@ -30,7 +30,8 @@ class LibboxTunnelEngine : TunnelEngine {
         if (service !is VainahVpnService)
             return Result.failure(IllegalStateException("WRONG_SERVICE"))
         return try {
-            val config = MobileRealityConfig.fromSubscription(H1PrivateSubscription.read(subscriptionUrl))
+            // Purge prior crash leftovers BEFORE fetching a new subscription,
+            // even when the H1Cloud endpoint later rejects the request.
             val base = File(service.filesDir, "libbox-base")
             val work = File(service.cacheDir, "libbox-working")
             val temp = File(service.cacheDir, "libbox-temp")
@@ -43,6 +44,7 @@ class LibboxTunnelEngine : TunnelEngine {
                     throw IllegalStateException("ENGINE_STORAGE_CLEANUP")
                 if (!dir.mkdirs()) throw IllegalStateException("ENGINE_STORAGE")
             }
+            val config = MobileRealityConfig.fromSubscription(H1PrivateSubscription.read(subscriptionUrl))
             // The native daemon saves a plaintext config snapshot; keep it
             // app-private and delete it when the service disconnects.
             Libbox.setup(SetupOptions().apply {
