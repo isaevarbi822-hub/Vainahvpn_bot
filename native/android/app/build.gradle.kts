@@ -33,6 +33,8 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    // Android ships org.json; desktop JVM unit tests need its real implementation.
+    testImplementation("org.json:json:20240303")
     // Only included by the isolated libbox build workflow. An AAR alone
     // does NOT make the VPN active; EngineRegistry remains fail-closed.
     if (nativeEngine) {
