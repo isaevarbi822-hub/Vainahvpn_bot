@@ -2,6 +2,7 @@
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
+const { vlessUriToXray } = require('../shared/vless-link.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
@@ -11,6 +12,7 @@ const { plans } = require('../shared/catalog.cjs');
 let mainWindow;
 const engineSession = new SingBoxSession();
 let chosenFile = null;
+let chosenDirectProfile = null;
 function enginePath() {
   return app.isPackaged
     ? path.join(process.resourcesPath,'engines','sing-box','sing-box.exe')
@@ -84,10 +86,26 @@ app.whenReady().then(()=>{
       ? 'Движок запущен, но защита трафика НЕ подтверждена. Это тестовый режим.'
       : PREVIEW_STATUS.explanation
   }:null);
+  ipcMain.handle('vainah:import-vless-link',async(event,link)=>{
+    if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    try{
+      const profile=vlessUriToXray(link);
+      const checked=await validateWithSingBox(enginePath(),profile);
+      if(!checked.ok)return {ok:false,message:'Ключ прочитан, но проверка sing-box не прошла'};
+      chosenDirectProfile=profile;
+      chosenFile=null;
+      return {ok:true,message:'VLESS-ключ проверен. Можно тестировать запуск движка.'};
+    }catch{return {ok:false,message:'Нужен действительный vless:// ключ с TCP + REALITY'};}
+  });
   ipcMain.handle('vainah:start-engine',async event=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
-    if(process.platform!=='win32'||!chosenFile)return {ok:false,message:'Сначала выбери Xray JSON на Windows'};
+    if(process.platform!=='win32'||(!chosenFile&&!chosenDirectProfile))return {ok:false,message:'Сначала добавь VLESS-ключ или Xray JSON'};
     try{
+      if(chosenDirectProfile){
+        const result=await engineSession.start(enginePath(),chosenDirectProfile);
+        return {ok:result.ok,state:engineSession.status.state,protected:false,
+          message:result.ok?'Движок запущен, VPN ещё не подтверждён':'Запуск движка не удался'};
+      }
       // Re-open defensively: the selected file may have changed since inspection.
       const stat=await fs.lstat(chosenFile);
       if(!stat.isFile()||stat.size>1024*1024)return {ok:false,message:'Неверный файл'};
@@ -163,6 +181,7 @@ app.whenReady().then(()=>{
         : {ok:false,reason:'Windows check only'};
       json=null;
       chosenFile=engineCheck.ok ? file : null;
+      if(chosenFile)chosenDirectProfile=null;
       return {ok:true,profiles,engineCheck};
     } catch {
       // Never expose file paths, secrets, or raw parser/OS errors.
