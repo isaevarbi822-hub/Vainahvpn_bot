@@ -10,7 +10,7 @@ enum MobileRealityConfig {
     private static let maxBytes = 256 * 1024
     private static let allowed = Set([
         "security", "type", "sni", "pbk", "sid", "fp",
-        "flow", "encryption", "headerType"
+        "flow", "encryption", "headerType", "serviceName"
     ])
     private static let fingerprints = Set([
         "chrome", "firefox", "safari", "ios", "android", "edge"
@@ -38,8 +38,15 @@ enum MobileRealityConfig {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         guard lines.count <= 256 else { throw ConfigError.unavailable }
-        for line in lines where line.hasPrefix("vless://") {
-            if let result = try? fromVlessLink(line) { return result }
+        // Prefer the proven TCP profile; accept genuine gRPC only if
+        // no supported TCP server exists. Never map XHTTP to another type.
+        for preferred in ["tcp", "grpc"] {
+            for line in lines where line.hasPrefix("vless://") {
+                let transport = URLComponents(string: line)?.queryItems?
+                    .first(where: { $0.name == "type" })?.value
+                guard transport == preferred else { continue }
+                if let result = try? fromVlessLink(line) { return result }
+            }
         }
         throw ConfigError.unavailable
     }
@@ -65,14 +72,20 @@ enum MobileRealityConfig {
             else { throw ConfigError.unavailable }
             query[item.name] = value
         }
-        guard query["security"] == "reality", query["type"] == "tcp",
+        guard query["security"] == "reality",
+              let transport = query["type"], ["tcp", "grpc"].contains(transport),
               let pbk = query["pbk"],
               let sni = query["sni"],
               matches(pbk, pattern: "^[a-zA-Z0-9_-]{43}$"),
               matches(sni, pattern: "^[a-zA-Z0-9.-]{1,253}$"), sni.contains("."),
               matches(query["sid"] ?? "", pattern: "^(?:[0-9a-fA-F]{2}){0,8}$"),
               fingerprints.contains(query["fp"] ?? "chrome"),
-              ["", "xtls-rprx-vision"].contains(query["flow"] ?? ""),
+              (transport == "tcp"
+                ? (["", "xtls-rprx-vision"].contains(query["flow"] ?? "") &&
+                   query["serviceName"] == nil)
+                : ((query["flow"] ?? "").isEmpty &&
+                   matches(query["serviceName"] ?? "",
+                           pattern: "^[a-zA-Z0-9._/-]{1,128}$"))),
               (query["encryption"] ?? "none") == "none",
               (query["headerType"] ?? "none") == "none"
         else { throw ConfigError.unavailable }
@@ -99,6 +112,12 @@ enum MobileRealityConfig {
         ]
         if let flow = query["flow"], !flow.isEmpty {
             outbound["flow"] = flow
+        }
+        if transport == "grpc", let service = query["serviceName"] {
+            outbound["transport"] = [
+                "type": "grpc",
+                "service_name": service
+            ]
         }
         let config: [String: Any] = [
             "log": ["level": "error"],
