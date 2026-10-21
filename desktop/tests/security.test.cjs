@@ -100,3 +100,11 @@ test('Electron waits for native engine cleanup before exiting',()=>{
   assert.match(main,/if\(result\.ok\)/);
   assert.match(main,/quitCleanupDone=true/);
 });
+
+test('Window waits for native engine shutdown before closing',()=>{
+  const main=load('src/main.cjs');
+  assert.match(main,/mainWindow\.on\('close',event=>/);
+  assert.match(main,/event\.preventDefault\(\)/);
+  assert.match(main,/engineSession\.stop\(\)\.then\(result=>/);
+  assert.match(main,/shutdownComplete=true/);
+});
