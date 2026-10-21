@@ -48,3 +48,19 @@ test('refuses invalid configuration before spawning',async()=>{
    assert.equal(invoked,false);
  } finally {await fs.rm(dir,{recursive:true,force:true})}
 });
+
+test('validation failure from engine is reported without claiming a tunnel',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-runner-test-'));
+ const binary=path.join(dir,process.platform==='win32'?'sing-box.exe':'sing-box');
+ await fs.writeFile(binary,'dummy');
+ try {
+   const runner=()=>{
+     const child=new EventEmitter();
+     child.kill=()=>{};
+     process.nextTick(()=>child.emit('exit',1));
+     return child;
+   };
+   assert.deepEqual(await validateWithSingBox(binary,valid(),{runner}),
+     {ok:false,reason:'Engine rejected configuration'});
+ } finally {await fs.rm(dir,{recursive:true,force:true})}
+});
