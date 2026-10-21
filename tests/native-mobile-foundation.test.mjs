@@ -80,7 +80,11 @@ test('No fake Connected state when VLESS transport is missing',()=>{
   assert.match(extension,/completionHandler\(failure\(/);
   assert.match(extension,/H1ExtensionSubscription\.download/);
   assert.match(extension,/NativeRealityPreflight\.check/);
-  assert.doesNotMatch(extension,/completionHandler\(nil\)/);
+  // Native-only integration may finish startup, but ONLY after the real
+  // libbox service has established its NetworkExtension TUN interface.
+  assert.match(extension,/try engine\.start\(config\)/);
+  assert.match(extension,/completionHandler\(nil\)/);
+  assert.match(extension,/#if canImport\(Libbox\)/);
 });
 
 test('No legacy website checkout code or secrets are included in native sources',()=>{
