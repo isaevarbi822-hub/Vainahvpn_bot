@@ -20,3 +20,18 @@ dialog{max-width:500px;width:calc(100% - 36px);background:linear-gradient(135deg
 @media(max-width:820px){.layout{grid-template-columns:80px minmax(0,1fr)}.brand{justify-content:center}.brand>div:last-child,.sidebar-caption,.sidebar-notice,.sidebar-bottom{display:none}.navigation{margin-top:24px}.nav-link{justify-content:center;font-size:0;padding:14px}.nav-link span{font-size:20px}.topbar{padding:0 23px}.topbar .breadcrumb{display:none}#content{padding:28px 22px}.feature-grid,.plans-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.topbar-right .chip:first-child{display:none}.two-columns,.help-grid,.device-grid{grid-template-columns:1fr}.info-panel{flex-direction:column;align-items:stretch}.step{gap:13px;padding:18px}.step-index{font-size:24px}h1{font-size:36px}.home-layout{grid-template-columns:1fr}.metrics{margin-top:23px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+
+/* Subscription form: full-width controls, clear hierarchy, no horizontal collisions. */
+.subscription-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:24px;align-items:start;border:1px solid #6b5c91;background:linear-gradient(125deg,#282345,#192439);border-radius:20px;padding:26px;margin:20px 0 24px}
+.subscription-heading h2{font-size:24px;margin:10px 0}
+.subscription-heading p{font-size:13px;line-height:1.7;color:#c8c6dc}
+.subscription-form{display:flex;flex-direction:column;align-items:stretch;gap:12px;min-width:0}
+.subscription-form label{font-size:13px;font-weight:750;color:#e6ddff}
+.subscription-form input,.subscription-form select{display:block;box-sizing:border-box;min-width:0;width:100%;max-width:100%;font:inherit;padding:13px 14px;border:1px solid #55547b;border-radius:12px;background:#121626;color:#f5f6ff}
+.subscription-form input:focus-visible,.subscription-form select:focus-visible{outline:2px solid #c8b1ff;outline-offset:2px}
+.subscription-form .button{width:100%;white-space:normal;min-height:48px}
+#vless-import-status{margin:0;min-height:24px;font-size:12px;line-height:1.6;color:#c8c6dc;overflow-wrap:anywhere}
+.advanced-import{grid-column:1/-1;border-top:1px solid #ffffff24;padding-top:15px;color:#c8c6dc;font-size:12px}
+.advanced-import summary{cursor:pointer;font-weight:700;color:#e6ddff}
+.advanced-import p{line-height:1.6}
+@media(max-width:1040px){.subscription-card{grid-template-columns:1fr;gap:14px}}
