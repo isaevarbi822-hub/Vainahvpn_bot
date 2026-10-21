@@ -8,7 +8,8 @@ const {buildSingBoxConfig}=require('./singbox-config.cjs');
 // Low-level, opt-in Windows engine lifecycle. This is not an assertion of VPN protection.
 // The caller must independently check encrypted egress, routing and DNS before reporting CONNECTED.
 class SingBoxSession {
-  constructor({runner=spawn}={}) {
+  constructor({runner=spawn,platform=process.platform}={}) {
+    this.platform=platform;
     this.runner=runner; this.child=null; this.temp=null; this.state='stopped';
     this.exitPromise=null;
   }
@@ -17,7 +18,7 @@ class SingBoxSession {
     if(this.state!=='stopped'||this.child||this.temp)return {ok:false,reason:'Already running or starting'};
     this.state='starting';
     try {
-      if(process.platform!=='win32')throw Error('Windows-only engine');
+      if(this.platform!=='win32')throw Error('Windows-only engine');
       if(typeof binary!=='string'||!path.isAbsolute(binary)||path.basename(binary).toLowerCase()!=='sing-box.exe')
         throw Error('Invalid binary path');
       const stat=await fs.stat(binary);
