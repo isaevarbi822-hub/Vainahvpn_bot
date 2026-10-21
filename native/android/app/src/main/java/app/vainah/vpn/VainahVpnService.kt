@@ -116,11 +116,12 @@ class VainahVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).notify(ID, notice)
     }
 
+    @Synchronized
     private fun disconnect(failed: Boolean = false) {
         // The OS notification must remain until the native packet engine has
         // actually released the TUN; don't silently show OFF while it runs.
-        val ticket = session.incrementAndGet()
         if (phase == Phase.STOPPING) return
+        val ticket = session.incrementAndGet()
         phase = Phase.STOPPING
         Thread {
             try { EngineRegistry.active.disconnect() } catch (_: Throwable) {}
