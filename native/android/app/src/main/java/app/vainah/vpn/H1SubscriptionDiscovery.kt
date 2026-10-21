@@ -55,7 +55,10 @@ object H1SubscriptionDiscovery {
     fun parse(payload: String): Summary {
         if (payload.length > MAX_BYTES) throw IllegalArgumentException("SUBSCRIPTION_TOO_LARGE")
         val normalized = payload.trim()
-        val body = if (normalized.startsWith("vless://") || normalized.contains("\n")) normalized else {
+        val body = if (normalized.startsWith("{") || normalized.startsWith("[")) {
+            // Discovery reports only reviewed Reality profiles for JSON.
+            H1SingBoxJson.candidates(normalized).joinToString("\n")
+        } else if (normalized.startsWith("vless://") || normalized.contains("\n")) normalized else {
             try { String(Base64.getMimeDecoder().decode(normalized), Charsets.UTF_8) }
             catch (_: IllegalArgumentException) { throw IllegalArgumentException("INVALID_SUBSCRIPTION_FORMAT") }
         }
