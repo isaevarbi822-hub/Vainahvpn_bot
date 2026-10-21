@@ -112,3 +112,14 @@ test('Window waits for native engine shutdown before closing',()=>{
   assert.match(main,/engineSession\.stop\(\)\.then\(result=>/);
   assert.match(main,/shutdownComplete=true/);
 });
+
+test('Official site opens in isolated in-app window with strict origin checks',()=>{
+  const main=load('src/main.cjs');
+  assert.match(main,/partition:'persist:vainah-official-site'/);
+  assert.match(main,/nodeIntegration:false,contextIsolation:true,sandbox:true/);
+  assert.match(main,/target\.origin===siteOrigin/);
+  assert.match(main,/win\.webContents\.on\('will-navigate'/);
+  assert.match(main,/win\.webContents\.on\('will-redirect'/);
+  assert.match(main,/openWebsiteInsideApp\(url\)/);
+  assert.doesNotMatch(main,/shell\.openExternal\(url/);
+});
