@@ -131,3 +131,15 @@ test('Desktop restores unverified process state without claiming VPN protection'
   assert.match(ui,/button\.textContent='⏻ Остановить движок'/);
   assert.match(ui,/status\.state==='stop-failed'/);
 });
+
+test('Subscription import button is wired and servers are rendered below connection',()=>{
+  const html=load('ui/index.html');
+  const js=load('ui/app.js');
+  const main=load('src/main.cjs');
+  assert.match(html,/id="import-vless"/);
+  assert.match(html,/id="home-server-list"/);
+  assert.doesNotMatch(html,/id="subscription-server"/);
+  assert.match(js,/importButton\.addEventListener\('click'/);
+  assert.match(js,/refreshServers\(\)/);
+  assert.match(main,/vainah:subscription-servers/);
+});
