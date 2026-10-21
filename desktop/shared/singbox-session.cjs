@@ -48,6 +48,8 @@ class SingBoxSession {
         };
         child.once('exit',finish);child.once('error',finish);
       });
+      // A subprocess may emit an error or exit before start() returns.
+      if(this.child!==child)return {ok:false,reason:'Engine exited immediately',protected:false};
       this.state='running-unverified';
       return {ok:true,started:true,protected:false};
     } catch {
@@ -64,11 +66,12 @@ class SingBoxSession {
       // Never block UI forever waiting for a hung subprocess.
       await Promise.race([this.exitPromise||Promise.resolve(),new Promise(resolve=>setTimeout(resolve,2000))]);
     }
-    const temp=this.temp;
     if(this.child){
       this.state='stop-failed';
       return {ok:false,reason:'Engine process did not exit',protected:false};
     }
+    // Exit handler owns credential cleanup; stop() only removes remnants.
+    const temp=this.temp;
     this.temp=null;this.state='stopped';
     if(temp)await fs.rm(temp,{recursive:true,force:true}).catch(()=>{});
     return {ok:true,protected:false};
