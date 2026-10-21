@@ -237,6 +237,7 @@ jobs:
         run: |
           set -euo pipefail
           swiftc -parse-as-library \
+            native/ios/Sources/Shared/H1SingBoxJSON.swift \
             native/ios/Sources/Shared/MobileRealityConfig.swift \
             tests/ios-reality-schema.swift \
             -o "$RUNNER_TEMP/vainah-ios-schema-test"
