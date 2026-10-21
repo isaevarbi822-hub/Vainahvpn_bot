@@ -74,7 +74,25 @@
     if(filter){deviceFilter=Number(filter.dataset.devices);renderPlans()}
   });
   const dialog=document.getElementById('connection-dialog');
-  document.getElementById('connect-button').addEventListener('click',()=>{
+  document.getElementById('connect-button').addEventListener('click',async()=>{
+    if(window.vainah?.getTunnelStatus) {
+      const current=await window.vainah.getTunnelStatus().catch(()=>null);
+      if(current?.state==='running-unverified'){
+        const stopped=await window.vainah.stopEngine().catch(()=>({ok:false}));
+        document.getElementById('connection-status').textContent=stopped.ok
+          ?'Тестовый VPN-движок остановлен.':'Ошибка остановки.';
+        return;
+      }
+      const started=await window.vainah.startEngine().catch(()=>({ok:false}));
+      if(started.ok){
+        document.getElementById('connection-status').textContent=
+          'Движок работает, но сетевое VPN-подключение НЕ подтверждено.';
+        return;
+      }
+      document.getElementById('connection-status').textContent=
+        started.message||'Сначала проверь Xray JSON в разделе «Устройства».';
+    }
+
     document.getElementById('dialog-title').textContent='VPN пока не подключается';
     document.getElementById('dialog-description').textContent=
       'Это демонстрация Vainah VPN. Движок H1Cloud/VLESS ещё не встроен, поэтому программа не шифрует трафик и не меняет системные VPN-настройки.';
