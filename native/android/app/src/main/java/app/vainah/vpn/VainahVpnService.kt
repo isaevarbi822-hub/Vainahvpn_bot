@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * OS-level VPN service registered with BIND_VPN_SERVICE.
@@ -20,7 +21,10 @@ class VainahVpnService : VpnService() {
         private const val CHANNEL = "vainah_connection"
         private const val ID = 2103
     }
-    private var started = false
+    @Volatile private var started = false
+    // A disconnect invalidates any in-flight HTTPS fetch/core initialization.
+    // Never allow a stale worker to leave the VPN running afterward.
+    private val session = AtomicInteger(0)
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -29,21 +33,29 @@ class VainahVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             ACTION_CONNECT -> {
+                if (started) return START_NOT_STICKY
                 val link = SecureSubscription(this).load()
                 if (!EngineRegistry.active.ready || link == null) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
+                val ticket = session.incrementAndGet()
                 startVisibleService()
                 Thread {
                     try {
-                        // A future real engine must route authenticated packets
-                        // before reporting Result.success.
+                        // If the stop button was pressed while starting, do
+                        // not bring the native core up afterward.
+                        if (session.get() != ticket) return@Thread
                         val result = EngineRegistry.active.connect(this, link)
+                        if (session.get() != ticket) {
+                            EngineRegistry.active.disconnect()
+                            return@Thread
+                        }
                         if (result.isFailure) disconnect()
                         else updateUnverifiedNotice()
-                    } catch (_: Exception) {
-                        disconnect()
+                    } catch (_: Throwable) {
+                        if (session.get() == ticket) disconnect()
+                        else EngineRegistry.active.disconnect()
                     }
                 }.start()
             }
@@ -94,6 +106,7 @@ class VainahVpnService : VpnService() {
     }
 
     private fun disconnect() {
+        session.incrementAndGet()
         try { Thread { EngineRegistry.active.disconnect() }.start() } catch (_: Exception) {}
         if (started) {
             stopForeground(STOP_FOREGROUND_REMOVE)
