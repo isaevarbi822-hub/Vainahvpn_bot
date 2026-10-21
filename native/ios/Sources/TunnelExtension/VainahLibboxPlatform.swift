@@ -208,6 +208,9 @@ final class VainahLibboxPlatform: NSObject, LibboxPlatformInterfaceProtocol,
         pathMonitor?.cancel()
         pathMonitor = nil
         settings = nil
+        // Fail closed after a failed startup or native service shutdown:
+        // tear down OS-level routes rather than retaining a dead TUN.
+        provider?.setTunnelNetworkSettings(nil) { _ in }
     }
 }
 
@@ -217,17 +220,29 @@ final class VainahLibboxRuntime {
     private let provider: PacketTunnelProvider
     private var command: LibboxCommandServer?
     private var bridge: VainahLibboxPlatform?
+    private var temporaryStorage: URL?
 
     init(_ provider: PacketTunnelProvider) { self.provider = provider }
 
     func start(_ config: String) throws {
         let files = FileManager.default
-        let base = files.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let working = base.appendingPathComponent("VainahLibboxWorking", isDirectory: true)
-        let temp = base.appendingPathComponent("VainahLibboxTemp", isDirectory: true)
-        for path in [working, temp] {
-            try files.createDirectory(at: path, withIntermediateDirectories: true)
+        // libbox can persist a config snapshot containing H1Cloud credentials.
+        // Keep it in device-private, non-backed-up cache, not Documents.
+        let base = files.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("VainahNativeEngine", isDirectory: true)
+        let working = base.appendingPathComponent("Working", isDirectory: true)
+        let temp = base.appendingPathComponent("Temp", isDirectory: true)
+        for directory in [base, working, temp] {
+            try files.createDirectory(at: directory, withIntermediateDirectories: true)
+            try files.setAttributes([
+                .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+            ], ofItemAtPath: directory.path)
         }
+        var privateDirectory = base
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        try privateDirectory.setResourceValues(resourceValues)
+        temporaryStorage = base
         let setup = LibboxSetupOptions()
         setup.basePath = base.path
         setup.workingPath = working.path
@@ -263,6 +278,10 @@ final class VainahLibboxRuntime {
         command = nil
         bridge?.shutDown()
         bridge = nil
+        if let privateDirectory = temporaryStorage {
+            try? FileManager.default.removeItem(at: privateDirectory)
+        }
+        temporaryStorage = nil
     }
 }
 #endif
