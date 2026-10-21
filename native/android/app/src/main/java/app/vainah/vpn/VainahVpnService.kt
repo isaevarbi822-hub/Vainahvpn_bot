@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -15,7 +17,13 @@ import java.util.concurrent.atomic.AtomicInteger
  * NEVER opens a TUN interface while the real packet transport is missing.
  */
 class VainahVpnService : VpnService() {
+    // Process-local state only. Never equate the engine being started with
+    // proven packet routing or privacy protection.
+    enum class Phase { OFF, STARTING, UNVERIFIED, STOPPING, FAILED }
+
     companion object {
+        @Volatile var phase: Phase = Phase.OFF
+            private set
         const val ACTION_CONNECT = "app.vainah.vpn.CONNECT"
         const val ACTION_DISCONNECT = "app.vainah.vpn.DISCONNECT"
         private const val CHANNEL = "vainah_connection"
@@ -33,9 +41,10 @@ class VainahVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             ACTION_CONNECT -> {
-                if (started) return START_NOT_STICKY
+                if (started || phase == Phase.STOPPING) return START_NOT_STICKY
                 val link = SecureSubscription(this).load()
                 if (!EngineRegistry.active.ready || link == null) {
+                    phase = Phase.FAILED
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -51,10 +60,10 @@ class VainahVpnService : VpnService() {
                             EngineRegistry.active.disconnect()
                             return@Thread
                         }
-                        if (result.isFailure) disconnect()
+                        if (result.isFailure) disconnect(failed = true)
                         else updateUnverifiedNotice()
                     } catch (_: Throwable) {
-                        if (session.get() == ticket) disconnect()
+                        if (session.get() == ticket) disconnect(failed = true)
                         else EngineRegistry.active.disconnect()
                     }
                 }.start()
@@ -85,9 +94,11 @@ class VainahVpnService : VpnService() {
             startForeground(ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else startForeground(ID, notification)
         started = true
+        phase = Phase.STARTING
     }
     private fun updateUnverifiedNotice() {
-        if (!started) return
+        if (!started || phase != Phase.STARTING) return
+        phase = Phase.UNVERIFIED
         val stopIntent = Intent(this, VainahVpnService::class.java).apply {
             action = ACTION_DISCONNECT
         }
@@ -105,14 +116,24 @@ class VainahVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).notify(ID, notice)
     }
 
-    private fun disconnect() {
-        session.incrementAndGet()
-        try { Thread { EngineRegistry.active.disconnect() }.start() } catch (_: Exception) {}
-        if (started) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            started = false
-        }
-        stopSelf()
+    private fun disconnect(failed: Boolean = false) {
+        // The OS notification must remain until the native packet engine has
+        // actually released the TUN; don't silently show OFF while it runs.
+        val ticket = session.incrementAndGet()
+        if (phase == Phase.STOPPING) return
+        phase = Phase.STOPPING
+        Thread {
+            try { EngineRegistry.active.disconnect() } catch (_: Throwable) {}
+            Handler(Looper.getMainLooper()).post {
+                if (session.get() != ticket) return@post
+                if (started) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    started = false
+                }
+                phase = if (failed) Phase.FAILED else Phase.OFF
+                stopSelf()
+            }
+        }.start()
     }
     override fun onRevoke() {
         disconnect()
