@@ -31,5 +31,17 @@ if config.count(needle) != 1 or config.count("      - sdk: UIKit.framework") != 
 replacement = needle + '''      - framework: Libbox.xcframework
         embed: false
 '''
-project.write_text(config.replace(needle, replacement))
-print("iOS test: libbox XCFramework linked into PacketTunnel target (VPN remains inactive)")
+updated = config.replace(needle, replacement)
+# App activation is never enabled in the normal four-platform UI preview.
+# It only becomes available with the embedded real libbox extension.
+app_needle = '''        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+'''
+if updated.count(app_needle) != 1:
+    raise SystemExit("Unexpected app target settings; refusing to enable native core")
+updated = updated.replace(app_needle, '''        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VAINAH_NATIVE_LIBBOX"
+    dependencies:
+''')
+project.write_text(updated)
+print("iOS test: native libbox extension linked, app starts only the native integration tunnel")
