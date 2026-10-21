@@ -37,6 +37,37 @@ test('subscription parser prefers TCP, falls back to real gRPC and never substit
  assert.throws(()=>validateTcpReality(grpc),/PROFILE_UNSUPPORTED/);
  assert.throws(()=>validateGrpcReality(uri),/PROFILE_UNSUPPORTED/);
 });
+test('H1Cloud sing-box JSON with reviewed TCP and gRPC Reality profiles uses the same strict validator',()=>{
+ const tcp=validateTcpReality(uri);
+ const grpc=validateGrpcReality(uri.replace('type=tcp','type=grpc')+'&serviceName=vainah-svc');
+ const json=JSON.stringify({outbounds:[grpc,tcp]});
+ const choice=fromSubscriptionText(json);
+ assert.equal(choice.type,'vless');
+ assert.equal(choice.transport,undefined);
+ assert.equal(choice.tls.reality.public_key,tcp.tls.reality.public_key);
+ assert.equal(choice.uuid,tcp.uuid);
+ assert.deepEqual(fromSubscriptionText(JSON.stringify({outbounds:[grpc]})).transport,{
+  type:'grpc',service_name:'vainah-svc'
+ });
+});
+test('JSON H1Cloud subscriptions fail closed on weak TLS, missing Reality or unsupported transport',()=>{
+ const base=validateTcpReality(uri);
+ const cases=[
+  {...base,tls:{...base.tls,reality:{enabled:false}}},
+  {...base,tls:{...base.tls,insecure:true}},
+  {...base,transport:{type:'xhttp',path:'/test'}},
+  {...base,type:'trojan'},
+  {...base,uuid:'not-a-uuid'},
+  {...base,tls:{...base.tls,reality:{enabled:true,public_key:'bad'}}}
+ ];
+ for(const invalid of cases){
+  assert.throws(()=>fromSubscriptionText(JSON.stringify({outbounds:[invalid]})),
+    /SUBSCRIPTION_JSON_UNSUPPORTED|REALITY_SUPPORTED_TRANSPORT_NOT_FOUND/);
+ }
+ assert.throws(()=>fromSubscriptionText(JSON.stringify({proxies:[base]})),
+  /SUBSCRIPTION_JSON_UNSUPPORTED/);
+ assert.throws(()=>fromSubscriptionText('<html>login required</html>'),/SUBSCRIPTION_FORMAT_UNSUPPORTED/);
+});
 test('gRPC Reality generates a separate full-route config with pinned TLS security',()=>{
  const grpc=uri.replace('type=tcp','type=grpc')+'&serviceName=h1-grpc';
  const outbound=validateGrpcReality(grpc);
