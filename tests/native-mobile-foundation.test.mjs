@@ -79,7 +79,11 @@ test('No fake Connected state when VLESS transport is missing',()=>{
   assert.match(extension,/NEPacketTunnelProvider/);
   assert.match(extension,/completionHandler\(failure\(/);
   assert.match(extension,/H1ExtensionSubscription\.download/);
-  assert.match(extension,/NativeRealityPreflight\.check/);
+  assert.match(extension,/MobileRealityConfig\.fromSubscription/);
+  const nativeBridge=read(ios+'TunnelExtension/VainahLibboxPlatform.swift');
+  assert.match(nativeBridge,/LibboxCheckConfig\(config/);
+  assert.match(nativeBridge,/LibboxNewCommandServer/);
+  assert.match(nativeBridge,/setTunnelNetworkSettings\(proposed/);
   // Native-only integration may finish startup, but ONLY after the real
   // libbox service has established its NetworkExtension TUN interface.
   assert.match(extension,/try engine\.start\(config\)/);
