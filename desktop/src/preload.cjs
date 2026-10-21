@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld('vainah',{
   getInfo:()=>ipcRenderer.invoke('vainah:info'),
   getPlans:()=>ipcRenderer.invoke('vainah:plans'),
   getTunnelStatus:()=>ipcRenderer.invoke('vainah:tunnel'),
+  inspectXrayFile:()=>ipcRenderer.invoke('vainah:inspect-xray-file'),
   openOfficialPage:name=>ipcRenderer.invoke('vainah:open-official',name)
 });
