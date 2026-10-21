@@ -12,6 +12,7 @@ on:
       - "tests/control-plane-device-policy.test.mjs"
       - "tests/ios-provider-isolation.test.mjs"
       - "tests/native-engine-lifecycle.test.mjs"
+      - "tests/android-live-tunnel-status.test.mjs"
       - "tests/ios-reality-schema.swift"
       - "tests/check-android-reality-schema.cjs"
       - "tests/native-mobile-foundation.test.mjs"
@@ -78,7 +79,7 @@ jobs:
           done
           node tests/check-android-reality-schema.cjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
 
-      - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs tests/ios-provider-isolation.test.mjs tests/native-engine-lifecycle.test.mjs
+      - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs tests/ios-provider-isolation.test.mjs tests/native-engine-lifecycle.test.mjs tests/android-live-tunnel-status.test.mjs
 
   android:
     name: Android debug APK — UI only
