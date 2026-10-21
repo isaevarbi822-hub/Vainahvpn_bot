@@ -64,6 +64,14 @@ jobs:
           if (-not $binary) { throw 'sing-box.exe not found in official archive' }
           New-Item -ItemType Directory -Force -Path 'desktop/vendor/sing-box/windows-x64' | Out-Null
           Copy-Item $binary.FullName 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+      - name: Smoke-test verified sing-box executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = Join-Path (Get-Location) 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+          if (-not (Test-Path $engine)) { throw 'Bundled engine not found' }
+          & $engine version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled sing-box executable failed smoke test' }
       - name: Build Windows NSIS installer
         run: npm run --prefix desktop dist:win
       - name: Upload Windows preview
