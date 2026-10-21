@@ -77,7 +77,11 @@ final class TunnelController: ObservableObject {
         state = .preparing
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-            let manager = managers.first ?? NETunnelProviderManager()
+            // Never overwrite another VPN provider's configuration.
+            let manager = managers.first(where: {
+                ($0.protocolConfiguration as? NETunnelProviderProtocol)?
+                    .providerBundleIdentifier == "app.vainah.vpn.PacketTunnel"
+            }) ?? NETunnelProviderManager()
             let configuration = NETunnelProviderProtocol()
             configuration.providerBundleIdentifier = "app.vainah.vpn.PacketTunnel"
             configuration.serverAddress = "Vainah VPN"
@@ -106,7 +110,12 @@ final class TunnelController: ObservableObject {
 
     func disconnect() async {
         let managers = (try? await NETunnelProviderManager.loadAllFromPreferences()) ?? []
+        // Disconnect only our own PacketTunnel, not other installed VPNs.
         for manager in managers {
+            let provider = manager.protocolConfiguration as? NETunnelProviderProtocol
+            guard provider?.providerBundleIdentifier == "app.vainah.vpn.PacketTunnel" else {
+                continue
+            }
             manager.connection.stopVPNTunnel()
         }
         activeManager = nil
