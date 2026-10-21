@@ -11,6 +11,8 @@ on:
       - "services/control-plane/**"
       - "tests/control-plane-device-policy.test.mjs"
       - "tests/check-android-reality-schema.cjs"
+      - "tests/native-mobile-foundation.test.mjs"
+      - "tests/native-site-parity.test.mjs"
       - ".github/workflows/four-platform-integration.yml"
   workflow_dispatch:
 
