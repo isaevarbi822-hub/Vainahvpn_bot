@@ -85,7 +85,6 @@ app.whenReady().then(()=>{
         buffer.fill(0);
       } finally {await handle.close()}
       const profiles=parseXrayProfiles(json);
-      json=null;
       // Check the bundled engine, but never run a tunnel or claim protection.
       // A validator failure does not disclose any part of the subscription.
       const enginePath = app.isPackaged
@@ -94,6 +93,7 @@ app.whenReady().then(()=>{
       const engineCheck = process.platform==='win32'
         ? await validateWithSingBox(enginePath,json)
         : {ok:false,reason:'Windows check only'};
+      json=null;
       return {ok:true,profiles,engineCheck};
     } catch {
       // Never expose file paths, secrets, or raw parser/OS errors.
