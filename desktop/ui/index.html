@@ -71,6 +71,7 @@
             <small class="hint">Приложение честно показывает отсутствие соединения.</small>
           </div>
         </div>
+        <section class="subscription-card" aria-labelledby="server-list-title"><div class="subscription-heading"><span class="eyebrow">СЕРВЕРЫ И КОНФИГУРАЦИИ</span><h2 id="server-list-title">Серверы подписки</h2><p>Добавь HTTPS-подписку в разделе «Устройства». Затем выбери сервер здесь и нажми кнопку подключения выше.</p></div><div id="home-server-list" class="server-list" aria-live="polite"><p>Подписка ещё не добавлена.</p></div></section>
         <div class="section-heading"><div><span class="eyebrow">ВАШ VPN-ЦЕНТР</span><h2>Всё под рукой.</h2></div><button class="text-link" data-view="guide">Как это работает →</button></div>
         <div class="feature-grid">
           <article class="feature-card"><div class="feature-icon">▦</div><h3>Тарифы</h3><p>Шесть планов с ценами сайта, без скрытых списаний.</p><button class="text-link" data-view="plans">Выбрать тариф →</button></article>
@@ -131,10 +132,8 @@
           <div class="subscription-form">
             <label for="vless-key">Ссылка подписки или ключ</label>
             <input id="vless-key" type="password" autocomplete="off" spellcheck="false" placeholder="https://… или vless://…" aria-describedby="vless-import-status">
-            <button class="button primary" id="import-vless">Добавить подписку</button>
+            <button type="button" class="button primary" id="import-vless">Добавить подписку</button>
             <p id="vless-import-status" role="status" aria-live="polite">Ссылка пока не добавлена.</p>
-            <label for="subscription-server">Выбери сервер</label>
-            <select id="subscription-server" disabled><option>Сначала добавь подписку</option></select>
           </div>
           <details class="advanced-import"><summary>Дополнительно: импорт Xray JSON</summary><p>Для опытных пользователей. Данные читаются локально.</p><button class="button secondary" id="inspect-xray">Выбрать JSON-файл</button><p id="xray-inspection-status" role="status" aria-live="polite">Файл ещё не выбран.</p></details>
         </div>
