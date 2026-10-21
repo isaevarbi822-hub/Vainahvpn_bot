@@ -230,6 +230,13 @@ final class VainahLibboxRuntime {
         // Keep it in device-private, non-backed-up cache, not Documents.
         let base = files.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("VainahNativeEngine", isDirectory: true)
+        // This dedicated directory contains only libbox runtime data.
+        // Delete credentials left by a crashed extension *before* starting
+        // a fresh engine. Fail closed rather than reusing stale secrets.
+        temporaryStorage = base
+        if files.fileExists(atPath: base.path) {
+            try files.removeItem(at: base)
+        }
         let working = base.appendingPathComponent("Working", isDirectory: true)
         let temp = base.appendingPathComponent("Temp", isDirectory: true)
         for directory in [base, working, temp] {
