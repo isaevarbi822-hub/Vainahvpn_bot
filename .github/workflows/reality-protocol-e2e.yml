@@ -36,7 +36,9 @@ jobs:
           echo 'e2bdf179c15a3652955dc44867e33ca0965c9c9b91b34267dcc5a5d639a5feee  /tmp/vainah-reality-linux.tgz' | sha256sum --check
           tar -xzf /tmp/vainah-reality-linux.tgz -C /tmp
       - name: Test actual VLESS Reality TCP handshake and HTTPS through the core
-        run: node tests/reality-protocol-loopback.mjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
+        run: node tests/reality-protocol-loopback.mjs /tmp/sing-box-1.14.3-linux-amd64/sing-box tcp
+      - name: Test actual VLESS Reality gRPC handshake and HTTPS through the core
+        run: node tests/reality-protocol-loopback.mjs /tmp/sing-box-1.14.3-linux-amd64/sing-box grpc
 
 # Only generated test UUID/Reality keys and 127.0.0.1 endpoints are used.
 # No H1Cloud credentials, real VPN routing, or user data. No app release.
