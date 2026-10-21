@@ -83,3 +83,11 @@ test('All major app views, guided onboarding and site palette are present',()=>{
   assert.match(html,/id="connection-dialog"/);
   assert.match(html,/К основному содержимому/);
 });
+
+test('Selected Xray JSON is bounded on re-open before starting a native engine',()=>{
+  const main=load('src/main.cjs');
+  assert.match(main,/fs\.lstat\(chosenFile\)/);
+  assert.match(main,/fs\.open\(chosenFile/);
+  assert.match(main,/size>1024\*1024/);
+  assert.doesNotMatch(main,/fs\.readFile\(chosenFile/);
+});
