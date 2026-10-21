@@ -22,7 +22,7 @@ class LibboxTunnelEngine : TunnelEngine {
     override val ready = true
     private var server: CommandServer? = null
     private var platform: VainahAndroidPlatform? = null
-    private var working: File? = null
+    private var privateStorage: List<File> = emptyList()
 
     @Synchronized
     override fun connect(service: VpnService, subscriptionUrl: String): Result<Unit> {
@@ -34,10 +34,15 @@ class LibboxTunnelEngine : TunnelEngine {
             val base = File(service.filesDir, "libbox-base")
             val work = File(service.cacheDir, "libbox-working")
             val temp = File(service.cacheDir, "libbox-temp")
-            for (dir in listOf(base, work, temp)) {
-                if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("ENGINE_STORAGE")
+            privateStorage = listOf(base, work, temp)
+            // A previous process could have crashed before its sensitive
+            // libbox config snapshots were cleaned up. Remove stale private
+            // state before starting a new session; fail closed if not possible.
+            for (dir in privateStorage) {
+                if (dir.exists() && !dir.deleteRecursively())
+                    throw IllegalStateException("ENGINE_STORAGE_CLEANUP")
+                if (!dir.mkdirs()) throw IllegalStateException("ENGINE_STORAGE")
             }
-            working = work
             // The native daemon saves a plaintext config snapshot; keep it
             // app-private and delete it when the service disconnects.
             Libbox.setup(SetupOptions().apply {
@@ -74,8 +79,12 @@ class LibboxTunnelEngine : TunnelEngine {
         try { active?.close() } catch (_: Throwable) {}
         try { platform?.shutdown() } catch (_: Throwable) {}
         platform = null
-        try { working?.deleteRecursively() } catch (_: Throwable) {}
-        working = null
+        // libbox may put sensitive configuration in base, working or temp.
+        // Always clear all three, including on failed initialization.
+        privateStorage.forEach { dir ->
+            try { dir.deleteRecursively() } catch (_: Throwable) {}
+        }
+        privateStorage = emptyList()
     }
 }
 
