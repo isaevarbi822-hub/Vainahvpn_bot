@@ -290,7 +290,9 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Подключиться к VPN")
-                .accessibilityHint("Без VLESS-движка VPN пока не устанавливает соединение")
+                .accessibilityHint(VLESSCore.available ?
+                    "Начать проверочное подключение. Защита трафика потребует отдельной проверки." :
+                    "Без VLESS-движка VPN пока не устанавливает соединение")
 
                 Text(tunnel.state.rawValue)
                     .font(.system(size: 25, weight: .bold, design: .rounded))
@@ -304,6 +306,11 @@ struct ContentView: View {
                     Task { await tunnel.connect() }
                 }
                 .padding(.top, 3)
+                if tunnel.state == .preparing || tunnel.state == .testing {
+                    callToAction("⏹  Отключить VPN") {
+                        Task { await tunnel.disconnect() }
+                    }
+                }
                 Text(saved ? "✓ HTTPS-подписка сохранена в Keychain" :
                              "Сначала добавь личную HTTPS-ссылку H1Cloud.")
                     .font(.system(size: 12))
