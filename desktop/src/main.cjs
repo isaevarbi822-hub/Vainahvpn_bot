@@ -2,6 +2,7 @@
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, safeStorage } = require('electron');
 const { safePage } = require('../shared/official.cjs');
+const { billingStatus, openBillingPlan } = require('../shared/billing-bridge.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { PUBLIC_CAPABILITIES } = require('../shared/h1-protocol.cjs');
 const { EngineHost } = require('./engine-host.cjs');
@@ -55,6 +56,15 @@ app.whenReady().then(()=>{
     preview:true
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
+  // Payment runs only on the first-party website in the external browser.
+  // Desktop never collects card data, receives signed provider callbacks, or
+  // trusts its own catalog as proof that live checkout is enabled.
+  ipcMain.handle('vainah:billing:status',event=>
+    authorizedSender(event)?billingStatus():{ready:false,reason:'DENIED'});
+  ipcMain.handle('vainah:billing:open',async(event,planId)=>{
+    if(!authorizedSender(event))return {ok:false,reason:'DENIED'};
+    return openBillingPlan(planId,{openExternal:url=>shell.openExternal(url,{activate:true})});
+  });
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?engine.status():null);
   ipcMain.handle('vainah:engine:choose',async event=>{
     if(!authorizedSender(event))return {ok:false};
