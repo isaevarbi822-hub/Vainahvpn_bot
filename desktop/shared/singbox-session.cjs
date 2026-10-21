@@ -14,7 +14,7 @@ class SingBoxSession {
   }
   get status() {return Object.freeze({state:this.state,protected:false});}
   async start(binary,xrayJson) {
-    if(this.state!=='stopped')return {ok:false,reason:'Already running or starting'};
+    if(this.state!=='stopped'||this.child||this.temp)return {ok:false,reason:'Already running or starting'};
     this.state='starting';
     try {
       if(process.platform!=='win32')throw Error('Windows-only engine');
@@ -36,7 +36,8 @@ class SingBoxSession {
         const finish=()=>{
           if(settled)return;
           settled=true;
-          this.child=null;this.state='stopped';
+          if(this.child===child)this.child=null;
+          if(this.state!=='stopping')this.state='stopped';
           resolve();
         };
         child.once('exit',finish);child.once('error',finish);
@@ -58,7 +59,11 @@ class SingBoxSession {
       await Promise.race([this.exitPromise||Promise.resolve(),new Promise(resolve=>setTimeout(resolve,2000))]);
     }
     const temp=this.temp;
-    this.temp=null;this.child=null;this.state='stopped';
+    if(this.child){
+      this.state='stop-failed';
+      return {ok:false,reason:'Engine process did not exit',protected:false};
+    }
+    this.temp=null;this.state='stopped';
     if(temp)await fs.rm(temp,{recursive:true,force:true}).catch(()=>{});
     return {ok:true,protected:false};
   }
