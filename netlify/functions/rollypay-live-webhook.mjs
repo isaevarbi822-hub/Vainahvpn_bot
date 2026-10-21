@@ -1,7 +1,7 @@
 import {json,verifyRollypaySignature} from './lib/security.mjs';
-import {checkoutReady,parseRubPrice} from './lib/plan-catalog.mjs';
+import {checkoutReady} from './lib/plan-catalog.mjs';
+import {validateLiveEvent,validateIndependentPayment} from './lib/rollypay-production-validation.mjs';
 import {fetchPayment} from './lib/rollypay-client.mjs';
-import {validPaymentId} from './lib/rollypay-identifiers.mjs';
 import {updateVerifiedPayment} from './lib/subscription-db.mjs';
 import {fulfillPaidOrder} from './lib/h1-fulfillment.mjs';
 
@@ -17,24 +17,13 @@ export default async function handler(request){
   }))return json({error:'Invalid signature'},403);
   let event;
   try{event=JSON.parse(body)}catch{return json({error:'Invalid JSON'},400)}
-  if(!event||event.test!==false||typeof event.order_id!=='string' ||
-    !/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(event.order_id) ||
-    !validPaymentId(event.payment_id)) return json({error:'Invalid payment event'},400);
-  const statuses=['paid','created','processing','canceled','expired','refunded','chargeback'];
-  if(!statuses.includes(event.status)||!(event.event_type===`payment.${event.status}` || (event.event_type==='refund_request.completed' && event.status==='refunded')))return json({error:'Inconsistent payment event'},400);
+  if(!validateLiveEvent(event))return json({error:'Invalid payment event'},400);
   try{
     // Verify against RollyPay API independently: signed callbacks alone are not treated as fulfillment.
     const verified=await fetchPayment(event.payment_id);
-    const amount=parseRubPrice(String(verified.amount||''));
-    if(verified.order_id!==event.order_id || verified.payment_id!==event.payment_id ||
-       verified.payment_currency!=='RUB' || amount===null ||
-       verified.status!==event.status || verified.test===true || verified.environment==='sandbox'){
-      return json({error:'Payment provider mismatch'},409);
-    }
-    const result=await updateVerifiedPayment({
-      orderId:event.order_id,paymentId:event.payment_id,
-      status:verified.status,amountKopeks:amount,currency:'RUB'
-    });
+    const confirmed=validateIndependentPayment(event,verified);
+    if(!confirmed)return json({error:'Payment provider mismatch'},409);
+    const result=await updateVerifiedPayment(confirmed);
     if(result.error)return json({error:result.error},409);
     if(verified.status==='paid') {
       const delivery=await fulfillPaidOrder(event.order_id);
