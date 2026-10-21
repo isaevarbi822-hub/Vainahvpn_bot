@@ -35,3 +35,5 @@ dialog{max-width:500px;width:calc(100% - 36px);background:linear-gradient(135deg
 .advanced-import summary{cursor:pointer;font-weight:700;color:#e6ddff}
 .advanced-import p{line-height:1.6}
 @media(max-width:1040px){.subscription-card{grid-template-columns:1fr;gap:14px}}
+
+.server-list{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}.server-list .server-choice{flex:1 1 200px;max-width:100%;overflow-wrap:anywhere;min-height:44px}.server-list .server-choice.active{border-color:#a98bff;background:#38294f;color:#fff}.server-list p{margin:0;color:#c8c6dc;font-size:13px}
