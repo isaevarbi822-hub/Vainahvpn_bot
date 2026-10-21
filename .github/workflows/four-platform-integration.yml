@@ -10,6 +10,7 @@ on:
       - "site/**"
       - "services/control-plane/**"
       - "tests/control-plane-device-policy.test.mjs"
+      - "tests/check-android-reality-schema.cjs"
       - ".github/workflows/four-platform-integration.yml"
   workflow_dispatch:
 
@@ -58,6 +59,7 @@ jobs:
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-prototype-${platform}.json"
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-runtime-${platform}.json"
           done
+          node tests/check-android-reality-schema.cjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
 
       - run: node --test tests/native-mobile-foundation.test.mjs tests/native-site-parity.test.mjs
 
