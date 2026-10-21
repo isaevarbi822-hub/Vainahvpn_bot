@@ -38,7 +38,16 @@
           ]
         }
       ],
-      "artifactName": "VainahVPN-Windows-UI-Preview-${version}-${arch}.${ext}"
+      "artifactName": "VainahVPN-Windows-UI-Preview-${version}-${arch}.${ext}",
+      "extraResources": [
+        {
+          "from": "vendor/sing-box/windows-x64",
+          "to": "engines/sing-box",
+          "filter": [
+            "sing-box.exe"
+          ]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -62,15 +71,6 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false
     },
-    "publish": null,
-    "extraResources": [
-      {
-        "from": "vendor/sing-box/windows-x64",
-        "to": "engines/sing-box",
-        "filter": [
-          "sing-box.exe"
-        ]
-      }
-    ]
+    "publish": null
   }
 }
