@@ -108,10 +108,15 @@
     const status=document.getElementById('vless-import-status');
     if(!window.vainah?.importVlessLink)return;
     importButton.disabled=true;
-    const link=field.value;
-    field.value='';
+    const link=field.value.trim();
+    if(!/^https:\/\//i.test(link)&&!/^vless:\/\//i.test(link)){
+      status.textContent='Вставь полную ссылку, начинающуюся с https:// или vless://';
+      importButton.disabled=false;
+      return;
+    }
+    status.textContent='Проверяем подписку…';
     try{
-      const isHttps=link.startsWith('https://');
+      const isHttps=/^https:\/\//i.test(link);
       const result=isHttps
         ? await window.vainah.importHttpsSubscription(link)
         : await window.vainah.importVlessLink(link);
@@ -131,8 +136,9 @@
         option.textContent='Сначала добавь подписку';
         picker.append(option);
       }
-      status.textContent=result?.message||'Ошибка проверки ключа';
-    }catch{status.textContent='Ошибка импорта VLESS-ключа';}
+      status.textContent=result?.message||'Не удалось прочитать подписку.';
+      if(result?.ok)field.value='';
+    }catch{status.textContent='Не удалось импортировать ссылку. Проверь формат и доступность подписки.';}
     finally{importButton.disabled=false;}
   });
   document.getElementById('subscription-server').addEventListener('change',async event=>{
