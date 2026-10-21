@@ -150,7 +150,19 @@ app.whenReady().then(()=>{
       chosenDirectProfile=result.profiles[0];
       chosenFile=null;
       return {ok:true,count:result.count,message:'Подписка загружена. Поддерживаемых серверов: '+result.count+'. Для тестового запуска выбран первый.'};
-    }catch{return {ok:false,message:'Не удалось загрузить HTTPS-подписку или нет поддерживаемых VLESS TCP REALITY серверов'};}
+    }catch(error){
+      const cause=String(error?.message||'');
+      const message=cause==='No supported VLESS REALITY TCP servers'
+        ? 'Подписка загружена, но поддерживаемых VLESS TCP REALITY серверов не найдено.'
+        : cause==='Subscription timeout'
+          ? 'Сервер подписки не ответил вовремя.'
+          : cause==='Subscription too large'
+            ? 'Подписка слишком большая.'
+            : cause==='Subscription server rejected request'
+              ? 'Сервер подписки не принял запрос. Проверь срок и действительность ссылки.'
+              : 'Не удалось прочитать HTTPS-подписку. Проверь ссылку и подключение к интернету.';
+      return {ok:false,message};
+    }
   });
   ipcMain.handle('vainah:select-subscription-server',async(event,index)=>{
     if(!authorizedSender(event)||!Number.isInteger(index)||index<0||index>=subscriptionProfiles.length)
