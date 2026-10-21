@@ -22,6 +22,8 @@ test('multiple or unknown query fields fail closed',()=>{
  assert.throws(()=>validateTcpReality(uri.replace('type=tcp','type=xhttp')),/PROFILE_UNSUPPORTED/);
  assert.throws(()=>validateTcpReality(uri+'&allowInsecure=1'),/PROFILE_UNSUPPORTED/);
  assert.equal(validateTcpReality(uri+'&encryption=none&headerType=none').type,'vless');
+ assert.equal(validateTcpReality(uri+'&spx=%2F').type,'vless');
+ assert.throws(()=>validateTcpReality(uri+'&spx=%2Fprivate'),/PROFILE_UNSUPPORTED/);
  assert.throws(()=>validateTcpReality(uri+'&encryption=aes-128-gcm'),/PROFILE_UNSUPPORTED/);
  assert.throws(()=>validateTcpReality(uri+'&headerType=http'),/PROFILE_UNSUPPORTED/);
 });
