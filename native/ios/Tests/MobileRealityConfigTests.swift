@@ -22,10 +22,44 @@ final class MobileRealityConfigTests: XCTestCase {
 
     func testBase64SubscriptionPicksTCPNotGRPC() throws {
         let grpc = tcp.replacingOccurrences(of: "type=tcp", with: "type=grpc")
+            + "&serviceName=vainah-test"
         let text = [grpc, tcp].joined(separator: "\n")
         let encoded = Data(text.utf8).base64EncodedString()
         let result = try MobileRealityConfig.fromSubscription(encoded)
         XCTAssertTrue(result.contains("vainah-primary"))
+        XCTAssertFalse(result.contains("\"service_name\":\"vainah-test\""))
+    }
+
+    func testGrpcRealityCreatesTrueTransportWithFullTunnel() throws {
+        let grpc = tcp.replacingOccurrences(of: "type=tcp", with: "type=grpc")
+            + "&serviceName=vainah-test"
+        let xhttp = tcp.replacingOccurrences(of: "type=tcp", with: "type=xhttp")
+        let json = try MobileRealityConfig.fromSubscription(xhttp + "\n" + grpc)
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let outbound = try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        let transport = try XCTUnwrap(outbound["transport"] as? [String: Any])
+        XCTAssertEqual(transport["type"] as? String, "grpc")
+        XCTAssertEqual(transport["service_name"] as? String, "vainah-test")
+        let inbound = try XCTUnwrap((parsed["inbounds"] as? [[String: Any]])?.first)
+        XCTAssertEqual(inbound["auto_route"] as? Bool, true)
+        XCTAssertEqual(inbound["dns_mode"] as? String, "hijack")
+        let dns = try XCTUnwrap(parsed["dns"] as? [String: Any])
+        XCTAssertEqual(dns["final"] as? String, "private-dns")
+    }
+
+    func testUnsafeGrpcConfigurationRemainsRejected() {
+        let grpc = tcp.replacingOccurrences(of: "type=tcp", with: "type=grpc")
+            + "&serviceName=vainah-test"
+        for link in [
+            grpc + "&serviceName=other",
+            grpc + "&flow=xtls-rprx-vision",
+            grpc.replacingOccurrences(of: "serviceName=vainah-test", with: "serviceName="),
+            grpc + "&allowInsecure=true",
+            tcp.replacingOccurrences(of: "type=tcp", with: "type=xhttp")
+        ] {
+            XCTAssertThrowsError(try MobileRealityConfig.fromVlessLink(link))
+        }
     }
 
     func testUnsupportedTransportOrSecurityRefused() {
