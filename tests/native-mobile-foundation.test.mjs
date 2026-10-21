@@ -72,10 +72,14 @@ test('No fake Connected state when VLESS transport is missing',()=>{
   const iosEngine=read(ios+'App/TunnelController.swift');
   assert.match(iosEngine,/static let available = false/);
   assert.match(iosEngine,/guard VLESSCore\.available else/);
-  assert.match(iosEngine,/startVPNTunnel\(\)/);
+  assert.match(iosEngine,/startVPNTunnel\(options:/);
+  assert.match(iosEngine,/h1SubscriptionHTTPS/);
+  assert.doesNotMatch(iosEngine,/providerConfiguration\s*=\s*.*subscription/i);
   const extension=read(ios+'TunnelExtension/PacketTunnelProvider.swift');
   assert.match(extension,/NEPacketTunnelProvider/);
-  assert.match(extension,/completionHandler\(error\)/);
+  assert.match(extension,/completionHandler\(failure\(/);
+  assert.match(extension,/H1ExtensionSubscription\.download/);
+  assert.match(extension,/NativeRealityPreflight\.check/);
   assert.doesNotMatch(extension,/completionHandler\(nil\)/);
 });
 
