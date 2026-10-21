@@ -1,8 +1,8 @@
 {
   "name": "vainah-vpn-desktop-preview",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Vainah VPN Windows & macOS interface preview — no active VPN tunnel",
+  "description": "Vainah VPN desktop engineering preview — native VPN integration unverified",
   "author": "Vainah VPN",
   "license": "UNLICENSED",
   "main": "src/main.cjs",
