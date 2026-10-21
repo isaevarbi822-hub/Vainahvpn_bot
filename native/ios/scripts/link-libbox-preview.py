@@ -20,20 +20,16 @@ shutil.copytree(source, target)
 
 project = root / "project.yml"
 config = project.read_text()
+# Anchor under the packet-extension dependency section: keep UIKit,
+# which is required by a small iOS support symbol in libbox.
 needle = '''        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.PacketTunnel
         GENERATE_INFOPLIST_FILE: NO
-
-  VainahVPNTests:
-'''
-replacement = '''        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.PacketTunnel
-        GENERATE_INFOPLIST_FILE: NO
     dependencies:
-      - framework: Libbox.xcframework
-        embed: false
-
-  VainahVPNTests:
 '''
-if config.count(needle) != 1:
-    raise SystemExit("Unexpected XcodeGen manifest; cannot safely insert dependency")
+if config.count(needle) != 1 or config.count("      - sdk: UIKit.framework") != 1:
+    raise SystemExit("Unexpected XcodeGen manifest; refusing unsafe mutation")
+replacement = needle + '''      - framework: Libbox.xcframework
+        embed: false
+'''
 project.write_text(config.replace(needle, replacement))
 print("iOS test: libbox XCFramework linked into PacketTunnel target (VPN remains inactive)")
