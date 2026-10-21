@@ -152,7 +152,9 @@ app.whenReady().then(()=>{
       return {ok:true,count:result.count,message:'Подписка загружена. Поддерживаемых серверов: '+result.count+'. Для тестового запуска выбран первый.'};
     }catch(error){
       const cause=String(error?.message||'');
-      const message=cause==='No supported VLESS REALITY TCP servers'
+      const message=cause==='Unsupported subscription format'
+        ? 'Сервер вернул формат подписки, который эта версия ещё не поддерживает.'
+        : cause==='No supported VLESS REALITY TCP servers'
         ? 'Подписка загружена, но поддерживаемых VLESS TCP REALITY серверов не найдено.'
         : cause==='Subscription timeout'
           ? 'Сервер подписки не ответил вовремя.'
