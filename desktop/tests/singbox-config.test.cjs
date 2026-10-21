@@ -23,3 +23,16 @@ test('never silently accepts ambiguous multi-server profile',()=>{
  const p=sample();p.outbounds[0].settings.vnext.push(p.outbounds[0].settings.vnext[0]);
  assert.throws(()=>buildSingBoxConfig(p),/exactly one/);
 });
+
+test('auto-selects VLESS TCP REALITY even when direct outbound comes first',()=>{
+ const p=sample();
+ p.outbounds.unshift({protocol:'freedom',tag:'direct'});
+ const result=buildSingBoxConfig(p);
+ assert.equal(result.outbounds[0].server,'example.invalid');
+ assert.equal(result.outbounds[0].type,'vless');
+});
+test('refuses missing supported VLESS outbound without fallback to direct',()=>{
+ const p=sample();
+ p.outbounds[0].streamSettings.network='grpc';
+ assert.throws(()=>buildSingBoxConfig(p),/VLESS outbound required/);
+});
