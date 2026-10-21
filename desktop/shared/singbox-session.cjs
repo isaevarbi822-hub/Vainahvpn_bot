@@ -23,11 +23,16 @@ class SingBoxSession {
         throw Error('Invalid binary path');
       const stat=await fs.stat(binary);
       if(!stat.isFile())throw Error('Binary unavailable');
+      if(this.state!=='starting')return {ok:false,reason:'Startup cancelled',protected:false};
       const config=buildSingBoxConfig(xrayJson);
       this.temp=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-session-'));
       await fs.chmod(this.temp,0o700);
       const configPath=path.join(this.temp,'config.json');
       await fs.writeFile(configPath,JSON.stringify(config),{mode:0o600,flag:'wx'});
+      if(this.state!=='starting'){
+        await this.stop();
+        return {ok:false,reason:'Startup cancelled',protected:false};
+      }
       const child=this.runner(binary,['run','-c',configPath],{
         cwd:this.temp,windowsHide:true,shell:false,stdio:'ignore'
       });
