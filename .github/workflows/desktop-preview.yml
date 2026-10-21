@@ -99,9 +99,9 @@ jobs:
           retention-days: 14
 
   publish:
-    name: Public GitHub prerelease of UI previews
+    name: Windows GitHub prerelease (independent of macOS)
     runs-on: ubuntu-latest
-    needs: [safety, windows, macos]
+    needs: [safety, windows]
     permissions:
       contents: write
     # Never publish installers from untrusted forks or PRs.
@@ -109,7 +109,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: vainah-*-ui-preview
+          name: vainah-windows-ui-preview
           path: preview
           merge-multiple: true
       - name: Check all platform installers and checksums
@@ -117,52 +117,34 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          files=(preview/*.exe preview/*.dmg)
-          [[ ${#files[@]} -ge 3 ]] || { echo "Windows and both macOS versions required"; exit 1; }
+          files=(preview/*.exe)
+          [[ ${#files[@]} -ge 1 ]] || { echo "Windows installer required"; exit 1; }
           for file in "${files[@]}"; do test -s "$file"; done
           cd preview
-          sha256sum *.exe *.dmg > SHA256SUMS.txt
+          sha256sum *.exe > SHA256SUMS.txt
       - name: Publish explicitly labeled prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          tag="desktop-ui-preview-v0.2.0"
+          tag="desktop-windows-preview-v0.3.0"
           cat > /tmp/VainahDesktopNotes.md <<'NOTES'
-          # Vainah VPN Desktop: первые версии Windows и macOS
+          # Vainah VPN Desktop 0.3 — Windows engineering preview
 
-          **ВНИМАНИЕ! ЭТА ДЕМОВЕРСИЯ НЕ ПОДКЛЮЧАЕТ VPN И НЕ ЗАЩИЩАЕТ ТРАФИК.**
-          Это ранний просмотр интерфейса нативных приложений. Используй
-          работающий совместимый VPN-клиент для настоящего соединения.
-
-          Платформы:
-          - Windows 10/11, x64: установщик NSIS (.exe).
-          - macOS, Intel: DMG x64.
-          - macOS, Apple Silicon: DMG arm64.
-
-          Доступно: фирменный дизайн Vainah VPN, 6 тарифов как на сайте,
-          старт за три шага, инструкции, кабинет через официальный сайт,
-          устройства, помощь, понятная диагностика доступности функций.
-
-          Пока НЕТ: системного H1Cloud/VLESS-туннеля, встроенного входа,
-          денежных операций, импорта секретных ссылок, магазинов приложений.
-          **Никакой защиты VPN через эти файлы нет.**
-
-          Сборки без цифровой подписи и Apple notarization. ОС может запретить
-          запуск; не обходите предупреждения безопасности. Для массового
-          распространения нужны подписанные проверенные версии.
-
-          Скачивай только из официального GitHub-репозитория проекта.
-          Контрольные суммы SHA256 в приложенном файле.
+          **ВНИМАНИЕ: подключение VPN пока не подтверждено. Эту сборку нельзя считать защищающим VPN-клиентом.**
+          Windows x64: предварительный установщик. Поддержка sing-box и H1Cloud ещё проходит интеграцию и тестирование.
+          macOS собирается отдельным заданием GitHub Actions и не блокирует публикацию Windows.
+          Проверяйте успешность workflow, SHA256SUMS и цифровую подпись до установки.
+          **Этот установщик не подписан и предназначен для разработки, а не для массового использования.**
           NOTES
           if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Tag already published: refusing to silently replace binaries. Bump version for another release."
             exit 1
           fi
-          gh release create "$tag" preview/*.exe preview/*.dmg preview/SHA256SUMS.txt \
+          gh release create "$tag" preview/*.exe preview/SHA256SUMS.txt \
             -R "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Vainah VPN Desktop 0.2 — Windows и macOS (ТОЛЬКО UI, без VPN)" \
+            --title "Vainah VPN Desktop 0.3 — Windows (инженерный preview, VPN не подтверждён)" \
             --notes-file /tmp/VainahDesktopNotes.md \
             --prerelease --latest=false
