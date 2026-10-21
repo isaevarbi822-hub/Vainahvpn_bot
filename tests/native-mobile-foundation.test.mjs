@@ -86,7 +86,9 @@ test('No fake Connected state when VLESS transport is missing',()=>{
   assert.match(nativeBridge,/setTunnelNetworkSettings\(proposed/);
   // Native-only integration may finish startup, but ONLY after the real
   // libbox service has established its NetworkExtension TUN interface.
+  assert.match(extension,/try startNative\(config, keepRunning:/);
   assert.match(extension,/try engine\.start\(config\)/);
+  assert.match(extension,/guard keepRunning\(\) else \{ throw CancellationError\(\) \}/);
   assert.match(extension,/completionHandler\(nil\)/);
   assert.match(extension,/#if canImport\(Libbox\)/);
 });
