@@ -112,7 +112,7 @@ jobs:
           name: vainah-windows-ui-preview
           path: preview
           merge-multiple: true
-      - name: Check all platform installers and checksums
+      - name: Check Windows installer and checksum
         shell: bash
         run: |
           set -euo pipefail
@@ -132,7 +132,7 @@ jobs:
           cat > /tmp/VainahDesktopNotes.md <<'NOTES'
           # Vainah VPN Desktop 0.3 — Windows engineering preview
 
-          **ВНИМАНИЕ: подключение VPN пока не подтверждено. Эту сборку нельзя считать защищающим VPN-клиентом.**
+          **ВНИМАНИЕ: ЭТА СБОРКА НЕ ПОДКЛЮЧАЕТ VPN И НЕ ЗАЩИЩАЕТ ТРАФИК.**
           Windows x64: предварительный установщик. Поддержка sing-box и H1Cloud ещё проходит интеграцию и тестирование.
           macOS собирается отдельным заданием GitHub Actions и не блокирует публикацию Windows.
           Проверяйте успешность workflow, SHA256SUMS и цифровую подпись до установки.
