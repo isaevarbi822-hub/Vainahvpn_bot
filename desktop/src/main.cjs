@@ -13,6 +13,48 @@ const { plans } = require('../shared/catalog.cjs');
 let mainWindow;
 const engineSession = new SingBoxSession();
 let chosenFile = null;
+let websiteWindow = null;
+const siteOrigin = new URL(safePage('home')).origin;
+function trustedSiteNavigation(value) {
+  try {
+    const target = new URL(value);
+    return target.protocol==='https:' && target.origin===siteOrigin;
+  } catch { return false; }
+}
+function openWebsiteInsideApp(url) {
+  if(!trustedSiteNavigation(url))return false;
+  if(websiteWindow&&!websiteWindow.isDestroyed()){
+    void websiteWindow.loadURL(url);
+    websiteWindow.show();
+    websiteWindow.focus();
+    return true;
+  }
+  const win=new BrowserWindow({
+    parent:mainWindow,
+    width:1100,height:800,minWidth:740,minHeight:560,
+    title:'Vainah VPN — личный кабинет и покупка',
+    autoHideMenuBar:true,
+    webPreferences:{
+      partition:'persist:vainah-official-site',
+      nodeIntegration:false,contextIsolation:true,sandbox:true,
+      webSecurity:true,webviewTag:false,spellcheck:false
+    }
+  });
+  websiteWindow=win;
+  win.on('closed',()=>{if(websiteWindow===win)websiteWindow=null;});
+  win.webContents.setWindowOpenHandler(({url:target})=>({
+    action:trustedSiteNavigation(target)?'allow':'deny'
+  }));
+  win.webContents.on('will-navigate',(event,target)=>{
+    if(!trustedSiteNavigation(target))event.preventDefault();
+  });
+  win.webContents.on('will-redirect',(event,target)=>{
+    if(!trustedSiteNavigation(target))event.preventDefault();
+  });
+  win.webContents.on('will-attach-webview',event=>event.preventDefault());
+  void win.loadURL(url).catch(()=>{if(!win.isDestroyed())win.close();});
+  return true;
+}
 let chosenDirectProfile = null;
 let subscriptionProfiles = [];
 function enginePath() {
@@ -212,10 +254,8 @@ app.whenReady().then(()=>{
     if(!authorizedSender(event))return {ok:false};
     const url=safePage(name);
     if(!url)return {ok:false};
-    try{
-      await shell.openExternal(url,{activate:true});
-      return {ok:true};
-    }catch{return {ok:false}}
+    try{return {ok:openWebsiteInsideApp(url)};}
+    catch{return {ok:false}}
   });
   // Electron must wait for the engine to stop before quitting; otherwise its
   // child process can survive with system routes still active.
