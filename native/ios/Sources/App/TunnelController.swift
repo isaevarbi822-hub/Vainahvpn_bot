@@ -12,7 +12,14 @@ enum TunnelState: String {
 
 /// No successful VPN status may be shown without an established, packet-forwarding engine.
 enum VLESSCore {
+    // The ordinary preview has no libbox and must continue to fail closed.
+    // Native-library CI enables this flag for a separate PacketTunnel target
+    // once the XCFramework is linked; runtime still checks the actual core.
+    #if VAINAH_NATIVE_LIBBOX
+    static let available = true
+    #else
     static let available = false
+    #endif
 }
 
 @MainActor
@@ -22,7 +29,7 @@ final class TunnelController: ObservableObject {
 
     /// Future real core must configure a packet tunnel extension and route packets.
     func connect() async {
-        guard SecureSubscription.load() != nil else {
+        guard let subscription = SecureSubscription.load() else {
             state = .disconnected
             explanation = "Сначала сохрани HTTPS-ссылку подписки."
             return
@@ -44,7 +51,12 @@ final class TunnelController: ObservableObject {
             manager.isEnabled = true
             try await manager.saveToPreferences()
             try await manager.loadFromPreferences()
-            try manager.connection.startVPNTunnel()
+            // One-shot launch options are NOT stored in NETunnelProviderManager
+            // preferences. The extension validates, fetches and discards this
+            // bearer credential; do not include it in logs or errors.
+            try manager.connection.startVPNTunnel(options: [
+                "h1SubscriptionHTTPS": subscription as NSString
+            ])
             // Waiting for NEVPNStatus connected is mandatory before claiming success.
             state = .preparing
             explanation = "Ожидаем подтверждения системного VPN…"
