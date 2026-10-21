@@ -1,4 +1,5 @@
 'use strict';
+const {candidatesFromSingBoxJson}=require('./singbox-json-subscription.cjs');
 const MAX_BYTES=256*1024;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PBK=/^[a-zA-Z0-9_-]{43}$/;
@@ -55,12 +56,23 @@ function validateGrpcReality(link){return validateReality(link,'grpc')}
 function fromSubscriptionText(input){
   if(typeof input!=='string'||Buffer.byteLength(input)>MAX_BYTES)throw Error('SUBSCRIPTION_INVALID');
   let text=input.trim();
-  if(!text.includes('vless://')){
-    if(!/^[A-Za-z0-9+/=\r\n]+$/.test(text))throw Error('SUBSCRIPTION_INVALID');
-    text=Buffer.from(text,'base64').toString('utf8');
+  let rows;
+  if(text.startsWith('{')||text.startsWith('[')){
+    // H1Cloud can offer sing-box JSON as an alternate subscription format.
+    // Reconstruct only VLESS+Reality profiles, then run the SAME strict
+    // validation as a normal URI. Unsupported JSON/YAML/Clash stays rejected.
+    rows=candidatesFromSingBoxJson(text);
+    if(rows===null)throw Error('SUBSCRIPTION_JSON_INVALID');
+    if(rows.length===0)throw Error('SUBSCRIPTION_JSON_UNSUPPORTED');
+  }else{
+    if(!text.includes('vless://')){
+      if(!/^[A-Za-z0-9+/=\r\n]+$/.test(text))
+        throw Error('SUBSCRIPTION_FORMAT_UNSUPPORTED');
+      text=Buffer.from(text,'base64').toString('utf8');
+    }
+    if(Buffer.byteLength(text)>MAX_BYTES)throw Error('SUBSCRIPTION_INVALID');
+    rows=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   }
-  if(Buffer.byteLength(text)>MAX_BYTES)throw Error('SUBSCRIPTION_INVALID');
-  const rows=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   if(rows.length>256)throw Error('SUBSCRIPTION_TOO_LARGE');
   // Prefer a tested TCP profile; use the distinct real gRPC transport
   // only when no valid TCP profile exists. Never silently map XHTTP to TCP.
