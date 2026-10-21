@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const ios = readFileSync('native/ios/Sources/TunnelExtension/PacketTunnelProvider.swift','utf8');
+const iosPlatform = readFileSync('native/ios/Sources/TunnelExtension/VainahLibboxPlatform.swift','utf8');
 const android = readFileSync('native/android/app/src/engine/java/app/vainah/vpn/LibboxTunnelEngine.kt','utf8');
 
 test('iOS native startup and teardown share a lock and stop waits for cleanup',()=>{
@@ -19,6 +20,18 @@ test('iOS native startup and teardown share a lock and stop waits for cleanup',(
   assert.match(ios,/startup\?\.cancel\(\)/);
   assert.match(ios,/try startNative\(config, keepRunning: \{ !Task\.isCancelled \}\)/);
   assert.match(ios,/stopNative\(\)\s*completionHandler\(\)/);
+});
+
+test('iOS removes stale libbox credentials before native setup, and removes runtime cache on stop',()=>{
+  const start=iosPlatform.indexOf('final class VainahLibboxRuntime');
+  const cache=iosPlatform.indexOf('temporaryStorage = base',start);
+  const purge=iosPlatform.indexOf('try files.removeItem(at: base)',cache);
+  const setup=iosPlatform.indexOf('LibboxSetup(setup, &error)',purge);
+  assert.ok(start>=0&&cache>start&&purge>cache&&setup>purge);
+  assert.match(iosPlatform,/if files\.fileExists\(atPath: base\.path\) \{/);
+  assert.match(iosPlatform,/try\? FileManager\.default\.removeItem\(at: privateDirectory\)/);
+  assert.match(iosPlatform,/resourceValues\.isExcludedFromBackup = true/);
+  assert.match(iosPlatform,/FileProtectionType\.completeUntilFirstUserAuthentication/);
 });
 
 test('Android removes all plaintext native snapshots before download and after stop',()=>{
