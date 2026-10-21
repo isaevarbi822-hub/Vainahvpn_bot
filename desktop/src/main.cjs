@@ -70,9 +70,29 @@ app.whenReady().then(()=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(process.platform!=='win32'||!chosenFile)return {ok:false,message:'Сначала выбери Xray JSON на Windows'};
     try{
+      // Re-open defensively: the selected file may have changed since inspection.
       const stat=await fs.lstat(chosenFile);
       if(!stat.isFile()||stat.size>1024*1024)return {ok:false,message:'Неверный файл'};
-      const payload=await fs.readFile(chosenFile,'utf8');
+      const flags=require('node:fs').constants;
+      const handle=await fs.open(chosenFile,flags.O_RDONLY | (flags.O_NOFOLLOW||0));
+      let payload;
+      try{
+        const info=await handle.stat();
+        if(!info.isFile()||info.size>1024*1024)return {ok:false,message:'JSON слишком большой'};
+        const chunks=[];
+        let size=0;
+        const buffer=Buffer.alloc(64*1024);
+        while(true){
+          const {bytesRead}=await handle.read(buffer,0,buffer.length,null);
+          if(!bytesRead)break;
+          size+=bytesRead;
+          if(size>1024*1024)return {ok:false,message:'JSON слишком большой'};
+          chunks.push(Buffer.from(buffer.subarray(0,bytesRead)));
+        }
+        payload=Buffer.concat(chunks).toString('utf8');
+        buffer.fill(0);
+        for(const chunk of chunks)chunk.fill(0);
+      }finally{await handle.close()}
       const checked=await validateWithSingBox(enginePath(),payload);
       if(!checked.ok)return {ok:false,message:'Проверка sing-box не прошла'};
       const result=await engineSession.start(enginePath(),payload);
