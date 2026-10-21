@@ -120,6 +120,7 @@ jobs:
           -configuration Debug
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath '${{ runner.temp }}/vainah-ios-test-build'
           CODE_SIGNING_ALLOWED=NO
           build-for-testing
       - name: Run native iOS XCTest on an available iPhone simulator
@@ -137,14 +138,17 @@ jobs:
             echo "No iPhone simulator on the runner; native tests cannot be verified"
             exit 1
           fi
+          XCTESTRUN=$(find "$RUNNER_TEMP/vainah-ios-test-build/Build/Products" \
+            -maxdepth 1 -name '*.xctestrun' -type f | head -n 1)
+          test -n "$XCTESTRUN" || { echo "Prepared XCTest bundle missing"; exit 1; }
+          # Reuse compile output instead of rebuilding the full app/tests.
+          # Force one simulator to avoid a second XCTest launch bottleneck.
           xcodebuild \
-            -project native/ios/VainahVPN.xcodeproj \
-            -scheme VainahVPN \
-            -configuration Debug \
+            -xctestrun "$XCTESTRUN" \
             -destination "platform=iOS Simulator,id=$SIMULATOR" \
-            CODE_SIGNING_ALLOWED=NO \
+            -parallel-testing-enabled NO \
             -only-testing:VainahVPNTests \
-            test
+            test-without-building
 
   windows:
     name: Windows test installer — real core (VPN unverified)
