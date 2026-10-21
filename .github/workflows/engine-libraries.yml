@@ -61,8 +61,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
-      - name: Compile Android client with bundled native core (VPN remains disabled)
-        run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
+      - name: Compile actual libbox-to-VpnService bridge and Android unit tests
+        run: |
+          test -f native/android/app/src/engine/java/app/vainah/vpn/LibboxTunnelEngine.kt
+          gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
       - name: Retain upstream license with native library
         run: cp upstream/LICENSE upstream/LIBBOX-LICENSE.txt
       - uses: actions/upload-artifact@v4
