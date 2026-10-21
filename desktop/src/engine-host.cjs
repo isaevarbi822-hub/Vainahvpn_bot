@@ -11,13 +11,26 @@ const {spawn}=require('node:child_process');
 const {loadSubscription,fromSubscriptionText,toTunConfig}=require('../shared/engine-config.cjs');
 
 class EngineHost {
-  constructor(platform=process.platform){
+  constructor(platform=process.platform,resourcesDir=process.resourcesPath){
     this.platform=platform;
     this.executable=null;
     this.proc=null;
     this.temp=null;
     this.generation=0;
     this.phase='unavailable';
+    // CI packages SHA-256-checked official binaries as independent processes.
+    // Manual selection remains a fallback for development builds.
+    if(typeof resourcesDir==='string'&&['darwin','win32'].includes(platform)){
+      const name=platform==='win32'?'sing-box.exe':
+        process.arch==='arm64'?'sing-box-darwin-arm64':'sing-box-darwin-amd64';
+      const binary=path.join(resourcesDir,'engines',name);
+      try{
+        if(fs.statSync(binary).isFile()){
+          this.executable=binary;
+          this.phase='ready';
+        }
+      }catch{ /* UI preview without a bundled core fails closed. */ }
+    }
   }
   status(){
     const phase=this.phase;
@@ -25,7 +38,7 @@ class EngineHost {
       state:phase,
       protected:false,
       explanation:{
-        unavailable:'Нужно выбрать официальный sing-box 1.14. VPN выключен.',
+        unavailable:'Встроенный sing-box недоступен. Можно выбрать официальный файл вручную. VPN выключен.',
         ready:'Движок выбран. VPN пока не подключён.',
         preparing:'Подготовка Reality-конфигурации. VPN ещё не активен.',
         running:'Сетевой процесс запущен. Защита маршрутов и DNS ещё не проверена.',
