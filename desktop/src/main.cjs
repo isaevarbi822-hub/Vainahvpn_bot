@@ -186,6 +186,10 @@ app.whenReady().then(()=>{
     if(process.platform!=='win32'||(!chosenFile&&!chosenDirectProfile))return {ok:false,message:'Сначала добавь VLESS-ключ или Xray JSON'};
     try{
       if(chosenDirectProfile){
+        // Validate imported HTTPS/VLESS profiles before touching TUN or routes.
+        const checked=await validateWithSingBox(enginePath(),chosenDirectProfile);
+        if(!checked.ok)return {ok:false,protected:false,
+          message:'Не удалось проверить конфигурацию sing-box. VPN не запущен.'};
         const result=await engineSession.start(enginePath(),chosenDirectProfile);
         return {ok:result.ok,state:engineSession.status.state,protected:false,
           message:result.ok?'Движок запущен, VPN ещё не подтверждён':'Запуск движка не удался'};
