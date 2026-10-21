@@ -13,6 +13,8 @@ on:
       - "desktop/ui/index.html"
       - "netlify/functions/lib/plan-catalog.mjs"
       - "netlify/functions/lib/rollypay-client.mjs"
+      - "netlify/functions/lib/rollypay-production-validation.mjs"
+      - "tests/rollypay-production-validation.test.mjs"
       - "netlify/functions/rollypay-live-webhook.mjs"
       - "netlify/functions/rollypay-sandbox.mjs"
       - ".github/workflows/payment-staging-safety.yml"
@@ -37,6 +39,7 @@ jobs:
         run: >
           node --test
           tests/live-checkout.test.mjs
+          tests/rollypay-production-validation.test.mjs
           tests/rollypay-sandbox.test.mjs
           tests/rollypay.test.mjs
           tests/sandbox-h1-delivery.test.mjs
