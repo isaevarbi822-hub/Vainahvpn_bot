@@ -29,6 +29,22 @@ final class H1SubscriptionDiscoveryTests: XCTestCase {
         XCTAssertFalse(String(describing: summary).contains("host.invalid"))
     }
 
+    func testJSONDiscoveryShowsOnlyValidatedRealityTransport() throws {
+        let uri = prefix + "tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome"
+        let config = try MobileRealityConfig.fromVlessLink(uri)
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: Data(config.utf8)) as? [String: Any])
+        let outbound = try XCTUnwrap((parsed["outbounds"] as? [[String: Any]])?.first)
+        let json = try String(data: JSONSerialization.data(
+            withJSONObject: ["outbounds": [outbound]]), encoding: .utf8)!
+        let summary = try H1SubscriptionDiscovery.parse(json)
+        XCTAssertEqual(summary.realityProfiles, 1)
+        XCTAssertEqual(summary.profiles, 1)
+        XCTAssertEqual(summary.transports, [.tcp])
+        XCTAssertFalse(String(describing: summary).contains("123e4567"))
+        XCTAssertFalse(String(describing: summary).contains("host.invalid"))
+    }
+
     func testRejectsOversizedPayload() {
         XCTAssertThrowsError(try H1SubscriptionDiscovery.parse(String(repeating: "a", count: 262145)))
     }
