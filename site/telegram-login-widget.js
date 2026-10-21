@@ -15,7 +15,7 @@
       const script=document.createElement('script');
       script.async=true;
       script.src='https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login','Vainahvpn_bot');
+      script.setAttribute('data-telegram-login','VainahVPNbot');
       script.setAttribute('data-size','large');
       script.setAttribute('data-radius','12');
       script.setAttribute('data-onauth',callback);
