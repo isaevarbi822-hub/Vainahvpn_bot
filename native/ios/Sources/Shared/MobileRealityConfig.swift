@@ -23,20 +23,27 @@ enum MobileRealityConfig {
     static func fromSubscription(_ input: String) throws -> String {
         guard input.utf8.count <= maxBytes else { throw ConfigError.unavailable }
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        let plain: String
-        if trimmed.contains("vless://") {
-            plain = trimmed
+        let lines: [String]
+        if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") {
+            // H1Cloud also exports sing-box JSON. Rebuild only reviewed
+            // Reality outbounds, then use the SAME strict URI validator.
+            lines = try H1SingBoxJSON.candidates(trimmed)
         } else {
-            guard matches(trimmed, pattern: "^[A-Za-z0-9+/=\\r\\n]+$"),
-                  let data = Data(base64Encoded: trimmed, options: .ignoreUnknownCharacters),
-                  data.count <= maxBytes,
-                  let output = String(data: data, encoding: .utf8)
-            else { throw ConfigError.unavailable }
-            plain = output
+            let plain: String
+            if trimmed.contains("vless://") {
+                plain = trimmed
+            } else {
+                guard matches(trimmed, pattern: "^[A-Za-z0-9+/=\\r\\n]+$"),
+                      let data = Data(base64Encoded: trimmed, options: .ignoreUnknownCharacters),
+                      data.count <= maxBytes,
+                      let output = String(data: data, encoding: .utf8)
+                else { throw ConfigError.unavailable }
+                plain = output
+            }
+            lines = plain.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
         }
-        let lines = plain.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
         guard lines.count <= 256 else { throw ConfigError.unavailable }
         // Prefer the proven TCP profile; accept genuine gRPC only if
         // no supported TCP server exists. Never map XHTTP to another type.
