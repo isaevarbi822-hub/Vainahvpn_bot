@@ -99,6 +99,17 @@ jobs:
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
           go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
           "$(go env GOPATH)/bin/gomobile" init
+      - name: Exclude unused NaiveProxy/Cronet from iOS packet extension
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("upstream/cmd/internal/build_libbox/main.go")
+          code = source.read_text()
+          token = '"with_naive_outbound", '
+          if code.count(token) != 1:
+              raise SystemExit("Unexpected upstream Apple build tags")
+          source.write_text(code.replace(token, ""))
+          PY
       - name: Build Apple iOS libbox XCFramework
         working-directory: upstream
         run: go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator
