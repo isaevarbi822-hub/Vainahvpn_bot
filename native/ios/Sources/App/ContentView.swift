@@ -304,6 +304,15 @@ struct ContentView: View {
                     Task { await tunnel.connect() }
                 }
                 .padding(.top, 3)
+                Text(saved ? "✓ HTTPS-подписка сохранена в Keychain" :
+                             "Сначала добавь личную HTTPS-ссылку H1Cloud.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(VainahDesign.muted)
+                    .multilineTextAlignment(.center)
+                callToAction(saved ? "Изменить VPN-подписку" :
+                                     "Ввести ссылку подписки H1Cloud") {
+                    selected = .account
+                }
                 Text("Реальный статус, без имитации защиты.")
                     .font(.system(size: 11))
                     .foregroundStyle(VainahDesign.muted)
