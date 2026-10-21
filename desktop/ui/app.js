@@ -102,6 +102,20 @@
       connectButton.disabled=false;
     }
   });
+  const importButton=document.getElementById('import-vless');
+  importButton.addEventListener('click',async()=>{
+    const field=document.getElementById('vless-key');
+    const status=document.getElementById('vless-import-status');
+    if(!window.vainah?.importVlessLink)return;
+    importButton.disabled=true;
+    const link=field.value;
+    field.value='';
+    try{
+      const result=await window.vainah.importVlessLink(link);
+      status.textContent=result?.message||'Ошибка проверки ключа';
+    }catch{status.textContent='Ошибка импорта VLESS-ключа';}
+    finally{importButton.disabled=false;}
+  });
   const inspectButton=document.getElementById('inspect-xray');
   inspectButton.addEventListener('click',async()=>{
     if(!window.vainah?.inspectXrayFile)return;
