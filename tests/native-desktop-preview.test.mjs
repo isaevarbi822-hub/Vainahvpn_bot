@@ -44,7 +44,7 @@ test('Desktop uses the website design and guides users honestly',()=>{
   assert.match(html,/VPN не активен/);
   assert.match(html,/Пока приложение не подключает VPN/);
   assert.match(html,/id="vless-key"/);
-  assert.match(html,/type="password"/);
+  assert.match(html,/<input[^>]*id="vless-key"[^>]*type="text"/);
   assert.doesNotMatch(html,/<iframe|<webview/);
 });
 
