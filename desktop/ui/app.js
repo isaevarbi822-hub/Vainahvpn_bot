@@ -150,6 +150,23 @@
     await window.vainah?.stopLocalEngine?.().catch(()=>null);
     await refreshEngine();
   });
+  document.getElementById('test-network').addEventListener('click',async()=>{
+    const button=document.getElementById('test-network');
+    const status=document.getElementById('network-test-result');
+    if(!window.vainah?.testNetworkFamilies)return;
+    button.disabled=true;
+    status.textContent='Проверяем HTTPS-доступность IPv4 и IPv6…';
+    try{
+      const result=await window.vainah.testNetworkFamilies().catch(()=>null);
+      if(!result?.attempted){
+        status.textContent='Сначала запусти тестовый VPN-процесс.';
+        return;
+      }
+      status.textContent='HTTPS IPv4: '+(result.ipv4?'доступен':'не подтверждён')+
+        ' · HTTPS IPv6: '+(result.ipv6?'доступен':'не подтверждён')+
+        '. Это НЕ доказывает работу VPN, отсутствие DNS-утечек или маршрут через H1Cloud.';
+    }finally{button.disabled=false}
+  });
   window.setInterval(()=>{void refreshEngine()},3000);
   document.getElementById('close-dialog').addEventListener('click',()=>dialog.close());
   document.getElementById('dialog-ok').addEventListener('click',()=>dialog.close());
