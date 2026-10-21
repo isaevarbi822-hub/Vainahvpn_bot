@@ -80,6 +80,27 @@
       'Это демонстрация Vainah VPN. Движок H1Cloud/VLESS ещё не встроен, поэтому программа не шифрует трафик и не меняет системные VPN-настройки.';
     dialog.showModal();
   });
+  const inspectButton=document.getElementById('inspect-xray');
+  inspectButton.addEventListener('click',async()=>{
+    if(!window.vainah?.inspectXrayFile)return;
+    inspectButton.disabled=true;
+    const status=document.getElementById('xray-inspection-status');
+    status.textContent='Проверяем выбранный файл локально…';
+    try {
+      const result=await window.vainah.inspectXrayFile();
+      if(result?.cancelled)status.textContent='Выбор отменён.';
+      else if(!result?.ok)status.textContent=result?.message||'Не удалось прочитать конфигурацию.';
+      else {
+        const profiles=Array.isArray(result.profiles)?result.profiles:[];
+        status.textContent=profiles.length
+          ?'Найдено профилей VLESS + REALITY: '+profiles.length+
+           '. Транспорты: '+[...new Set(profiles.map(x=>x.transport))].join(', ')+
+           '. Это проверка структуры, VPN ещё не подключён.'
+          :'Подходящих профилей VLESS + REALITY не найдено.';
+      }
+    } catch {status.textContent='Не удалось проверить файл.'}
+    finally {inspectButton.disabled=false}
+  });
   document.getElementById('close-dialog').addEventListener('click',()=>dialog.close());
   document.getElementById('dialog-ok').addEventListener('click',()=>dialog.close());
   document.getElementById('dialog-guide').addEventListener('click',()=>{dialog.close();showPage('guide')});
