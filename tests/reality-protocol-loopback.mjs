@@ -8,6 +8,7 @@ import {createRequire} from 'node:module';
 
 const require=createRequire(import.meta.url);
 const {validateTcpReality}=require('../desktop/shared/engine-config.cjs');
+import {toSingBoxRealityOutbound} from '../services/control-plane/singbox-reality-adapter.mjs';
 
 async function vacantPort(){
  return await new Promise((resolve,reject)=>{
@@ -20,6 +21,8 @@ async function vacantPort(){
  });
 }
 const core=process.argv[2];
+const transport=process.argv[3]||'tcp';
+if(!['tcp','grpc'].includes(transport))throw Error('TRANSPORT_NOT_TESTED');
 if(!core||!path.isAbsolute(core))throw Error('PINNED_SINGBOX_PATH_REQUIRED');
 let keypair;
 try{keypair=execFileSync(core,['generate','reality-keypair'],{encoding:'utf8',timeout:10000})}
@@ -34,14 +37,16 @@ const proxyPort=await vacantPort();
 if(serverPort===proxyPort)throw Error('PORT_COLLISION');
 const sni='www.cloudflare.com';
 const dummyUri='vless://'+id+'@127.0.0.1:'+serverPort+
- '?security=reality&type=tcp&sni='+sni+'&pbk='+publicKey+
- '&sid='+sid+'&fp=chrome&flow=xtls-rprx-vision';
-const outbound=validateTcpReality(dummyUri);
+ '?security=reality&type='+transport+'&sni='+sni+'&pbk='+publicKey+
+ '&sid='+sid+'&fp=chrome'+
+ (transport==='tcp'?'&flow=xtls-rprx-vision':'&serviceName=vainah-test-grpc');
+const outbound=transport==='tcp'?validateTcpReality(dummyUri):
+ toSingBoxRealityOutbound(dummyUri);
 const serverConfig={
  log:{level:'error'},
  inbounds:[{
   type:'vless',tag:'reality-in',listen:'127.0.0.1',listen_port:serverPort,
-  users:[{uuid:id,flow:'xtls-rprx-vision'}],
+  users:transport==='tcp'?[{uuid:id,flow:'xtls-rprx-vision'}]:[{uuid:id}],
   tls:{
    enabled:true,server_name:sni,
    reality:{
@@ -49,7 +54,8 @@ const serverConfig={
     handshake:{server:sni,server_port:443},
     private_key:privateKey,short_id:[sid]
    }
-  }
+  },
+  ...(transport==='grpc'?{transport:{type:'grpc',service_name:'vainah-test-grpc'}}:{})
  }],
  outbounds:[{type:'direct',tag:'direct'}],
  route:{final:'direct'}
@@ -91,7 +97,7 @@ try{
   await new Promise(resolve=>setTimeout(resolve,1100));
  }
  if(!passed)throw Error('REALITY_SYNTHETIC_PROXY_EGRESS_NOT_CONFIRMED');
- process.stdout.write('VLESS Reality TCP: real encrypted sing-box loopback proxy and HTTPS egress verified with GENERATED test keys; H1Cloud/device TUN still untested.\n');
+ process.stdout.write('VLESS Reality '+transport.toUpperCase()+': encrypted loopback proxy and HTTPS egress verified with GENERATED test keys; H1Cloud/device TUN still untested.\n');
 }finally{
  for(const child of children){try{child.kill('SIGTERM')}catch{}}
  fs.rmSync(work,{recursive:true,force:true});
