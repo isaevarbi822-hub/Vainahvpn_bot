@@ -53,11 +53,17 @@ jobs:
               JSON.stringify(createDesktopTunConfig(link,platform)));
             fs.writeFileSync(`/tmp/vainah-runtime-${platform}.json`,
               JSON.stringify(toTunConfig(fromSubscriptionText(link),platform)));
+            // Validate a distinct H1Cloud gRPC Reality profile against the
+            // stock pinned sing-box engine; network I/O is NOT exercised.
+            const grpc=link.replace('type=tcp','type=grpc')+'&serviceName=vainah-svc';
+            fs.writeFileSync(`/tmp/vainah-grpc-${platform}.json`,
+              JSON.stringify(createDesktopTunConfig(grpc,platform)));
           }
           JS
           for platform in darwin win32; do
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-prototype-${platform}.json"
             /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-runtime-${platform}.json"
+            /tmp/sing-box-1.14.3-linux-amd64/sing-box check -c "/tmp/vainah-grpc-${platform}.json"
           done
           node tests/check-android-reality-schema.cjs /tmp/sing-box-1.14.3-linux-amd64/sing-box
 
