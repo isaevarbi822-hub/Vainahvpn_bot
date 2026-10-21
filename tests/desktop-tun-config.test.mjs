@@ -18,12 +18,19 @@ test('creates full TCP Reality TUN config for Windows and macOS',()=>{
   assert.equal(c.inbounds[0].strict_route,os==='win32'?true:undefined);
  }
 });
+test('gRPC+Reality prepares a distinct verified-schema transport without claiming VPN',()=>{
+ const c=createDesktopTunConfig(grpc,'darwin');
+ assert.deepEqual(c.outbounds[0].transport,{type:'grpc',service_name:'srv'});
+ assert.equal(c.outbounds[0].tls.reality.enabled,true);
+ assert.equal(c.route.final,'vainah-primary');
+ assert.equal('protected' in c,false);
+});
 test('selects TCP only, never substitutes gRPC/XHTTP or claims protection',()=>{
  const found=selectTcpRealityProfile([grpc,tcp].join('\n'));
  assert.equal(found,tcp);
  assert.throws(()=>selectTcpRealityProfile(grpc),/TCP_REALITY_PROFILE_NOT_FOUND/);
  assert.throws(()=>selectTcpRealityProfile(tcp.replace('type=tcp','type=xhttp')),/TCP_REALITY_PROFILE_NOT_FOUND/);
- assert.throws(()=>createDesktopTunConfig(grpc,'win32'),/TRANSPORT_NOT_TESTED/);
+ assert.deepEqual(createDesktopTunConfig(grpc,'win32').outbounds[0].transport, {type:'grpc',service_name:'srv'});
  assert.throws(()=>createDesktopTunConfig(tcp,'linux'),/PLATFORM_UNSUPPORTED/);
  const config=createDesktopTunConfig(tcp,'win32');
  assert.equal('protected' in config,false);
