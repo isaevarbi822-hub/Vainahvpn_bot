@@ -8,6 +8,7 @@ on:
       - ".github/workflows/engine-libraries.yml"
       - "native/ios/project.yml"
       - "native/ios/Sources/TunnelExtension/**"
+      - "native/ios/scripts/link-libbox-preview.py"
   workflow_dispatch:
 
 permissions:
