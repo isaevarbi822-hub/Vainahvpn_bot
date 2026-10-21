@@ -6,6 +6,7 @@ const { plans } = require('../shared/catalog.cjs');
 const { PUBLIC_CAPABILITIES } = require('../shared/h1-protocol.cjs');
 const { EngineHost } = require('./engine-host.cjs');
 const { SubscriptionStore } = require('./subscription-store.cjs');
+const { probeOutbound } = require('./tunnel-probe.cjs');
 
 let mainWindow;
 const engine = new EngineHost();
@@ -77,6 +78,7 @@ app.whenReady().then(()=>{
     return secret?engine.start(secret):{ok:false,code:'SUBSCRIPTION_REQUIRED'};
   });
   ipcMain.handle('vainah:engine:stop',event=>authorizedSender(event)?engine.stop():{ok:false});
+  ipcMain.handle('vainah:diagnostics:probe',event=>authorizedSender(event)?probeOutbound(engine):{attempted:false,ipv4:false,ipv6:false,dnsLeakChecked:false,vpnVerified:false});
   ipcMain.handle('vainah:capabilities',event=>authorizedSender(event)?PUBLIC_CAPABILITIES:null);
   ipcMain.handle('vainah:open-official',async(event,name)=>{
     if(!authorizedSender(event))return {ok:false};
