@@ -160,7 +160,29 @@ app.whenReady().then(()=>{
       return {ok:true};
     }catch{return {ok:false}}
   });
-  app.on('before-quit',()=>{void engineSession.stop()});
+  // Electron must wait for the engine to stop before quitting; otherwise its
+  // child process can survive with system routes still active.
+  let quitCleanupPending=false;
+  let quitCleanupDone=false;
+  app.on('before-quit',event=>{
+    if(quitCleanupDone)return;
+    event.preventDefault();
+    if(quitCleanupPending)return;
+    quitCleanupPending=true;
+    void engineSession.stop().then(result=>{
+      quitCleanupPending=false;
+      if(result.ok){
+        quitCleanupDone=true;
+        app.quit();
+      }else{
+        // Keep the UI open when we cannot safely stop the native engine.
+        if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();
+      }
+    }).catch(()=>{
+      quitCleanupPending=false;
+      if(mainWindow&&!mainWindow.isDestroyed())mainWindow.show();
+    });
+  });
   createWindow();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow()});
 }).catch(()=>{app.quit()});
