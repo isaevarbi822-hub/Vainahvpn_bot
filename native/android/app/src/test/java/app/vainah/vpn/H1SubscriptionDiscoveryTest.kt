@@ -27,6 +27,19 @@ class H1SubscriptionDiscoveryTest {
         assertTrue(summary.transports.isEmpty())
     }
 
+    @Test fun inspectsSupportedJsonRealityWithoutExposingItsCredentials() {
+        val uri = "vless://123e4567-e89b-42d3-a456-426614174000@vpn.invalid:443?security=reality&type=tcp&sni=www.example.org&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=abcd&fp=chrome"
+        val config = MobileRealityConfig.fromVlessLink(uri)
+        val json = org.json.JSONObject().put("outbounds",
+            org.json.JSONObject(config).getJSONArray("outbounds")).toString()
+        val result = H1SubscriptionDiscovery.parse(json)
+        assertEquals(1, result.profiles)
+        assertEquals(1, result.realityProfiles)
+        assertEquals(setOf(H1SubscriptionDiscovery.Transport.TCP), result.transports)
+        assertFalse(result.toString().contains("vpn.invalid"))
+        assertFalse(result.toString().contains("123e4567"))
+    }
+
     @Test fun credentialsNeverAppearInSummary() {
         val summary = H1SubscriptionDiscovery.parse(tcp)
         assertFalse(summary.toString().contains("123e4567"))
