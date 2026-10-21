@@ -22,6 +22,9 @@ const messages=Object.freeze({
   JSON:'H1_JSON_HAS_NO_SUPPORTED_REALITY_PROFILE',
   FORMAT:'H1_SUBSCRIPTION_FORMAT_UNSUPPORTED',
   VLESS:'H1_VLESS_PROFILES_NOT_COMPATIBLE',
+  EXTRA:'H1_REALITY_HAS_UNSUPPORTED_QUERY_PARAMETERS',
+  MISSING:'H1_REALITY_REQUIRED_FIELDS_MISSING',
+  TRANSPORT:'H1_REALITY_TRANSPORT_NOT_TCP_OR_GRPC',
   CORE:'H1_SINGBOX_CONFIG_REJECTED',
   PROXY:'H1_REALITY_PROXY_HTTPS_NOT_CONFIRMED',
 });
@@ -39,6 +42,36 @@ function secureTestUrl(value){
      /\.(?:local|internal|localhost|invalid|test)$/i.test(url.hostname)||
      !url.hostname.includes('.'))stopWithCode(messages.INVALID_URL);
   return safe;
+}
+// Return only static issue categories; never log hosts, UUIDs, URLs,
+// query parameter names/values or raw subscription content.
+function categorizeVlessFailure(input){
+  let value=input.trim();
+  if(!value.includes('vless://')){
+    try{value=Buffer.from(value,'base64').toString('utf8')}catch{}
+  }
+  const lines=value.split(/\r?\n/).filter(x=>x.startsWith('vless://')).slice(0,256);
+  let foundSupportedTransport=false;
+  let foundReality=false;
+  let extra=false;
+  let missing=false;
+  const known=new Set(['security','type','sni','pbk','sid','fp','flow',
+    'encryption','headerType','serviceName','spx']);
+  for(const line of lines){
+    let u;
+    try{u=new URL(line)}catch{continue}
+    if(u.searchParams.get('security')!=='reality')continue;
+    foundReality=true;
+    const transport=u.searchParams.get('type');
+    if(transport!=='tcp'&&transport!=='grpc')continue;
+    foundSupportedTransport=true;
+    if([...u.searchParams.keys()].some(k=>!known.has(k)))extra=true;
+    if(!u.searchParams.get('sni')||!u.searchParams.get('pbk'))missing=true;
+  }
+  if(extra)return messages.EXTRA;
+  if(missing)return messages.MISSING;
+  if(foundReality&&!foundSupportedTransport)return messages.TRANSPORT;
+  return messages.VLESS;
 }
 function pickSafePort(){
   return new Promise((resolve,reject)=>{
@@ -72,7 +105,7 @@ async function main(){
     if(code==='SUBSCRIPTION_FORMAT_UNSUPPORTED'||code==='SUBSCRIPTION_INVALID')
       stopWithCode(messages.FORMAT);
     if(code==='REALITY_SUPPORTED_TRANSPORT_NOT_FOUND')
-      stopWithCode(messages.VLESS);
+      stopWithCode(categorizeVlessFailure(plaintext));
     stopWithCode(messages.PROFILE);
   }
   plaintext=null;
