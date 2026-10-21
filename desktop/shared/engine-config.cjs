@@ -5,27 +5,32 @@ const PBK=/^[a-zA-Z0-9_-]{43}$/;
 const SID=/^(?:[0-9a-f]{2}){0,8}$/i;
 const FINGERPRINTS=new Set(['chrome','firefox','safari','ios','android','edge']);
 const ALLOWED=new Set(['security','type','sni','pbk','sid','fp','flow','encryption','headerType']);
+const GRPC_ALLOWED=new Set([...ALLOWED,'serviceName']);
 
-function validateTcpReality(link){
+function validateReality(link,transport){
   let uri;
   try{uri=new URL(link)}catch{throw Error('PROFILE_INVALID')}
   if(uri.protocol!=='vless:'||!UUID.test(uri.username)||!uri.hostname||
      uri.password||!Number.isInteger(Number(uri.port))||Number(uri.port)<1||
      Number(uri.port)>65535||uri.hostname.length>253)throw Error('PROFILE_INVALID');
   const params=uri.searchParams;
-  if(params.get('security')!=='reality'||params.get('type')!=='tcp'||
+  if(params.get('security')!=='reality'||params.get('type')!==transport||
      !PBK.test(params.get('pbk')||'')||!SID.test(params.get('sid')||'')||
      !/^[a-z0-9.-]+$/i.test(params.get('sni')||'')||
      !(params.get('sni')||'').includes('.')||
      !FINGERPRINTS.has(params.get('fp')||'chrome')||
-     !['','xtls-rprx-vision'].includes(params.get('flow')||''))
+     !(transport==='tcp'?
+       ['','xtls-rprx-vision'].includes(params.get('flow')||''):
+       (params.get('flow')||'')===''))
+    
     throw Error('PROFILE_UNSUPPORTED');
   // Standard VLESS links frequently include explicit default parameters.
   // They do not change the outbound; non-default encryption/headers remain blocked.
   if(!['', 'none'].includes(params.get('encryption')||'')||
      !['', 'none'].includes(params.get('headerType')||''))
     throw Error('PROFILE_UNSUPPORTED');
-  for(const [key] of params)if(!ALLOWED.has(key)||params.getAll(key).length!==1)
+  for(const [key] of params)if(!(transport==='grpc'?GRPC_ALLOWED:ALLOWED).has(key)||
+     params.getAll(key).length!==1)
     throw Error('PROFILE_UNSUPPORTED');
   const outbound={
     type:'vless',tag:'vainah-primary',server:uri.hostname,
@@ -37,8 +42,16 @@ function validateTcpReality(link){
     }
   };
   if(params.get('flow'))outbound.flow=params.get('flow');
+  if(transport==='grpc'){
+    const service=params.get('serviceName')||'';
+    if(!/^[a-zA-Z0-9._/-]{1,128}$/.test(service))
+      throw Error('PROFILE_UNSUPPORTED');
+    outbound.transport={type:'grpc',service_name:service};
+  }
   return outbound;
 }
+function validateTcpReality(link){return validateReality(link,'tcp')}
+function validateGrpcReality(link){return validateReality(link,'grpc')}
 function fromSubscriptionText(input){
   if(typeof input!=='string'||Buffer.byteLength(input)>MAX_BYTES)throw Error('SUBSCRIPTION_INVALID');
   let text=input.trim();
@@ -49,11 +62,18 @@ function fromSubscriptionText(input){
   if(Buffer.byteLength(text)>MAX_BYTES)throw Error('SUBSCRIPTION_INVALID');
   const rows=text.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   if(rows.length>256)throw Error('SUBSCRIPTION_TOO_LARGE');
+  // Prefer a tested TCP profile; use the distinct real gRPC transport
+  // only when no valid TCP profile exists. Never silently map XHTTP to TCP.
+  let grpcCandidate=null;
   for(const link of rows){
     if(!link.startsWith('vless://'))continue;
-    try{return validateTcpReality(link)}catch{ /* Try other profiles. */ }
+    try{return validateTcpReality(link)}catch{ /* Try next transport. */ }
+    if(!grpcCandidate){
+      try{grpcCandidate=validateGrpcReality(link)}catch{ /* Unsupported. */ }
+    }
   }
-  throw Error('TCP_REALITY_NOT_FOUND');
+  if(grpcCandidate)return grpcCandidate;
+  throw Error('REALITY_SUPPORTED_TRANSPORT_NOT_FOUND');
 }
 function toTunConfig(outbound,platform){
   if(!['win32','darwin'].includes(platform))throw Error('PLATFORM_UNSUPPORTED');
@@ -108,4 +128,4 @@ async function loadSubscription(urlText, fetcher=fetch){
     return Buffer.concat(chunks).toString('utf8');
   }catch{throw Error('SUBSCRIPTION_FAILED')}
 }
-module.exports={validateTcpReality,fromSubscriptionText,toTunConfig,loadSubscription};
+module.exports={validateTcpReality,validateGrpcReality,fromSubscriptionText,toTunConfig,loadSubscription};
