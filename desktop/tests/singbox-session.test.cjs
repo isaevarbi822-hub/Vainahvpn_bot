@@ -55,3 +55,36 @@ test('mock engine exits and removes sensitive temporary config',async()=>{
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+test('an engine that exits immediately after spawn is not treated as started',async()=>{
+ const fs=require('node:fs/promises');
+ const os=require('node:os');
+ const path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-early-exit-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const payload={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ const session=new SingBoxSession({platform:'win32',runner:()=>{
+   const child=new EventEmitter();
+   child.kill=()=>true;
+   queueMicrotask(()=>{
+     child.emit('spawn');
+     setImmediate(()=>child.emit('exit',1));
+   });
+   return child;
+ }});
+ try{
+   const started=await session.start(binary,payload);
+   assert.equal(started.ok,false);
+   assert.equal(session.status.state,'stopped');
+   assert.equal(session.status.protected,false);
+ }finally{
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
