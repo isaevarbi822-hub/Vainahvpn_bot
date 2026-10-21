@@ -14,7 +14,7 @@ test('translates offline TCP REALITY profile into tun config',()=>{
 });
 test('refuses unsupported transport and missing parameters',()=>{
  const p=sample();p.outbounds[0].streamSettings.network='grpc';
- assert.throws(()=>buildSingBoxConfig(p),/Only VLESS TCP REALITY/);
+ assert.throws(()=>buildSingBoxConfig(p),/VLESS outbound required/);
  p.outbounds[0].streamSettings.network='tcp';
  delete p.outbounds[0].streamSettings.realitySettings.publicKey;
  assert.throws(()=>buildSingBoxConfig(p));
