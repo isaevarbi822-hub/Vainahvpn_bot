@@ -88,6 +88,39 @@
       status.protected===true?'Состояние проверяется…':
       status.explanation||'VPN пока не подтверждён.';
   }
+  async function refreshSavedSubscription(){
+    const status=await window.vainah?.getSubscriptionStatus?.().catch(()=>null);
+    const label=document.getElementById('saved-subscription-status');
+    if(!status){label.textContent='Подписку можно сохранить только в установленном приложении.';return}
+    label.textContent=!status.secureStorageAvailable?
+      'Системное шифрование недоступно. Ссылка не будет сохранена.':
+      status.saved?'✓ Подписка зашифрована и сохранена только на этом устройстве.':
+      'Подписка не сохранена. Вставь HTTPS-ссылку H1Cloud.';
+    document.getElementById('save-subscription').disabled=!status.secureStorageAvailable;
+  }
+  document.getElementById('save-subscription').addEventListener('click',async()=>{
+    const field=document.getElementById('engine-link');
+    const secret=field.value;
+    field.value='';
+    if(!window.vainah?.saveSubscription)return;
+    const result=await window.vainah.saveSubscription(secret).catch(()=>({ok:false}));
+    showNotice(result?.ok?'Подписка сохранена':'Не удалось сохранить подписку',
+      result?.ok?'Ссылка зашифрована средствами операционной системы и не отображается после сохранения.':
+      result?.code==='ENCRYPTION_UNAVAILABLE'?
+      'Без системного шифрования приложение не сохраняет приватную ссылку.':
+      'Проверь HTTPS-ссылку и доступность защищённого хранилища.');
+    await refreshSavedSubscription();
+  });
+  document.getElementById('delete-subscription').addEventListener('click',async()=>{
+    if(!window.vainah?.deleteSubscription)return;
+    const result=await window.vainah.deleteSubscription().catch(()=>({ok:false}));
+    document.getElementById('engine-link').value='';
+    showNotice(result?.ok?'Подписка удалена':'Не удалось удалить подписку',
+      result?.ok?'Локальная сохранённая ссылка удалена, а VPN-процесс останавливается.':
+      'Проверь доступ к хранилищу приложения.');
+    await refreshSavedSubscription();
+    await refreshEngine();
+  });
   document.getElementById('choose-core').addEventListener('click',async()=>{
     if(!window.vainah?.chooseLocalEngine)return;
     const result=await window.vainah.chooseLocalEngine().catch(()=>({ok:false}));
@@ -97,14 +130,15 @@
   });
   document.getElementById('connect-button').addEventListener('click',async()=>{
     if(!window.vainah?.startLocalEngine)return;
-    const field=document.getElementById('engine-link');
-    const secret=field.value;
-    field.value='';
-    if(!secret){showNotice('Подписка не указана','Вставь личную HTTPS-ссылку H1Cloud. Не публикуй её.');return}
+    const saved=await window.vainah?.getSubscriptionStatus?.().catch(()=>null);
+    if(!saved?.saved){
+      showNotice('Подписка не сохранена','Сначала вставь HTTPS-ссылку H1Cloud в поле выше и нажми «Сохранить подписку».');
+      return;
+    }
     const button=document.getElementById('connect-button');
     button.disabled=true;
     try{
-      const result=await window.vainah.startLocalEngine(secret).catch(()=>({ok:false}));
+      const result=await window.vainah.startLocalEngine().catch(()=>({ok:false}));
       showNotice(result?.ok?'VPN-процесс запущен':'Проверка не удалась',
         result?.ok?
           'Проверяемая конфигурация передана sing-box, но защита DNS и маршрутов не подтверждена. Не считай VPN подключённым до испытаний.':
@@ -123,6 +157,7 @@
   dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
 
   async function init(){
+    await refreshSavedSubscription();
     if(!window.vainah){
       document.getElementById('platform-chip').textContent='Предпросмотр';
       return;
