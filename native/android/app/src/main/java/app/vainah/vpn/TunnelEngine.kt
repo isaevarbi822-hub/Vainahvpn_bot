@@ -21,5 +21,15 @@ object UnavailableTunnelEngine : TunnelEngine {
 
 object EngineRegistry {
     // Replace only after VPN egress/DNS/IPv6/leak tests pass.
-    val active: TunnelEngine = UnavailableTunnelEngine
+    val active: TunnelEngine by lazy {
+        // The real native adapter only exists in the separately built
+        // libbox AAR integration artifact, never in the public UI preview.
+        try {
+            (Class.forName("app.vainah.vpn.LibboxTunnelEngine")
+                .getDeclaredConstructor().newInstance() as TunnelEngine)
+                .takeIf { it.ready } ?: UnavailableTunnelEngine
+        } catch (_: Throwable) {
+            UnavailableTunnelEngine
+        }
+    }
 }
