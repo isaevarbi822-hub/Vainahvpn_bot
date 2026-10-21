@@ -79,6 +79,52 @@ class MobileRealityConfigTest {
         } catch (_: IllegalArgumentException) { }
     }
 
+    @Test fun singBoxJsonPrefersTcpRealityOverGrpc() {
+        val grpc = tcp.replace("type=tcp", "type=grpc") + "&serviceName=vainah-test"
+        val g = org.json.JSONObject(MobileRealityConfig.fromVlessLink(grpc))
+            .getJSONArray("outbounds").getJSONObject(0)
+        val normal = org.json.JSONObject(MobileRealityConfig.fromVlessLink(tcp))
+            .getJSONArray("outbounds").getJSONObject(0)
+        val json = org.json.JSONObject().put("outbounds",
+            org.json.JSONArray().put(g).put(normal)).toString()
+        val cfg = MobileRealityConfig.fromSubscription(json)
+        assertTrue(cfg.contains("\"type\":\"vless\""))
+        assertFalse(cfg.contains("\"service_name\":\"vainah-test\""))
+        assertTrue(cfg.contains("\"dns_mode\":\"hijack\""))
+        assertTrue(cfg.contains("\"auto_route\":true"))
+    }
+
+    @Test fun singBoxJsonGrpcFallbackAndFailClosedTlsRules() {
+        val grpc = tcp.replace("type=tcp", "type=grpc") + "&serviceName=vainah-test"
+        val g = org.json.JSONObject(MobileRealityConfig.fromVlessLink(grpc))
+            .getJSONArray("outbounds").getJSONObject(0)
+        val pureGrpc = org.json.JSONObject().put("outbounds",
+            org.json.JSONArray().put(g)).toString()
+        val output = MobileRealityConfig.fromSubscription(pureGrpc)
+        assertTrue(output.contains("\"service_name\":\"vainah-test\""))
+        val bad = org.json.JSONObject(g.toString())
+        bad.getJSONObject("tls").put("insecure", true)
+        val cases = listOf(
+            org.json.JSONObject().put("outbounds",org.json.JSONArray().put(bad)).toString(),
+            org.json.JSONObject().put("outbounds",org.json.JSONArray()
+                .put(org.json.JSONObject(g.toString()).put("packet_encoding","xudp"))).toString(),
+            org.json.JSONObject().put("outbounds",org.json.JSONArray()
+                .put(org.json.JSONObject(g.toString()).put("transport",
+                    org.json.JSONObject().put("type","xhttp")))).toString(),
+            "{\"proxies\":[]}",
+            "{invalid"
+        )
+        for (candidate in cases) {
+            try {
+                MobileRealityConfig.fromSubscription(candidate)
+                fail("Unsafe JSON subscription was accepted")
+            } catch (failure: IllegalArgumentException) {
+                assertFalse(failure.message.orEmpty().contains("vpn.example.org"))
+                assertFalse(failure.message.orEmpty().contains("123e4567"))
+            }
+        }
+    }
+
     @Test fun errorMessagesCannotExposeCredentials() {
         try {
             MobileRealityConfig.fromSubscription("not a subscription")
