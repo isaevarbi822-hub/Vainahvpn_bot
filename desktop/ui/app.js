@@ -196,10 +196,20 @@
       renderPlans();
     }
     if(status){
-      document.getElementById('connection-status').textContent=status.explanation;
-      // A future 'connected' visual must only be shown after verified real engine state.
-      if(status.protected!==false||status.state!=='unavailable')
-        document.getElementById('connection-status').textContent='Нет подтверждения защищённого VPN-подключения.';
+      const label=document.getElementById('connection-status');
+      const button=document.getElementById('connect-button');
+      if(status.state==='running-unverified'){
+        label.textContent='VPN-движок запущен, но защищённое соединение не подтверждено.';
+        button.textContent='⏻ Остановить движок';
+      }else if(status.state==='stop-failed'){
+        label.textContent='Ошибка остановки VPN-движка. Повтори отключение.';
+        button.textContent='⏻ Повторить отключение';
+      }else if(status.state==='stopped'){
+        label.textContent='VPN не подключён. Сначала добавь HTTPS-подписку в разделе «Устройства».';
+        button.textContent='⏻ Проверить подключение';
+      }else{
+        label.textContent=status.explanation||'Нет подтверждения VPN-соединения.';
+      }
     }
   }
   void init();
