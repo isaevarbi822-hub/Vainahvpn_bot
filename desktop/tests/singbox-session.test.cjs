@@ -31,6 +31,7 @@ test('mock engine exits and removes sensitive temporary config',async()=>{
  let configPath;
  const session=new SingBoxSession({platform:'win32',runner:(_exe,args)=>{
    configPath=args[2];
+   queueMicrotask(()=>child.emit('spawn'));
    return child;
  }});
  const payload={outbounds:[{protocol:'vless',settings:{vnext:[{
