@@ -11,9 +11,11 @@ import {toSingBoxRealityOutbound} from './singbox-reality-adapter.mjs';
 export function createDesktopTunConfig(uri, platform){
   if(!['win32','darwin'].includes(platform))throw Error('PLATFORM_UNSUPPORTED');
   const outbound=toSingBoxRealityOutbound(uri);
-  // Reject all non-TCP transports in the first experimental packet path;
-  // they require separate compatibility testing with real H1Cloud gateways.
-  if(outbound.transport)throw Error('TRANSPORT_NOT_TESTED');
+  // gRPC+Reality is structurally supported by stock sing-box and can be
+  // validated offline, but egress must still be checked against H1Cloud.
+  // XHTTP is NOT accepted by stock sing-box 1.14; never silently downgrade.
+  if(outbound.transport && outbound.transport.type!=='grpc')
+    throw Error('TRANSPORT_NOT_TESTED');
   const tun={
     type:'tun',tag:'vainah-tun',
     address:['172.29.86.1/30','fd00:86:29::1/126'],
