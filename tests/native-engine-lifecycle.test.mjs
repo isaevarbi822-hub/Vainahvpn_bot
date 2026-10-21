@@ -46,3 +46,13 @@ test('Android removes all plaintext native snapshots before download and after s
   assert.match(disconnect,/privateStorage\.forEach \{ dir ->[\s\S]*dir\.deleteRecursively\(\)/);
   assert.match(disconnect,/privateStorage = emptyList\(\)/);
 });
+
+test('Android passes complete physical network address, DNS and gateway lists to libbox',()=>{
+  assert.match(android,/private val items = values\.toList\(\)/);
+  assert.match(android,/override fun len\(\): Int = items\.size/);
+  assert.match(android,/override fun hasNext\(\) = iterator\.hasNext\(\)/);
+  assert.match(android,/override fun next\(\): String = iterator\.next\(\)/);
+  assert.match(android,/addresses = VainahStrings\(/);
+  assert.match(android,/dnsServer = VainahStrings\(/);
+  assert.match(android,/gateway = VainahStrings\(/);
+});
