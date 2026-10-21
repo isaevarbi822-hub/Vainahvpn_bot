@@ -16,6 +16,8 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -37,6 +39,65 @@ class MainActivity : Activity() {
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
+    private var homeState: TextView? = null
+    private var homeExplanation: TextView? = null
+    private var homeConnect: Button? = null
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusTicker = object : Runnable {
+        override fun run() {
+            updateHomeConnection()
+            statusHandler.postDelayed(this, 1200)
+        }
+    }
+    private fun connectionAction() {
+        when (VainahVpnService.phase) {
+            VainahVpnService.Phase.STARTING, VainahVpnService.Phase.UNVERIFIED ->
+                stopTunnel()
+            VainahVpnService.Phase.STOPPING -> Unit
+            else -> requestConnection()
+        }
+    }
+    private fun updateHomeConnection() {
+        val state = VainahVpnService.phase
+        val hasCore = EngineRegistry.active.ready
+        val title = when (state) {
+            VainahVpnService.Phase.STARTING -> "Запуск VPN-туннеля…"
+            VainahVpnService.Phase.UNVERIFIED -> "Туннель запущен — не проверен"
+            VainahVpnService.Phase.STOPPING -> "Отключение VPN…"
+            VainahVpnService.Phase.FAILED -> "Ошибка подключения"
+            VainahVpnService.Phase.OFF -> "Не подключено"
+        }
+        val details = when (state) {
+            VainahVpnService.Phase.STARTING ->
+                "Проверяем подписку H1Cloud и запускаем нативный движок."
+            VainahVpnService.Phase.UNVERIFIED ->
+                "Движок работает. DNS, IPv4/IPv6 и передача пакетов через H1Cloud ещё НЕ проверены."
+            VainahVpnService.Phase.STOPPING ->
+                "Ожидаем полного закрытия libbox и системного TUN."
+            VainahVpnService.Phase.FAILED ->
+                "VPN не установлен. Проверь подписку и разрешение VPN в Android."
+            VainahVpnService.Phase.OFF -> if (hasCore)
+                "VPN выключен. Трафик не защищён."
+            else "В этом тестовом интерфейсе libbox не встроен. Трафик не защищён."
+        }
+        homeState?.text = title
+        homeExplanation?.text = details
+        homeConnect?.apply {
+            text = if (state == VainahVpnService.Phase.STARTING ||
+                       state == VainahVpnService.Phase.UNVERIFIED)
+                "⏻   Отключить VPN-процесс" else "⏻   Подключиться"
+            isEnabled = state != VainahVpnService.Phase.STOPPING
+        }
+    }
+    override fun onResume() {
+        super.onResume()
+        statusHandler.removeCallbacks(statusTicker)
+        statusHandler.post(statusTicker)
+    }
+    override fun onPause() {
+        statusHandler.removeCallbacks(statusTicker)
+        super.onPause()
+    }
     private fun dp(n: Int) = (resources.displayMetrics.density * n).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,6 +168,9 @@ class MainActivity : Activity() {
     }
 
     private fun renderPage() {
+        homeState = null
+        homeExplanation = null
+        homeConnect = null
         val root = column().apply { setBackgroundColor(d.background) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true; isVerticalScrollBarEnabled = false
@@ -171,19 +235,24 @@ class MainActivity : Activity() {
         add(preview,bar)
         add(preview,overline("ВАШЕ СОЕДИНЕНИЕ"),24)
         val power=VainahPower(this).apply {
-            contentDescription="Подключиться к VPN. Движок VLESS пока не встроен."
+            contentDescription="Управление VPN-туннелем. Защита трафика не подтверждена."
             isClickable=true;isFocusable=true
-            setOnClickListener { requestConnection() }
+            setOnClickListener { connectionAction() }
         }
         preview.addView(power,LinearLayout.LayoutParams(-1,dp(196)))
-        add(preview,text("Не подключено",25f,d.ink,true).apply{
+        homeState = text("Не подключено",25f,d.ink,true).apply{
             gravity=Gravity.CENTER
-        })
-        add(preview,text("VPN-движок H1Cloud/VLESS пока не встроен. Трафик не защищён.",
-            12f,d.muted).apply{ gravity=Gravity.CENTER },8)
+            add(preview,this)
+        }
+        homeExplanation = text("Трафик пока не защищён.",12f,d.muted).apply{
+            gravity=Gravity.CENTER
+            add(preview,this,8)
+        }
         val connect=action("⏻   Подключиться",true)
+        homeConnect = connect
         add(preview,connect,17)
-        connect.setOnClickListener { requestConnection() }
+        connect.setOnClickListener { connectionAction() }
+        updateHomeConnection()
         add(preview,text(if(vault.load()!=null)"✓ HTTPS-подписка сохранена на устройстве"
             else "Сначала добавь личную HTTPS-ссылку H1Cloud.",
             12f,d.muted),13)
@@ -458,6 +527,13 @@ class MainActivity : Activity() {
             if(resultCode==RESULT_OK)startTunnel()
             else notice("Разрешение Android на VPN не предоставлено.")
         }
+    }
+    private fun stopTunnel() {
+        val intent = Intent(this,VainahVpnService::class.java).apply {
+            action = VainahVpnService.ACTION_DISCONNECT
+        }
+        // Only an explicit user action triggers VPN termination.
+        startService(intent)
     }
     private fun startTunnel(){
         if(!EngineRegistry.active.ready||vault.load()==null)return
