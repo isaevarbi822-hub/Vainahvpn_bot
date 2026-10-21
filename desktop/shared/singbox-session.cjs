@@ -73,6 +73,15 @@ class SingBoxSession {
         await this.stop();
         return {ok:false,reason:'Engine did not start',protected:false};
       }
+      // A successful OS spawn can still exit immediately (invalid TUN permissions,
+      // missing driver, bad config). Do not report success for that failure.
+      await Promise.race([
+        this.exitPromise,
+        new Promise(resolve=>setTimeout(resolve,250))
+      ]);
+      if(this.child!==child){
+        return {ok:false,reason:'Engine exited during startup',protected:false};
+      }
       this.state='running-unverified';
       return {ok:true,started:true,protected:false};
     } catch {
