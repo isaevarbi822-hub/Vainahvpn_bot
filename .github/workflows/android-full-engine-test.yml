@@ -1,0 +1,64 @@
+name: Vainah Android full-engine TEST APK
+
+on:
+  push:
+    branches:
+      - feature/vpn-scale-control-plane-foundation
+    paths:
+      - "native/android/**"
+      - ".github/workflows/android-full-engine-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: vainah-android-full-engine-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Native VPN bridge and private H1Cloud URL — test APK only
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Download our pinned GPL-3 sing-box libbox library
+        uses: actions/download-artifact@v4
+        with:
+          name: libbox-android-arm64-1.14.3-gpl-source-build
+          run-id: 39557412404
+          github-token: ${{ github.token }}
+          path: native/android/app/libs
+      - name: Verify pinned library and Android bridge presence
+        run: |
+          test -s native/android/app/libs/libbox.aar
+          test -f native/android/app/src/engine/java/app/vainah/vpn/LibboxTunnelEngine.kt
+      - name: Test latest UI + REAL native libbox Kotlin bridge
+        run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon
+      - name: Verify APK includes real ARM64 shared library
+        run: |
+          APK=native/android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t "$APK" >/dev/null
+          unzip -Z1 "$APK" | grep '^lib/arm64-v8a/.*\.so$' >/dev/null
+          test -s "$APK"
+      - name: Upload TWO-DAY internal APK for authorized-device testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: VainahVPN-Android-REAL-libbox-INTERNAL-UNVERIFIED
+          path: |
+            native/android/app/build/outputs/apk/debug/app-debug.apk
+            native/android/app/libs/LIBBOX-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 2
+
+# This is a CI test artifact, not a release or VPN-security claim.
+# Does not use user secrets, route real packets, or deploy to production.
