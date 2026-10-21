@@ -41,6 +41,7 @@ class VainahVpnService : VpnService() {
                         // before reporting Result.success.
                         val result = EngineRegistry.active.connect(this, link)
                         if (result.isFailure) disconnect()
+                        else updateUnverifiedNotice()
                     } catch (_: Exception) {
                         disconnect()
                     }
@@ -62,8 +63,8 @@ class VainahVpnService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = Notification.Builder(this, CHANNEL)
-            .setContentTitle("Vainah VPN — подключение")
-            .setContentText("Запуск зашифрованного туннеля…")
+            .setContentTitle("Vainah VPN — тест движка")
+            .setContentText("Защита трафика ещё не проверена")
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отключить", pending)
             .setOngoing(true)
@@ -73,6 +74,25 @@ class VainahVpnService : VpnService() {
         } else startForeground(ID, notification)
         started = true
     }
+    private fun updateUnverifiedNotice() {
+        if (!started) return
+        val stopIntent = Intent(this, VainahVpnService::class.java).apply {
+            action = ACTION_DISCONNECT
+        }
+        val pending = PendingIntent.getService(
+            this, 1, stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notice = Notification.Builder(this, CHANNEL)
+            .setContentTitle("Vainah VPN — движок запущен")
+            .setContentText("DNS, IPv6 и маршрутизация не проверены")
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отключить", pending)
+            .setOngoing(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(ID, notice)
+    }
+
     private fun disconnect() {
         try { Thread { EngineRegistry.active.disconnect() }.start() } catch (_: Exception) {}
         if (started) {
