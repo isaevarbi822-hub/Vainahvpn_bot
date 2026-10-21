@@ -63,35 +63,6 @@ class EngineHost {
       child.once('close',code=>done(code===0));
     });
   }
-  /**
-   * Only the pinned, CI-validated sing-box 1.14.3 configuration is supported.
-   * A zero exit status alone is insufficient: older binaries can silently
-   * interpret routing or DNS differently. This is NOT a binary authenticity
-   * check; users must still obtain sing-box from its official release.
-   */
-  checkVersion(){
-    return new Promise(resolve=>{
-      let complete=false,output='',child;
-      const done=ok=>{
-        if(complete)return;
-        complete=true;
-        clearTimeout(timer);
-        resolve(ok);
-      };
-      try{
-        child=spawn(this.executable,['version'],{
-          shell:false,windowsHide:true,stdio:['ignore','pipe','ignore']
-        });
-      }catch{return resolve(false)}
-      const timer=setTimeout(()=>{child.kill();done(false)},4000);
-      child.stdout.on('data',chunk=>{
-        output+=chunk.toString('utf8');
-        if(output.length>4096){child.kill();done(false)}
-      });
-      child.once('error',()=>done(false));
-      child.once('close',code=>done(code===0&&/^sing-box version 1\.14\.3(?:\s|$)/m.test(output)));
-    });
-  }
   async start(secret){
     if(this.proc||this.phase==='preparing')return {ok:false,code:'BUSY'};
     if(!this.executable)return {ok:false,code:'ENGINE_REQUIRED'};
@@ -100,7 +71,7 @@ class EngineHost {
     const generation=++this.generation;
     this.phase='preparing';
     try{
-      if(!await this.checkVersion())
+      if(!await this.runCheck(this.executable,['version'],4000))
         throw Error('ENGINE_UNAVAILABLE');
       const profile=secret.startsWith('https://')?await loadSubscription(secret):secret;
       if(generation!==this.generation)return {ok:false,code:'CANCELLED'};
