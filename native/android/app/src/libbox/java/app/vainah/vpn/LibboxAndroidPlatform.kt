@@ -155,6 +155,8 @@ internal class LibboxAndroidPlatform(
     override fun createBridge(options: BridgeOptions): BridgeSession =
         throw UnsupportedOperationException("Bridge disabled")
 
+    fun hasTun(): Boolean = tun != null
+
     fun close() {
         callback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         callback = null
