@@ -31,8 +31,8 @@ class VainahVpnService : VpnService() {
             }
             ACTION_CONNECT -> {
                 val node = intent.getStringExtra(EXTRA_SELECTED_VLESS)
-                val nodeValid = node != null && runCatching { VlessRealityConfig.outbound(node) }.isSuccess
-                if (!EngineRegistry.active.ready || !nodeValid || node == null || SecureSubscription(this).load() == null) {
+                val config = node?.let { runCatching { VlessRealityConfig.profile(it) }.getOrNull() }
+                if (!EngineRegistry.active.ready || config == null || SecureSubscription(this).load() == null) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -41,7 +41,7 @@ class VainahVpnService : VpnService() {
                     try {
                         // A future real engine must route authenticated packets
                         // before reporting Result.success.
-                        val result = EngineRegistry.active.connect(this, node)
+                        val result = EngineRegistry.active.connect(this, config)
                         if (result.isFailure) disconnect()
                     } catch (_: Exception) {
                         disconnect()
