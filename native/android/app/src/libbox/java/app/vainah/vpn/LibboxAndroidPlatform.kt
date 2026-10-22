@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.system.OsConstants
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import io.nekohasekai.libbox.*
@@ -36,19 +37,80 @@ internal class LibboxAndroidPlatform(
     override fun openTun(options: TunOptions): Int {
         check(tun == null) { "TUN already opened" }
         onStage("opening_android_tun")
+        check(VpnService.prepare(service) == null) { "Android VPN consent revoked" }
         val mtu = options.mtu.takeIf { it in 1280..9000 } ?: 1500
         val builder = service.Builder().setSession("Vainah VPN")
-            .setMtu(mtu)
-            .addAddress("172.19.0.1", 30)
-            .addRoute("0.0.0.0", 0)
-            .addAddress("fd00:19::1", 126)
-            .addRoute("::", 0)
-            .addDnsServer("1.1.1.1")
-            .setBlocking(true)
+            .setMtu(mtu).setBlocking(true)
+        if (android.os.Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
+
+        // Never invent Android tunnel addresses: use the actual libbox inbound.
+        val ipv4 = options.inet4Address
+        var hasV4 = false
+        while (ipv4.hasNext()) {
+            val prefix = ipv4.next()
+            builder.addAddress(prefix.address(), prefix.prefix())
+            hasV4 = true
+        }
+        val ipv6 = options.inet6Address
+        var hasV6 = false
+        while (ipv6.hasNext()) {
+            val prefix = ipv6.next()
+            builder.addAddress(prefix.address(), prefix.prefix())
+            hasV6 = true
+        }
+        check(hasV4 || hasV6) { "No libbox TUN address" }
+        if (options.autoRoute) {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                val v4routes = options.inet4RouteAddress
+                if (v4routes.hasNext()) {
+                    while (v4routes.hasNext()) {
+                        val route = v4routes.next()
+                        builder.addRoute(route.address(), route.prefix())
+                    }
+                } else if (hasV4) builder.addRoute("0.0.0.0", 0)
+                val v6routes = options.inet6RouteAddress
+                if (v6routes.hasNext()) {
+                    while (v6routes.hasNext()) {
+                        val route = v6routes.next()
+                        builder.addRoute(route.address(), route.prefix())
+                    }
+                } else if (hasV6) builder.addRoute("::", 0)
+                val ex4 = options.inet4RouteExcludeAddress
+                while (ex4.hasNext()) {
+                    val prefix = ex4.next()
+                    builder.excludeRoute(android.net.IpPrefix(prefix.address(), prefix.prefix()))
+                }
+                val ex6 = options.inet6RouteExcludeAddress
+                while (ex6.hasNext()) {
+                    val prefix = ex6.next()
+                    builder.excludeRoute(android.net.IpPrefix(prefix.address(), prefix.prefix()))
+                }
+            } else {
+                val routes4 = options.inet4RouteRange
+                while (routes4.hasNext()) {
+                    val route = routes4.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
+                val routes6 = options.inet6RouteRange
+                while (routes6.hasNext()) {
+                    val route = routes6.next()
+                    builder.addRoute(route.address(), route.prefix())
+                }
+            }
+        }
+        // Explicit DNS sent into the encrypted tunnel, never DNS on the underlying network.
+        val dns = options.dnsServerAddress
+        var dnsFound = false
+        while (dns.hasNext()) {
+            builder.addDnsServer(dns.next())
+            dnsFound = true
+        }
+        if (!dnsFound) builder.addDnsServer("1.1.1.1")
+
         val fd = builder.establish() ?: error("Android denied TUN")
         tun = fd
         onStage("android_tun_established")
-        // Go duplicates this descriptor; retain our copy until disconnect.
+        // libbox duplicates this descriptor and we retain our copy to close on stop.
         return fd.fd
     }
 
@@ -70,15 +132,21 @@ internal class LibboxAndroidPlatform(
     }
 
     private fun updateDefault(listener: InterfaceUpdateListener) {
-        // Never select our own VPN tunnel as an upstream interface.
-        val network = connectivity.allNetworks.firstOrNull { net ->
-            val caps = connectivity.getNetworkCapabilities(net)
+        // A VPN network must never become its own upstream.
+        val candidates = connectivity.allNetworks.filter { network ->
+            val caps = connectivity.getNetworkCapabilities(network)
             caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
+                connectivity.getLinkProperties(network)?.interfaceName != null
         }
+        val network = candidates.firstOrNull { net ->
+            connectivity.getNetworkCapabilities(net)?.hasCapability(
+                NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        } ?: candidates.firstOrNull()
         val name = network?.let { connectivity.getLinkProperties(it)?.interfaceName }
         val index = name?.let { JavaNetworkInterface.getByName(it)?.index } ?: -1
-        listener.updateDefaultInterface(name.orEmpty(), index, false, false)
+        listener.updateDefaultInterface(name.orEmpty(), index,
+            network?.let { connectivity.isActiveNetworkMetered } ?: false, false)
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
@@ -87,31 +155,38 @@ internal class LibboxAndroidPlatform(
     }
 
     override fun getInterfaces(): NetworkInterfaceIterator {
+        // Match physical Android Network interfaces and their real DNS/gateways.
+        // Enumerating every Java interface included tun0 and confused auto-routing.
         val items = mutableListOf<io.nekohasekai.libbox.NetworkInterface>()
-        val all = JavaNetworkInterface.getNetworkInterfaces()
-        while (all != null && all.hasMoreElements()) {
-            val itf = all.nextElement()
+        for (network in connectivity.allNetworks) {
+            val props = connectivity.getLinkProperties(network) ?: continue
+            val caps = connectivity.getNetworkCapabilities(network) ?: continue
+            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)) continue
+            val name = props.interfaceName ?: continue
+            val itf = JavaNetworkInterface.getByName(name) ?: continue
             val obj = io.nekohasekai.libbox.NetworkInterface().apply {
                 index = itf.index
-                name = itf.name
+                this.name = name
                 mtu = itf.mtu.coerceAtLeast(1280)
-                flags = (if (itf.isUp) 1 else 0) or
-                    (if (itf.isLoopback) 8 else 0) or
-                    (if (itf.isPointToPoint) 16 else 0) or
-                    (if (itf.supportsMulticast()) 4096 else 0)
+                flags = (if (itf.isUp) OsConstants.IFF_UP or OsConstants.IFF_RUNNING else 0) or
+                    (if (itf.isLoopback) OsConstants.IFF_LOOPBACK else 0) or
+                    (if (itf.isPointToPoint) OsConstants.IFF_POINTOPOINT else 0) or
+                    (if (itf.supportsMulticast()) OsConstants.IFF_MULTICAST else 0)
                 type = when {
-                    itf.name.startsWith("wlan") -> Libbox.InterfaceTypeWIFI
-                    itf.name.startsWith("rmnet") || itf.name.startsWith("ccmni") ->
-                        Libbox.InterfaceTypeCellular
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> Libbox.InterfaceTypeWIFI
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> Libbox.InterfaceTypeCellular
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> Libbox.InterfaceTypeEthernet
                     else -> Libbox.InterfaceTypeOther
                 }
-                addresses = strings(itf.interfaceAddresses.mapNotNull { a ->
-                    val host = a.address?.hostAddress?.substringBefore('%') ?: return@mapNotNull null
-                    "$host/${a.networkPrefixLength}"
+                addresses = strings(itf.interfaceAddresses.mapNotNull { address ->
+                    val host = address.address?.hostAddress?.substringBefore('%') ?: return@mapNotNull null
+                    "$host/${address.networkPrefixLength}"
                 })
-                dnsServer = strings(emptyList())
-                gateway = strings(emptyList())
-                metered = false
+                dnsServer = strings(props.dnsServers.mapNotNull { it.hostAddress })
+                gateway = strings(props.routes.filter {
+                    it.destination.prefixLength == 0 && !it.gateway.isAnyLocalAddress
+                }.mapNotNull { it.gateway.hostAddress })
+                metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
             }
             items.add(obj)
         }
