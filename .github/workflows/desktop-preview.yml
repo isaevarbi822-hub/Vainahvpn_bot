@@ -72,6 +72,11 @@ jobs:
           if (-not (Test-Path $engine)) { throw 'Bundled engine not found' }
           & $engine version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled sing-box executable failed smoke test' }
+      - name: Check generated TUN configuration
+        shell: pwsh
+        run: |
+          $engine = Join-Path (Get-Location) 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+          node desktop/scripts/check-engine-config.cjs $engine
       - name: Build Windows NSIS installer
         run: npm run --prefix desktop dist:win
       - name: Upload Windows preview
