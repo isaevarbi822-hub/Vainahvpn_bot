@@ -83,10 +83,16 @@ class MainActivity : Activity() {
             VpnConnectionState.FAILED -> "VPN не подключён"
             else -> "Не подключено"
         }
+        val diagnosticCode = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
+            .getString("vpn_probe_reason", null)
         connectionDetailView?.text = when (snapshot.phase) {
             VpnConnectionState.ONLINE ->
                 "HTTPS через VPN доступен. Внешний IP и DNS ещё требуют проверки."
-            VpnConnectionState.STARTING, VpnConnectionState.TUN_READY -> snapshot.detail
+            VpnConnectionState.STARTING, VpnConnectionState.TUN_READY ->
+                snapshot.detail + if (snapshot.phase == VpnConnectionState.TUN_READY &&
+                    snapshot.detail.startsWith("VPN-туннель запущен;") &&
+                    !diagnosticCode.isNullOrBlank())
+                    "\nДиагностика: $diagnosticCode" else ""
             VpnConnectionState.FAILED -> snapshot.detail
             else -> if (EngineRegistry.active.ready)
                 "Экспериментальный libbox: защита трафика ещё не подтверждена."
