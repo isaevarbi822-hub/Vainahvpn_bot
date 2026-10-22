@@ -16,8 +16,11 @@ import java.io.File
  * Included only with -PvainahEnableLibbox=true.
  */
 internal object LibboxNativeApi {
+    @Volatile private var initialized = false
+
     @Synchronized
     fun setup(context: Context) {
+        if (initialized) return
         // libbox needs writable base/working/temp paths before NewCommandServer.
         // Its Go setup routine also initializes file ownership and crash logging.
         val base = File(context.filesDir, "libbox").apply { mkdirs() }
@@ -31,7 +34,9 @@ internal object LibboxNativeApi {
             crashReportSource = "android"
             logMaxLines = 1000L
             debug = false
+            fixAndroidStack = true
         })
+        initialized = true
     }
     fun validateConfiguration(config: String) {
         Libbox.checkConfig(config)
