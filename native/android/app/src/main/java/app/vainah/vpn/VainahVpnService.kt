@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
+import android.util.Log
 
 /**
  * OS-level VPN service registered with BIND_VPN_SERVICE.
@@ -22,6 +23,12 @@ class VainahVpnService : VpnService() {
         private const val ID = 2103
     }
     private var started = false
+    private fun failure(stage: String, error: Throwable) {
+        Log.e("VainahVpn", "VPN failed at $stage", error)
+        getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+            .putString("last_failure", "$stage: ${error.javaClass.simpleName}: ${error.message?.take(180).orEmpty()}")
+            .apply()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -36,14 +43,22 @@ class VainahVpnService : VpnService() {
                     stopSelf()
                     return START_NOT_STICKY
                 }
-                startVisibleService()
+                try {
+                    startVisibleService()
+                } catch (error: Exception) {
+                    failure("foreground service", error)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 Thread {
                     try {
                         // A future real engine must route authenticated packets
                         // before reporting Result.success.
                         val result = EngineRegistry.active.connect(this, config)
+                        result.exceptionOrNull()?.let { failure("libbox startup", it) }
                         if (result.isFailure) disconnect()
-                    } catch (_: Exception) {
+                    } catch (error: Throwable) {
+                        failure("unexpected tunnel error", error)
                         disconnect()
                     }
                 }.start()
@@ -76,7 +91,9 @@ class VainahVpnService : VpnService() {
         started = true
     }
     private fun disconnect() {
-        try { Thread { EngineRegistry.active.disconnect() }.start() } catch (_: Exception) {}
+        try { Thread { runCatching { EngineRegistry.active.disconnect() }
+            .onFailure { failure("engine shutdown", it) } }.start() }
+        catch (error: Exception) { failure("shutdown thread", error) }
         if (started) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             started = false
