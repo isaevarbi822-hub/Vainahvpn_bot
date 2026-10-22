@@ -58,7 +58,7 @@ object VlessRealityConfig {
         put("inbounds", JSONArray().put(JSONObject().apply {
             put("type", "tun")
             put("tag", "vainah-tun")
-            put("address", JSONArray().put("172.19.0.1/30"))
+            put("address", JSONArray().put("172.19.0.1/30").put("fd00:19::1/126"))
             put("auto_route", true)
         }))
         put("outbounds", JSONArray().put(outbound(node))
