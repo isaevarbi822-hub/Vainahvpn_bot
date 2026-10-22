@@ -16,6 +16,7 @@ import android.os.Build
 class VainahVpnService : VpnService() {
     companion object {
         const val ACTION_CONNECT = "app.vainah.vpn.CONNECT"
+        const val EXTRA_SELECTED_VLESS = "app.vainah.vpn.SELECTED_VLESS"
         const val ACTION_DISCONNECT = "app.vainah.vpn.DISCONNECT"
         private const val CHANNEL = "vainah_connection"
         private const val ID = 2103
@@ -29,8 +30,9 @@ class VainahVpnService : VpnService() {
                 return START_NOT_STICKY
             }
             ACTION_CONNECT -> {
-                val link = SecureSubscription(this).load()
-                if (!EngineRegistry.active.ready || link == null) {
+                val node = intent.getStringExtra(EXTRA_SELECTED_VLESS)
+                val nodeValid = node != null && runCatching { VlessRealityConfig.outbound(node) }.isSuccess
+                if (!EngineRegistry.active.ready || !nodeValid || node == null || SecureSubscription(this).load() == null) {
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -39,7 +41,7 @@ class VainahVpnService : VpnService() {
                     try {
                         // A future real engine must route authenticated packets
                         // before reporting Result.success.
-                        val result = EngineRegistry.active.connect(this, link)
+                        val result = EngineRegistry.active.connect(this, node)
                         if (result.isFailure) disconnect()
                     } catch (_: Exception) {
                         disconnect()
