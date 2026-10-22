@@ -76,7 +76,8 @@ class MainActivity : Activity() {
         }
         statusView?.text = when (snapshot.phase) {
             VpnConnectionState.STARTING -> "Подключаемся…"
-            VpnConnectionState.TUN_READY -> "Проверяем интернет…"
+            VpnConnectionState.TUN_READY -> if (snapshot.detail.startsWith("VPN-туннель запущен;"))
+                "Туннель активен · проверь браузер" else "Проверяем интернет…"
             VpnConnectionState.ONLINE -> "VPN · интернет доступен"
             VpnConnectionState.FAILED -> "VPN не подключён"
             else -> "Не подключено"
