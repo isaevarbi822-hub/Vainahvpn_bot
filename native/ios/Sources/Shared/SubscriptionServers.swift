@@ -35,9 +35,19 @@ enum SubscriptionServers {
         else { decoded=content }
         let lines=decoded.split(whereSeparator: \.isNewline).map(String.init)
         guard lines.count<=50 else {throw NSError(domain:"Subscription",code:3)}
-        let matches=lines.filter {
-            $0.hasPrefix("vless://") && $0.contains("security=reality") &&
-            ($0.contains("type=tcp") || $0.contains("type=raw"))
+        let matches=lines.filter { line in
+            guard let parts=URLComponents(string:line),
+                  parts.scheme == "vless",
+                  parts.host != nil,
+                  let port=parts.port, (1...65535).contains(port),
+                  let user=parts.user, UUID(uuidString:user) != nil else {return false}
+            let options=Dictionary(parts.queryItems?.compactMap { item -> (String,String)? in
+                guard let value=item.value else {return nil}
+                return (item.name,value)
+            } ?? [],uniquingKeysWith:{ first,_ in first })
+            return options["security"] == "reality" &&
+                (options["type"] == nil || options["type"] == "tcp" || options["type"] == "raw") &&
+                !(options["pbk"] ?? "").isEmpty && !(options["sni"] ?? "").isEmpty
         }
         guard !matches.isEmpty else {throw NSError(domain:"Subscription",code:4)}
         return matches.indices.map { "Сервер \($0+1) · VLESS REALITY" }
