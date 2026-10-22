@@ -3,6 +3,21 @@ const https=require('node:https');
 const dns=require('node:dns').promises;
 const net=require('node:net');
 const {vlessUriToXray}=require('./vless-link.cjs');
+function singBoxOutboundToXray(item){
+ if(!item||item.type!=='vless'||typeof item.server!=='string'||!Number.isInteger(item.server_port)||
+   item.server_port<1||item.server_port>65535||typeof item.uuid!=='string'||item.tls?.enabled!==true||
+   item.tls?.reality?.enabled!==true||!item.tls.reality.public_key||!item.tls.server_name||
+   (item.transport&&item.transport.type!=='tcp'))return null;
+ return {outbounds:[{protocol:'vless',
+  settings:{vnext:[{address:item.server,port:item.server_port,users:[{
+    id:item.uuid,flow:item.flow||''
+  }]}]},
+  streamSettings:{network:'tcp',security:'reality',realitySettings:{
+    serverName:item.tls.server_name,publicKey:item.tls.reality.public_key,
+    shortId:item.tls.reality.short_id||'',fingerprint:item.tls.utls?.fingerprint||'chrome'
+  }}
+ }]};
+}
 function publicAddress(address){
  if(!net.isIP(address))return false;
  if(net.isIP(address)===4){
@@ -54,6 +69,10 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
          (!outbound.streamSettings.network||outbound.streamSettings.network==='tcp')){
          if(outbound.settings?.vnext?.length===1)profiles.push({outbounds:[outbound]});
        }
+     }
+     for(const outbound of payload.outbounds.slice(0,50)){
+       const converted=singBoxOutboundToXray(outbound);
+       if(converted)profiles.push(converted);
      }
      if(profiles.length)return {profiles,count:profiles.length};
    }
