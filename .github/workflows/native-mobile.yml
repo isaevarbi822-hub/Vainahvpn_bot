@@ -92,7 +92,7 @@ jobs:
           echo 'libbox public API:'
           while IFS= read -r cls; do
             case "$cls" in
-              libbox/*.class)
+              io/nekohasekai/libbox/*.class)
                 name="${cls%.class}"
                 name="${name//\\//.}"
                 javap -classpath /tmp/vainah-libbox-classes.jar -public "$name" 2>/dev/null || true
