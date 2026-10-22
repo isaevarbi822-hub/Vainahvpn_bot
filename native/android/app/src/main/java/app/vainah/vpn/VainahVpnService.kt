@@ -63,8 +63,8 @@ class VainahVpnService : VpnService() {
                 if (started) return START_NOT_STICKY
                 checkpoint("service_received_connect")
                 val rawNode = intent.getStringExtra(EXTRA_SELECTED_VLESS).orEmpty()
-                val config = rawNode?.let { runCatching { VlessRealityConfig.profile(it) }.getOrNull() }
-                if (!EngineRegistry.active.ready || config == null || SecureSubscription(this).load() == null) {
+                val configValid = runCatching { VlessRealityConfig.profile(rawNode) }.isSuccess
+                if (!EngineRegistry.active.ready || !configValid || SecureSubscription(this).load() == null) {
                     VpnConnectionState.failed(this, "Не удалось проверить подписку или сервер")
                     stopSelf()
                     return START_NOT_STICKY
@@ -85,12 +85,17 @@ class VainahVpnService : VpnService() {
                 Thread({
                     try {
                         // TCP reachability is measured outside the tunnel, not called VPN ping.
-                        val latency = VpnConnectivity.upstreamTcpLatency(this, rawNode)
+                        checkpoint("resolving_h1cloud_before_vpn")
+                        val upstream = VpnConnectivity.prepareUpstream(this, rawNode)
+                        val latency = upstream.tcpLatencyMs
                         if (generation != connectionGeneration) return@Thread
                         VpnConnectionState.latency(this, latency)
                         showNotification()
                         checkpoint("starting_libbox_native_engine")
-                        val result = EngineRegistry.active.connect(this, config)
+                        // libbox dials a numeric IP so the REALITY endpoint cannot
+                        // deadlock on bootstrap DNS after VPN routing starts.
+                        val resolvedConfig = VlessRealityConfig.profile(rawNode, upstream.numericAddress)
+                        val result = EngineRegistry.active.connect(this, resolvedConfig)
                         if (generation != connectionGeneration) return@Thread
                         result.exceptionOrNull()?.let { throw it }
                         VpnConnectionState.tunnelCreated(this)
