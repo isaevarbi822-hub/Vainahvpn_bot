@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var devices = 0
     @State private var subscription = ""
     @State private var saved = SecureSubscription.load() != nil
+    @State private var serverNames: [String] = []
+    @State private var loadingServers = false
     @State private var notice: String?
     @State private var showErase = false
 
@@ -195,6 +197,29 @@ struct ContentView: View {
                          : "Добавь одну HTTPS-подписку в кабинете. После реализации синхронизации здесь будут её серверы.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
+                    if !serverNames.isEmpty {
+                        ForEach(serverNames, id: \.self) { name in
+                            Text(name)
+                                .font(.system(size: 13))
+                                .foregroundStyle(VainahDesign.ink)
+                                .padding(.vertical, 4)
+                        }
+                    }
+                    callToAction(loadingServers ? "Загружаем серверы…" : "Обновить серверы") {
+                        guard !loadingServers,let link=SecureSubscription.load() else {
+                            notice = "Сначала добавь HTTPS-подписку."
+                            return
+                        }
+                        loadingServers=true
+                        Task {
+                            do {
+                                serverNames=try await SubscriptionServers.load(link)
+                            } catch {
+                                notice="Не удалось загрузить VLESS REALITY серверы. Проверь ссылку и доступность подписки."
+                            }
+                            loadingServers=false
+                        }
+                    }
                     callToAction("Добавить или изменить подписку") {
                         selected = .account
                     }
