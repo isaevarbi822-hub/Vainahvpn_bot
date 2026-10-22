@@ -188,3 +188,21 @@ test('Android connection UI and notifications show real verified status and offe
   assert.match(platform,/props\.routes/);
   assert.match(profile,/fd00:19::1\/126/);
 });
+
+test('VPN physical bootstrap and encrypted DNS never falsely claim browser egress',()=>{
+  const config=read('android/app/src/main/java/app/vainah/vpn/VlessRealityConfig.kt');
+  const probe=read('android/app/src/main/java/app/vainah/vpn/VpnConnectivity.kt');
+  const service=read('android/app/src/main/java/app/vainah/vpn/VainahVpnService.kt');
+  const ui=read('android/app/src/main/java/app/vainah/vpn/MainActivity.kt');
+  assert.ok(config.includes('dns-via-vless'));
+  assert.ok(config.includes('dns-bootstrap'));
+  assert.ok(config.includes('hijack-dns'));
+  assert.ok(config.includes('"/dns-query"'));
+  assert.ok(config.includes('resolvedAddress ?: uri.host'));
+  assert.ok(probe.includes('physical.getAllByName(node.host)'));
+  assert.ok(probe.includes('service.protect(socket)'));
+  assert.ok(service.includes('VpnConnectivity.prepareUpstream(this, rawNode)'));
+  assert.ok(service.includes('VlessRealityConfig.profile(rawNode, upstream.numericAddress)'));
+  assert.ok(service.includes('VpnConnectionState.tunnelUnverified(this)'));
+  assert.ok(ui.includes('Туннель активен · проверь браузер'));
+});
