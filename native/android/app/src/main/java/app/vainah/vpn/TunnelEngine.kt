@@ -21,5 +21,12 @@ object UnavailableTunnelEngine : TunnelEngine {
 
 object EngineRegistry {
     // Replace only after VPN egress/DNS/IPv6/leak tests pass.
-    val active: TunnelEngine = UnavailableTunnelEngine
+    val active: TunnelEngine by lazy {
+        // The experimental adapter class is excluded from normal APK builds.
+        // Never display a connected state when the real engine is absent.
+        runCatching {
+            Class.forName("app.vainah.vpn.LibboxTunnelEngine")
+                .getDeclaredConstructor().newInstance() as TunnelEngine
+        }.getOrDefault(UnavailableTunnelEngine)
+    }
 }
