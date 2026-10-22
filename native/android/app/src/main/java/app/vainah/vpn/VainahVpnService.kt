@@ -26,7 +26,7 @@ class VainahVpnService : VpnService() {
     private fun failure(stage: String, error: Throwable) {
         Log.e("VainahVpn", "VPN failed at $stage", error)
         getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
-            .putString("last_failure", "$stage: ${error.javaClass.simpleName}: ${error.message?.take(180).orEmpty()}")
+            .putString("last_failure", "$stage: ${error.javaClass.simpleName}")
             .apply()
     }
 
