@@ -61,7 +61,14 @@ object VpnConnectivity {
      * Diagnostic only. The VPN app is excluded from its own tunnel by Android,
      * so a failed app-owned probe MUST NOT be treated as failed browser traffic.
      */
-    fun verifyInternetThroughTunnel(service: VpnService): Boolean {
+    data class TunnelProbe(val reachable: Boolean, val reason: String)
+
+    /**
+     * A self-probe from the VPN owner UID is sometimes excluded by Android.
+     * Failure never proves other apps lack egress. No endpoints or secrets
+     * appear in the result.
+     */
+    fun diagnoseTunnel(service: VpnService): TunnelProbe {
         val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE)
             as ConnectivityManager
         val deadline = SystemClock.elapsedRealtime() + 3500L
@@ -74,25 +81,38 @@ object VpnConnectivity {
             if (vpnNetwork != null) break
             Thread.sleep(150)
         }
-        val network = vpnNetwork ?: return false
+        val network = vpnNetwork ?: return TunnelProbe(false, "vpn_network_not_visible_to_app")
+        var lastReason = "https_probe_unavailable"
         for (url in arrayOf(
             "https://cp.cloudflare.com/generate_204",
             "https://connectivitycheck.gstatic.com/generate_204"
         )) {
-            val okay = runCatching {
+            val result = runCatching {
                 val connection = network.openConnection(URL(url)) as HttpURLConnection
                 try {
                     connection.instanceFollowRedirects = false
                     connection.connectTimeout = 3500
                     connection.readTimeout = 3500
                     connection.useCaches = false
-                    connection.responseCode == 204
+                    connection.responseCode
                 } finally {
                     connection.disconnect()
                 }
-            }.getOrDefault(false)
-            if (okay) return true
+            }
+            if (result.getOrNull() == 204) return TunnelProbe(true, "https_204")
+            lastReason = result.exceptionOrNull()?.let {
+                when (it) {
+                    is java.net.UnknownHostException -> "dns_resolution_failed"
+                    is java.net.SocketTimeoutException -> "https_timeout"
+                    is javax.net.ssl.SSLException -> "tls_handshake_failed"
+                    is java.net.ConnectException -> "https_connect_failed"
+                    else -> "https_probe_exception"
+                }
+            } ?: "https_unexpected_status"
         }
-        return false
+        return TunnelProbe(false, lastReason)
     }
+
+    fun verifyInternetThroughTunnel(service: VpnService): Boolean =
+        diagnoseTunnel(service).reachable
 }
