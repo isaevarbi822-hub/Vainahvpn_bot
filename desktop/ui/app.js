@@ -86,6 +86,7 @@
         statusLabel.textContent=stopped?.ok
           ?'VPN-движок остановлен. Защита трафика не активна.'
           :'Не удалось остановить движок. Проверь процессы Windows.';
+        connectButton.textContent=stopped?.ok?'⏻ Проверить подключение':'⏻ Повторить отключение';
         return;
       }
       if(current?.state!=='stopped'){
@@ -96,6 +97,7 @@
       statusLabel.textContent=started?.ok
         ?'Движок запущен. Маршрутизация и защита VPN пока НЕ подтверждены.'
         :(started?.message||'Не удалось запустить VPN-движок.');
+      connectButton.textContent=started?.ok?'⏻ Остановить движок':'⏻ Проверить подключение';
     } catch {
       statusLabel.textContent='Ошибка управления VPN-движком.';
     } finally {
