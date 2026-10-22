@@ -53,3 +53,24 @@ test('plaintext HTTPS subscription accepts multiple VLESS links',async()=>{
  assert.equal(result.count,2);
  assert.equal(result.profiles[1].outbounds[0].settings.vnext[0].address,'second.example');
 });
+
+test('sing-box JSON HTTPS subscription recognizes VLESS TCP REALITY server',async()=>{
+ const {EventEmitter}=require('node:events');
+ const payload=JSON.stringify({outbounds:[{
+  type:'vless',tag:'Germany',server:'de.example.com',server_port:443,
+  uuid:'12345678-1234-1234-1234-123456789abc',flow:'xtls-rprx-vision',
+  tls:{enabled:true,server_name:'example.com',utls:{enabled:true,fingerprint:'chrome'},
+   reality:{enabled:true,public_key:'AbCdEfGhIjKlMnOpQrStUvWxYz012345',short_id:'a1b2'}}
+ }]});
+ const result=await fetchSubscription('https://subscription.example.com/singbox',{
+  resolver:async()=>[{address:'8.8.8.8',family:4}],
+  request:(_url,_opts,callback)=>{
+   const req=new EventEmitter();req.destroy=e=>req.emit('error',e);
+   const res=new EventEmitter();res.statusCode=200;res.resume=()=>{};
+   queueMicrotask(()=>{callback(res);res.emit('data',Buffer.from(payload));res.emit('end')});
+   return req;
+  }
+ });
+ assert.equal(result.count,1);
+ assert.equal(result.profiles[0].outbounds[0].settings.vnext[0].address,'de.example.com');
+});
