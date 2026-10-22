@@ -78,12 +78,12 @@ internal class LibboxAndroidPlatform(
                 val ex4 = options.inet4RouteExcludeAddress
                 while (ex4.hasNext()) {
                     val prefix = ex4.next()
-                    builder.excludeRoute(android.net.IpPrefix("${prefix.address()}/${prefix.prefix()}"))
+                    builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(prefix.address()), prefix.prefix()))
                 }
                 val ex6 = options.inet6RouteExcludeAddress
                 while (ex6.hasNext()) {
                     val prefix = ex6.next()
-                    builder.excludeRoute(android.net.IpPrefix(prefix.address(), prefix.prefix()))
+                    builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(prefix.address()), prefix.prefix()))
                 }
             } else {
                 val routes4 = options.inet4RouteRange
@@ -184,8 +184,8 @@ internal class LibboxAndroidPlatform(
                 })
                 dnsServer = strings(props.dnsServers.mapNotNull { it.hostAddress })
                 gateway = strings(props.routes.filter {
-                    it.destination.prefixLength == 0 && it.gateway?.isAnyLocalAddress == false
-                }.mapNotNull { it.gateway.hostAddress })
+                    it.destination?.prefixLength == 0 && it.gateway?.isAnyLocalAddress == false
+                }.mapNotNull { it.gateway?.hostAddress })
                 metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
             }
             items.add(obj)
