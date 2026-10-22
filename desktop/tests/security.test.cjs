@@ -150,3 +150,14 @@ test('Desktop detects unexpected native engine shutdown without reporting connec
  assert.match(ui,/VPN-движок неожиданно остановился/);
  assert.match(ui,/getTunnelStatus\(\)/);
 });
+
+test('Cannot replace imported VPN subscription while native engine is active',()=>{
+ const main=load('src/main.cjs');
+ for(const channel of ['vainah:import-vless-link','vainah:import-https-subscription']){
+  const start=main.indexOf("ipcMain.handle('"+channel+"'");
+  assert.ok(start>=0);
+  const handler=main.slice(start,main.indexOf("\n  });",start));
+  assert.match(handler,/engineSession\.status\.state!=='stopped'/);
+  assert.match(handler,/Сначала отключи VPN-движок/);
+ }
+});
