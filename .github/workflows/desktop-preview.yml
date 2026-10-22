@@ -141,9 +141,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="desktop-windows-preview-v0.4.4-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          tag="desktop-windows-preview-v0.4.5-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
           cat > /tmp/VainahDesktopNotes.md <<'NOTES'
-          # Vainah VPN Desktop 0.4.4 — Windows engineering preview
+          # Vainah VPN Desktop 0.4.5 — Windows engineering preview
 
           **ВНИМАНИЕ: ЭТА СБОРКА НЕ ПОДКЛЮЧАЕТ VPN И НЕ ЗАЩИЩАЕТ ТРАФИК.**
           Windows x64: предварительный установщик. Поддержка sing-box и H1Cloud ещё проходит интеграцию и тестирование.
@@ -158,6 +158,6 @@ jobs:
           gh release create "$tag" preview/*.exe preview/SHA256SUMS.txt \
             -R "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Vainah VPN Desktop 0.4.4 — Windows (инженерный preview, VPN не подтверждён)" \
+            --title "Vainah VPN Desktop 0.4.5 — Windows (инженерный preview, VPN не подтверждён)" \
             --notes-file /tmp/VainahDesktopNotes.md \
             --prerelease --latest=false
