@@ -15,10 +15,9 @@ import java.lang.reflect.Proxy
  */
 class LibboxTunnelEngine : TunnelEngine {
     override val ready: Boolean = true
-    private var commandServer: CommandServer? = null
+    @Volatile private var commandServer: CommandServer? = null
     private var tun: ParcelFileDescriptor? = null
 
-    @Synchronized
     override fun connect(service: VpnService, singBoxConfigJson: String): Result<Unit> =
         runCatching {
             check(commandServer == null) { "VPN is already running" }
@@ -28,7 +27,12 @@ class LibboxTunnelEngine : TunnelEngine {
             ) { _, method, _ ->
                 when (method.name) {
                     "writeDebugMessage", "serviceReload" -> null
-                    "serviceStop" -> { disconnect(); null }
+                    "serviceStop" -> {
+                        // libbox may invoke this callback on its own command thread.
+                        // Closing CommandServer synchronously here can deadlock or crash.
+                        Thread({ disconnect() }, "vainah-libbox-shutdown").start()
+                        null
+                    }
                     "connectSSHAgent" -> throw UnsupportedOperationException("SSH agent is disabled")
                     "getSystemProxyStatus" -> throw UnsupportedOperationException("System proxy is disabled")
                     "setSystemProxyEnabled" -> throw UnsupportedOperationException("System proxy is disabled")
@@ -89,7 +93,6 @@ class LibboxTunnelEngine : TunnelEngine {
         return fd.detachFd()
     }
 
-    @Synchronized
     override fun disconnect() {
         val current = commandServer
         commandServer = null
