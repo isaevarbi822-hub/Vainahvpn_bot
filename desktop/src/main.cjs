@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
 const { vlessUriToXray } = require('../shared/vless-link.cjs');
 const { fetchSubscription } = require('../shared/https-subscription.cjs');
+const { subscriptionErrorMessage } = require('../shared/subscription-error.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
@@ -154,30 +155,7 @@ app.whenReady().then(()=>{
       chosenFile=null;
       return {ok:true,count:result.count,message:'Подписка загружена. Поддерживаемых серверов: '+result.count+'. Для тестового запуска выбран первый.'};
     }catch(error){
-      const cause=String(error?.message||'');
-      // Only show fixed categories, never raw errors containing bearer URLs.
-      const code=String(error?.code||'');
-      const message=cause==='Invalid subscription URL'||cause==='HTTPS hostname required'
-        ? 'Неверный адрес подписки. Нужна полная HTTPS-ссылка с доменным именем.'
-        : cause==='Subscription target unavailable'
-        ? 'DNS подписки вернул недоступный или внутренний адрес. Проверь домен H1Cloud.'
-        : ['ENOTFOUND','EAI_AGAIN'].includes(code)
-        ? 'Windows не удалось найти сервер подписки через DNS.'
-        : ['ECONNREFUSED','ECONNRESET','EHOSTUNREACH','ENETUNREACH'].includes(code)
-        ? 'Не удалось установить HTTPS-соединение с сервером подписки.'
-        : ['CERT_HAS_EXPIRED','UNABLE_TO_VERIFY_LEAF_SIGNATURE','DEPTH_ZERO_SELF_SIGNED_CERT','ERR_TLS_CERT_ALTNAME_INVALID'].includes(code)
-        ? 'Ошибка TLS-сертификата сервера подписки. Небезопасное соединение запрещено.'
-        : cause==='Unsupported subscription format'
-        ? 'Сервер вернул неподдерживаемый формат подписки (например, Clash YAML или HTML).'
-        : cause==='No supported VLESS REALITY TCP servers'
-        ? 'Подписка загружена, но серверов VLESS TCP REALITY не найдено.'
-        : cause==='Subscription timeout'||code==='ETIMEDOUT'
-        ? 'Сервер подписки не ответил за 8 секунд.'
-        : cause==='Subscription too large'
-        ? 'Файл подписки превышает 256 КБ.'
-        : cause==='Subscription server rejected request'
-        ? 'H1Cloud ответил неуспешным HTTP-статусом. Проверь срок и действительность ссылки.'
-        : 'Ошибка HTTPS-загрузки подписки. Проверь, открывается ли она в обычном браузере.';
+      const message=subscriptionErrorMessage(error);
       return {ok:false,message};
     }
   });
