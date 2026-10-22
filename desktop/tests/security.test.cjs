@@ -143,3 +143,10 @@ test('Subscription import button is wired and servers are rendered below connect
   assert.match(js,/refreshServers\(\)/);
   assert.match(main,/vainah:subscription-servers/);
 });
+
+test('Desktop detects unexpected native engine shutdown without reporting connection',()=>{
+ const ui=load('ui/app.js');
+ assert.match(ui,/async function refreshEngineStatus\(/);
+ assert.match(ui,/VPN-движок неожиданно остановился/);
+ assert.match(ui,/getTunnelStatus\(\)/);
+});
