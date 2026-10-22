@@ -21,7 +21,7 @@
         </activity>
         <service
             android:name=".VainahVpnService"
-            android:exported="true"
+            android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
             android:foregroundServiceType="systemExempted">
             <intent-filter>
