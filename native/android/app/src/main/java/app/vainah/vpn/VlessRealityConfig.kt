@@ -12,7 +12,7 @@ import java.util.UUID
  * Not itself a VPN engine; libbox still needs to own the Android VPN TUN.
  */
 object VlessRealityConfig {
-    fun outbound(raw: String): JSONObject {
+    fun outbound(raw: String, resolvedAddress: String? = null): JSONObject {
         require(raw.length <= 8192) { "Invalid node" }
         val uri = URI(raw)
         require(uri.scheme == "vless" && uri.host != null && uri.port in 1..65535)
@@ -35,7 +35,7 @@ object VlessRealityConfig {
         return JSONObject().apply {
             put("type", "vless")
             put("tag", "vainah-selected")
-            put("server", uri.host)
+            put("server", resolvedAddress ?: uri.host)
             put("server_port", uri.port)
             put("uuid", uuid)
             // Bootstrap domain resolution must not recurse into the VLESS tunnel.
@@ -55,20 +55,21 @@ object VlessRealityConfig {
         }
     }
 
-    fun profile(node: String): String = JSONObject().apply {
+    fun profile(node: String, resolvedAddress: String? = null): String = JSONObject().apply {
         put("log", JSONObject().put("level", "warn"))
         // Android TUN DNS is hijacked to this resolver. Queries to
-        // 1.1.1.1 travel inside the encrypted VLESS outbound.
+        // 1.1.1.1 travel over HTTPS inside the VLESS outbound.
         put("dns", JSONObject().apply {
             put("servers", JSONArray()
                 .put(JSONObject()
                     .put("type", "local")
                     .put("tag", "dns-bootstrap"))
                 .put(JSONObject()
-                    .put("type", "tcp")
+                    .put("type", "https")
                     .put("tag", "dns-via-vless")
                     .put("server", "1.1.1.1")
-                    .put("server_port", 53)
+                    .put("server_port", 443)
+                    .put("path", "/dns-query")
                     .put("detour", "vainah-selected")))
             put("final", "dns-via-vless")
             put("strategy", "prefer_ipv4")
@@ -80,9 +81,11 @@ object VlessRealityConfig {
             put("auto_route", true)
             put("dns_mode", "hijack")
         }))
-        put("outbounds", JSONArray().put(outbound(node))
+        put("outbounds", JSONArray().put(outbound(node, resolvedAddress))
             .put(JSONObject().put("type", "direct").put("tag", "direct")))
         put("route", JSONObject().put("final", "vainah-selected")
-            .put("auto_detect_interface", true))
+            .put("auto_detect_interface", true)
+            .put("rules", JSONArray().put(JSONObject()
+                .put("protocol", "dns").put("action", "hijack-dns"))))
     }.toString()
 }
