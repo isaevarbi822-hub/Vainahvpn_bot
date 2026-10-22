@@ -101,7 +101,8 @@ class VainahVpnService : VpnService() {
                         VpnConnectionState.tunnelCreated(this)
                         showNotification()
                         checkpoint("checking_vpn_https_egress")
-                        if (!VpnConnectivity.verifyInternetThroughTunnel(this)) {
+                        val probe = VpnConnectivity.diagnoseTunnel(this)
+                        if (!probe.reachable) {
                             // The VPN app's own process may be excluded from its TUN.
                             // A failed self-probe is NOT proof other apps lack internet.
                             // Keep the tunnel available for a real browser check, and
@@ -109,6 +110,7 @@ class VainahVpnService : VpnService() {
                             if (generation != connectionGeneration) return@Thread
                             getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
                                 .putString("last_stage", "vpn_https_probe_inconclusive")
+                                .putString("vpn_probe_reason", probe.reason)
                                 .putBoolean("startup_pending", false).commit()
                             VpnConnectionState.tunnelUnverified(this)
                             showNotification()
