@@ -97,9 +97,16 @@ class VainahVpnService : VpnService() {
                         showNotification()
                         checkpoint("checking_vpn_https_egress")
                         if (!VpnConnectivity.verifyInternetThroughTunnel(this)) {
-                            VpnConnectionState.failed(this,
-                                "VPN-туннель создан, но интернет недоступен (DNS или маршрутизация)")
-                            disconnect(userRequested = false)
+                            // The VPN app's own process may be excluded from its TUN.
+                            // A failed self-probe is NOT proof other apps lack internet.
+                            // Keep the tunnel available for a real browser check, and
+                            // retain a visible Stop action. Do not claim protection.
+                            if (generation != connectionGeneration) return@Thread
+                            getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+                                .putString("last_stage", "vpn_https_probe_inconclusive")
+                                .putBoolean("startup_pending", false).commit()
+                            VpnConnectionState.tunnelUnverified(this)
+                            showNotification()
                             return@Thread
                         }
                         if (generation != connectionGeneration) return@Thread
@@ -123,7 +130,7 @@ class VainahVpnService : VpnService() {
             " · TCP ${state.tcpLatencyMs} мс" else ""
         val detail = when (state.phase) {
             VpnConnectionState.ONLINE -> "Интернет через VPN проверен"
-            VpnConnectionState.TUN_READY -> "Туннель создан, проверяем интернет"
+            VpnConnectionState.TUN_READY -> "Туннель активен · интернет не подтверждён"
             else -> "Устанавливаем соединение"
         }
         val stopIntent = Intent(this, VainahVpnService::class.java).apply {
