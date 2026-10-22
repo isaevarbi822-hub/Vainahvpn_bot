@@ -74,3 +74,22 @@ test('sing-box JSON HTTPS subscription recognizes VLESS TCP REALITY server',asyn
  assert.equal(result.count,1);
  assert.equal(result.profiles[0].outbounds[0].settings.vnext[0].address,'de.example.com');
 });
+
+test('allows HTTPS subscription on custom TLS port and prefers reachable IPv4',async()=>{
+ const {EventEmitter}=require('node:events');
+ const result=await fetchSubscription('https://panel.example.com:8443/subscription',{
+  resolver:async()=>[{address:'2606:4700:4700::1111',family:6},{address:'8.8.8.8',family:4}],
+  request:(url,options,callback)=>{
+   assert.equal(url.port,'8443');
+   options.lookup('panel.example.com',{},(_err,address,family)=>{
+    assert.equal(address,'8.8.8.8');assert.equal(family,4);
+   });
+   const req=new EventEmitter();
+   req.destroy=error=>req.emit('error',error);
+   const res=new EventEmitter();res.statusCode=200;res.resume=()=>{};
+   queueMicrotask(()=>{callback(res);res.emit('data',Buffer.from(sample));res.emit('end')});
+   return req;
+  }
+ });
+ assert.equal(result.count,1);
+});
