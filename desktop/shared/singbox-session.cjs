@@ -13,7 +13,7 @@ class SingBoxSession {
     this.runner=runner; this.child=null; this.temp=null; this.state='stopped';
     this.exitPromise=null; this.lastError=null;
   }
-  get status() {return Object.freeze({state:this.state,protected:false});}
+  get status() {return Object.freeze({state:this.state,protected:false,reason:this.lastError||null});}
   async start(binary,xrayJson) {
     if(this.state!=='stopped'||this.child||this.temp)return {ok:false,reason:'Already running or starting'};
     this.state='starting'; this.lastError=null;
@@ -56,6 +56,7 @@ class SingBoxSession {
           if(settled)return;
           settled=true;
           if(this.child===child){
+            if(this.state==='running-unverified'&&!this.lastError)this.lastError='VPN-движок неожиданно завершился.';
             this.child=null;
             this.state='stopped';
             const dir=this.temp;
