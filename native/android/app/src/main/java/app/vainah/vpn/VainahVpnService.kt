@@ -105,7 +105,12 @@ class VainahVpnService : VpnService() {
         super.onRevoke()
     }
     override fun onDestroy() {
-        if (started) disconnect()
+        // Do not call stopSelf() recursively from the destroy lifecycle callback.
+        if (started) {
+            started = false
+            runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+            Thread { runCatching { EngineRegistry.active.disconnect() } }.start()
+        }
         super.onDestroy()
     }
 }
