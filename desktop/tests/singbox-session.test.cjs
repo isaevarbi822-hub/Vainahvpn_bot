@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {SingBoxSession}=require('../shared/singbox-session.cjs');
 test('new native session never claims VPN protection',()=>{
  const session=new SingBoxSession();
- assert.deepEqual(session.status,{state:'stopped',protected:false});
+ assert.deepEqual(session.status,{state:'stopped',protected:false,reason:null});
 });
 test('stop before start is safe and idempotent',async()=>{
  const session=new SingBoxSession();
@@ -15,7 +15,7 @@ test('invalid engine cannot enter connected state',async()=>{
  const session=new SingBoxSession();
  const result=await session.start('not-absolute','{}');
  assert.equal(result.ok,false);
- assert.deepEqual(session.status,{state:'stopped',protected:false});
+ assert.deepEqual(session.status,{state:'stopped',protected:false,reason:null});
 });
 
 test('mock engine exits and removes sensitive temporary config',async()=>{
@@ -116,7 +116,7 @@ test('disconnect racing with startup cannot resurrect engine',async()=>{
    const started=await starting;
    assert.equal(stopped.ok,true);
    assert.equal(started.ok,false);
-   assert.deepEqual(session.status,{state:'stopped',protected:false});
+   assert.deepEqual(session.status,{state:'stopped',protected:false,reason:null});
  }finally{
    await session.stop();
    await fs.rm(dir,{recursive:true,force:true});
