@@ -132,6 +132,7 @@ app.whenReady().then(()=>{
   }:null);
   ipcMain.handle('vainah:import-vless-link',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
     try{
       const profile=vlessUriToXray(link);
       const checked=await validateWithSingBox(enginePath(),profile);
@@ -144,6 +145,7 @@ app.whenReady().then(()=>{
   });
   ipcMain.handle('vainah:import-https-subscription',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
     try{
       const result=await fetchSubscription(link);
       subscriptionProfiles=result.profiles;
