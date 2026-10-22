@@ -38,14 +38,18 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
  if(typeof input!=='string'||input.length>8192)throw Error('Invalid subscription URL');
  let url;
  try{url=new URL(input)}catch{throw Error('Invalid subscription URL')}
- if(url.protocol!=='https:'||url.username||url.password||url.port&&url.port!=='443'||
+ if(url.protocol!=='https:'||url.username||url.password||
     url.hash||net.isIP(url.hostname)||!url.hostname.includes('.')||
     /[^a-z0-9.-]/i.test(url.hostname))throw Error('HTTPS hostname required');
  // Re-resolve to public IP and pin the connection to the validated address.
- const resolved=await resolver(url.hostname,{all:true,verbatim:true});
+ let resolved;
+ try{resolved=await resolver(url.hostname,{all:true,verbatim:true})}
+ catch(error){if(['ENOTFOUND','EAI_AGAIN'].includes(error?.code))throw error;
+  throw Error('Subscription DNS lookup failed');}
  if(!Array.isArray(resolved)||!resolved.length||resolved.some(x=>!publicAddress(x.address)))
   throw Error('Subscription target unavailable');
- const pinned=resolved[0].address;
+ // Prefer IPv4 on networks where AAAA resolves but IPv6 is unavailable.
+ const pinned=(resolved.find(x=>net.isIP(x.address)===4)||resolved[0]).address;
  const data=await new Promise((resolve,reject)=>{
   const req=request(url,{timeout:8000,maxRedirects:0,lookup:(_host,_opts,cb)=>cb(null,pinned,net.isIP(pinned))},res=>{
    if(res.statusCode!==200){res.resume();return reject(Error('Subscription server rejected request'))}
