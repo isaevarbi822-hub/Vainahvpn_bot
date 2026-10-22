@@ -1,6 +1,13 @@
 name: Vainah VPN native mobile
 
 on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - "native/**"
+      - "tests/native-mobile-foundation.test.mjs"
+      - ".github/workflows/native-mobile.yml"
   pull_request:
     paths:
       - "native/**"
