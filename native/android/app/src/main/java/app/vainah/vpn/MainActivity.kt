@@ -460,8 +460,10 @@ class MainActivity : Activity() {
     }
     private fun startTunnel(){
         if(!EngineRegistry.active.ready||vault.load()==null)return
+        val selected=selectedNode?.uri ?: return
         val intent=Intent(this,VainahVpnService::class.java).apply{
             action=VainahVpnService.ACTION_CONNECT
+            putExtra(VainahVpnService.EXTRA_SELECTED_VLESS,selected)
         }
         if(Build.VERSION.SDK_INT>=26)startForegroundService(intent)else startService(intent)
     }
