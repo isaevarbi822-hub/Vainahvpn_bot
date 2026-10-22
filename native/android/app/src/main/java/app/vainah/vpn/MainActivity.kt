@@ -34,6 +34,7 @@ class MainActivity : Activity() {
     private enum class Tab { HOME, PLANS, ACCOUNT, HELP }
     private var tab = Tab.HOME
     private var deviceFilter = 0
+    private var chosenServer = -1
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -191,7 +192,7 @@ class MainActivity : Activity() {
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Серверы подписки",19f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
-            "Ссылка подписки сохранена. Загрузка серверов из H1Cloud ещё не реализована; список пока недоступен."
+            "Ссылка сохранена. Нажми «Обновить серверы», чтобы увидеть список."
             else "Добавь одну HTTPS-подписку в кабинете. Все её серверы появятся здесь после подключения синхронизации.",
             12f,d.muted),7)
         val serverResults=column()
@@ -208,7 +209,15 @@ class MainActivity : Activity() {
                     loadServers.isEnabled=true
                     serverResults.removeAllViews()
                     result.onSuccess { names ->
-                        names.forEach { name -> add(serverResults,text(name,13f,d.ink),7) }
+                        chosenServer = -1
+                        names.forEachIndexed { index, name ->
+                            val choice=action(name)
+                            add(serverResults,choice,7)
+                            choice.setOnClickListener {
+                                chosenServer=index
+                                notice("Выбран: $name. VPN-туннель Android пока не подключён.")
+                            }
+                        }
                     }.onFailure {
                         add(serverResults,text("Не удалось загрузить VLESS REALITY серверы. Проверь ссылку.",12f,d.muted),7)
                     }
@@ -328,6 +337,7 @@ class MainActivity : Activity() {
         add(vaultCard,save,12)
         save.setOnClickListener{
             if(vault.save(input.text.toString())){
+                chosenServer = -1
                 input.text.clear();renderPage()
                 notice("Ссылка сохранена локально и зашифрована с помощью Android Keystore.")
             }else notice("Нужна корректная HTTPS-ссылка подписки из кабинета.")
