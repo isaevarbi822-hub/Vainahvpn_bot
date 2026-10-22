@@ -89,7 +89,7 @@ jobs:
             $signature = Get-AuthenticodeSignature -FilePath $file.FullName
             Write-Host ("Installer: " + $file.Name)
             Write-Host ("Authenticode status: " + $signature.Status)
-            Write-Host ("SHA256: " + (Get-FileHash -FilePath $file.FullName -Algorithm SHA256).Hash)
+            Write-Host ("SHA256: " + (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash)
             if ($signature.Status -eq 'NotSigned') {
               Write-Warning 'Unsigned developer preview: SmartScreen may block installation. Do not bypass security warnings.'
             } elseif ($signature.Status -ne 'Valid') {
