@@ -131,3 +131,16 @@ test('Both mobile clients select real subscription rows without claiming protect
  assert.match(android,/names\.forEachIndexed/);
  assert.match(iosApp,/ForEach\(serverNames\.indices/);
 });
+
+test('Mobile subscriptions validate REALITY nodes and refuse iOS redirects',()=>{
+ const android=read('android/app/src/main/java/app/vainah/vpn/SubscriptionServers.kt');
+ const ios=read('ios/Sources/Shared/SubscriptionServers.swift');
+ assert.match(android,/UUID\.fromString/);
+ assert.match(android,/params\["pbk"\]/);
+ assert.match(android,/params\["sni"\]/);
+ assert.match(ios,/NoSubscriptionRedirect/);
+ assert.match(ios,/completionHandler\(nil\)/);
+ assert.match(ios,/UUID\(uuidString:user\)/);
+ assert.match(ios,/options\["pbk"\]/);
+ assert.match(ios,/options\["sni"\]/);
+});
