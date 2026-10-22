@@ -224,7 +224,10 @@ class MainActivity : Activity() {
                 }
             }.start()
         }
-        // Refresh the current subscription whenever the server screen opens.\n        // New nodes appear without adding another URL or reinstalling the app.\n        if (vault.load()!=null) loadServers.post { loadServers.performClick() }\n        val goProfile=action("Добавить или изменить подписку")
+        // Refresh the current subscription whenever the server screen opens.
+        // New nodes appear without adding another URL or reinstalling the app.
+        if (vault.load()!=null) loadServers.post { loadServers.performClick() }
+        val goProfile=action("Добавить или изменить подписку")
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
