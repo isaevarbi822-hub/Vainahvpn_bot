@@ -144,3 +144,21 @@ test('Mobile subscriptions validate REALITY nodes and refuse iOS redirects',()=>
  assert.match(ios,/options\["pbk"\]/);
  assert.match(ios,/options\["sni"\]/);
 });
+
+test('Experimental Android libbox boots with setup, typed callbacks and retained TUN fd',()=>{
+  const base='android/app/src/libbox/java/app/vainah/vpn/';
+  const api=read(base+'LibboxNativeApi.kt');
+  const engine=read(base+'LibboxTunnelEngine.kt');
+  const platform=read(base+'LibboxAndroidPlatform.kt');
+  const xml=read('android/app/src/main/AndroidManifest.xml');
+  assert.match(api,/Libbox\.setup\(SetupOptions\(\)/);
+  assert.match(api,/context\.filesDir/);
+  assert.match(engine,/LibboxNativeApi\.setup\(service\)/);
+  assert.match(platform,/PlatformInterface/);
+  assert.match(platform,/override fun localDNSTransport\(\): LocalDNSTransport\? = null/);
+  assert.match(platform,/override fun autoDetectInterfaceControl\(fd: Int\)/);
+  assert.match(platform,/service\.protect\(fd\)/);
+  assert.match(platform,/return fd\.fd/);
+  assert.doesNotMatch(platform,/detachFd\(/);
+  assert.match(xml,/ACCESS_NETWORK_STATE/);
+});
