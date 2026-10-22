@@ -79,6 +79,84 @@ jobs:
           -PvainahEnableLibbox=true
           :app:assembleDebug
           --no-daemon --stacktrace
+      - name: Inspect libbox Java bridge API
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p libbox-api-report
+          aar="$(find "$HOME/.gradle/caches" -type f -name 'libbox-*.aar' -o -name 'libbox.aar' | head -n 1)"
+          if [[ -z "$aar" ]]; then
+            echo 'No cached libbox AAR found' >&2
+            exit 1
+          fi
+          unzip -p "$aar" classes.jar > /tmp/vainah-libbox-classes.jar
+          test -s /tmp/vainah-libbox-classes.jar
+          jar tf /tmp/vainah-libbox-classes.jar | grep -E '^libbox/.*\\.class
+      # VPN transport, platform TUN integration and security are not verified.
+
+  ios:
+    name: iOS Simulator unsigned compile
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate Vainah website-matching app icon
+        run: swift native/ios/scripts/generate-icon.swift
+      - name: Generate Xcode project
+        working-directory: native/ios
+        run: xcodegen generate
+      - name: Compile iOS app and Packet Tunnel extension for simulator
+        run: >
+          xcodebuild
+          -project native/ios/VainahVPN.xcodeproj
+          -scheme VainahVPN
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+ | grep -v '\\
+      # VPN transport, platform TUN integration and security are not verified.
+
+  ios:
+    name: iOS Simulator unsigned compile
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate Vainah website-matching app icon
+        run: swift native/ios/scripts/generate-icon.swift
+      - name: Generate Xcode project
+        working-directory: native/ios
+        run: xcodegen generate
+      - name: Compile iOS app and Packet Tunnel extension for simulator
+        run: >
+          xcodebuild
+          -project native/ios/VainahVPN.xcodeproj
+          -scheme VainahVPN
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+ | sort > libbox-api-report/classes.txt
+          test -s libbox-api-report/classes.txt
+          while IFS= read -r class; do
+            name="${class%.class}"
+            name="${name//\\//.}"
+            javap -classpath /tmp/vainah-libbox-classes.jar -public "$name" || true
+          done < libbox-api-report/classes.txt > libbox-api-report/public-api.txt
+          test -s libbox-api-report/public-api.txt
+      - name: Upload libbox API signature report
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-libbox-experimental-api-report
+          path: libbox-api-report/
+          retention-days: 7
       # This is a build compatibility probe only. Never publish its APK:
       # VPN transport, platform TUN integration and security are not verified.
 
