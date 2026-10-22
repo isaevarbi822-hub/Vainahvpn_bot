@@ -58,6 +58,30 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+  libbox-compat:
+    name: Android experimental libbox dependency compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Resolve libbox Android binary and compile experimental APK
+        run: >
+          gradle -p native/android
+          -PvainahEnableLibbox=true
+          :app:assembleDebug
+          --no-daemon --stacktrace
+      # This is a build compatibility probe only. Never publish its APK:
+      # VPN transport, platform TUN integration and security are not verified.
+
   ios:
     name: iOS Simulator unsigned compile
     runs-on: macos-latest
