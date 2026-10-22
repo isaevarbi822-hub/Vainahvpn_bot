@@ -7,6 +7,8 @@ import java.net.URLDecoder
 import java.util.Locale
 
 /** Fetches subscription over HTTPS. Never logs bearer URLs or node credentials. */
+data class VainahNode(val label: String, val uri: String)
+
 object SubscriptionServers {
     /** Only readable labels, never expose UUID, hostname, private key or query tokens. */
     fun displayName(raw: String, index: Int): String {
@@ -26,7 +28,9 @@ object SubscriptionServers {
         return country ?: clean
     }
 
-    fun load(raw: String): List<String> {
+    fun load(raw: String): List<String> = loadNodes(raw).map { it.label }
+
+    fun loadNodes(raw: String): List<VainahNode> {
         val link=SubscriptionLink.validate(raw) ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         val connection=(URL(link).openConnection() as HttpURLConnection)
         connection.connectTimeout=8000
@@ -68,7 +72,7 @@ object SubscriptionServers {
                 }.getOrDefault(false)
             }
             if(supported.isEmpty())throw IllegalStateException("Нет поддерживаемых VLESS REALITY серверов")
-            return supported.mapIndexed { index, uri -> displayName(uri, index + 1) }
+            return supported.mapIndexed { index, uri -> VainahNode(displayName(uri, index + 1), uri) }
         }finally{ connection.disconnect() }
     }
 }
