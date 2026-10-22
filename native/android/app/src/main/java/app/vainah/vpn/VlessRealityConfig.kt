@@ -38,6 +38,8 @@ object VlessRealityConfig {
             put("server", uri.host)
             put("server_port", uri.port)
             put("uuid", uuid)
+            // Bootstrap domain resolution must not recurse into the VLESS tunnel.
+            put("domain_resolver", "dns-bootstrap")
             params["flow"]?.takeIf { it.isNotBlank() }?.let { put("flow", it) }
             put("tls", JSONObject().apply {
                 put("enabled", true)
@@ -55,11 +57,28 @@ object VlessRealityConfig {
 
     fun profile(node: String): String = JSONObject().apply {
         put("log", JSONObject().put("level", "warn"))
+        // Android TUN DNS is hijacked to this resolver. Queries to
+        // 1.1.1.1 travel inside the encrypted VLESS outbound.
+        put("dns", JSONObject().apply {
+            put("servers", JSONArray()
+                .put(JSONObject()
+                    .put("type", "local")
+                    .put("tag", "dns-bootstrap"))
+                .put(JSONObject()
+                    .put("type", "tcp")
+                    .put("tag", "dns-via-vless")
+                    .put("server", "1.1.1.1")
+                    .put("server_port", 53)
+                    .put("detour", "vainah-selected")))
+            put("final", "dns-via-vless")
+            put("strategy", "prefer_ipv4")
+        })
         put("inbounds", JSONArray().put(JSONObject().apply {
             put("type", "tun")
             put("tag", "vainah-tun")
             put("address", JSONArray().put("172.19.0.1/30").put("fd00:19::1/126"))
             put("auto_route", true)
+            put("dns_mode", "hijack")
         }))
         put("outbounds", JSONArray().put(outbound(node))
             .put(JSONObject().put("type", "direct").put("tag", "direct")))
