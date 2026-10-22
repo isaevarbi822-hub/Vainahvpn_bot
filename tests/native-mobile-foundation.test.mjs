@@ -119,3 +119,15 @@ test('Only HTTPS subscription formats may enter secure native stores',()=>{
   assert.match(read('ios/Tests/SubscriptionLinkTests.swift'),/vless:\/\//);
   assert.match(read('android/app/src/test/java/app/vainah/vpn/SubscriptionLinkTest.kt'),/vless:\/\//);
 });
+
+test('Both mobile clients select real subscription rows without claiming protected tunnel',()=>{
+ const android=read('android/app/src/main/java/app/vainah/vpn/MainActivity.kt');
+ const iosApp=read('ios/Sources/App/ContentView.swift');
+ for(const code of [android,iosApp]){
+   assert.match(code,/Обновить серверы/);
+   assert.match(code,/chosenServer/);
+   assert.match(code,/VPN-туннель/);
+ }
+ assert.match(android,/names\.forEachIndexed/);
+ assert.match(iosApp,/ForEach\(serverNames\.indices/);
+});
