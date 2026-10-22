@@ -135,7 +135,7 @@
       label.textContent='Ошибка остановки VPN-движка.';
     }else if(state.state==='stopped'){
       if(connectButton.textContent==='⏻ Остановить движок')
-        label.textContent='VPN-движок неожиданно остановился. Защита трафика не активна.';
+        label.textContent=(state.reason||'VPN-движок неожиданно остановился.')+' Защита трафика не активна.';
       connectButton.textContent='⏻ Проверить подключение';
     }
   }
