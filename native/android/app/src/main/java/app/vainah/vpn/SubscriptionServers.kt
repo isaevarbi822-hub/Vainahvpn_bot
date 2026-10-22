@@ -3,9 +3,29 @@ package app.vainah.vpn
 import android.util.Base64
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
+import java.util.Locale
 
 /** Fetches subscription over HTTPS. Never logs bearer URLs or node credentials. */
 object SubscriptionServers {
+    /** Only readable labels, never expose UUID, hostname, private key or query tokens. */
+    fun displayName(raw: String, index: Int): String {
+        val fragment = raw.substringAfter('#', "").take(160)
+        val decoded = runCatching { URLDecoder.decode(fragment.replace("+", "%2B"), "UTF-8") }
+            .getOrDefault(fragment).trim()
+        val clean = decoded.replace(Regex("[\\p{Cntrl}]"), "").take(60)
+        if (clean.isBlank()) return "Локация $index"
+        val lower = clean.lowercase(Locale.ROOT)
+        val country = when {
+            Regex("(^|[^a-z])(germany|deutschland|de)([^a-z]|$)").containsMatchIn(lower) ||
+                "герман" in lower || "🇩🇪" in clean -> "🇩🇪 Германия"
+            Regex("(^|[^a-z])(spain|espana|españa|es)([^a-z]|$)").containsMatchIn(lower) ||
+                "испан" in lower || "🇪🇸" in clean -> "🇪🇸 Испания"
+            else -> null
+        }
+        return country?.let { if (clean.length <= 30) "$it · $clean" else it } ?: clean
+    }
+
     fun load(raw: String): List<String> {
         val link=SubscriptionLink.validate(raw) ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         val connection=(URL(link).openConnection() as HttpURLConnection)
@@ -48,7 +68,7 @@ object SubscriptionServers {
                 }.getOrDefault(false)
             }
             if(supported.isEmpty())throw IllegalStateException("Нет поддерживаемых VLESS REALITY серверов")
-            return supported.indices.map { "Сервер ${it+1} · VLESS REALITY" }
+            return supported.mapIndexed { index, uri -> displayName(uri, index + 1) }
         }finally{ connection.disconnect() }
     }
 }
