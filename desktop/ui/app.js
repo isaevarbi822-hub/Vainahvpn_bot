@@ -122,6 +122,24 @@
       list.append(button);
     }
   }
+  // Reflect unexpected native engine exits without claiming verified VPN protection.
+  async function refreshEngineStatus(){
+    if(connectButton.disabled||!window.vainah?.getTunnelStatus)return;
+    const state=await window.vainah.getTunnelStatus().catch(()=>null);
+    if(!state)return;
+    const label=document.getElementById('connection-status');
+    if(state.state==='running-unverified'){
+      connectButton.textContent='⏻ Остановить движок';
+    }else if(state.state==='stop-failed'){
+      connectButton.textContent='⏻ Повторить отключение';
+      label.textContent='Ошибка остановки VPN-движка.';
+    }else if(state.state==='stopped'){
+      if(connectButton.textContent==='⏻ Остановить движок')
+        label.textContent='VPN-движок неожиданно остановился. Защита трафика не активна.';
+      connectButton.textContent='⏻ Проверить подключение';
+    }
+  }
+  setInterval(()=>{void refreshEngineStatus()},3000);
   const importButton=document.getElementById('import-vless');
   importButton.addEventListener('click',async()=>{
     const field=document.getElementById('vless-key');
