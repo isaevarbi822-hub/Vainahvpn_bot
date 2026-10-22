@@ -17,10 +17,25 @@ object VpnConnectivity {
         return runCatching {
             val node = URI(rawVless)
             require(node.scheme == "vless" && node.host != null && node.port in 1..65535)
-            Socket().use { socket ->
-                require(service.protect(socket)) { "Cannot protect upstream latency socket" }
+            val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val physical = connectivity.allNetworks.filter { network ->
+                val caps = connectivity.getNetworkCapabilities(network)
+                caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            }.let { candidates ->
+                candidates.firstOrNull { network ->
+                    connectivity.getNetworkCapabilities(network)?.hasCapability(
+                        NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+                } ?: candidates.firstOrNull()
+            } ?: return -1
+            // Explicitly resolve and connect on the underlying physical network.
+            // Protect the opened socket so it cannot loop through our TUN.
+            val ip = physical.getAllByName(node.host).firstOrNull() ?: return -1
+            physical.socketFactory.createSocket().use { socket ->
+                socket.bind(InetSocketAddress(0))
+                require(service.protect(socket)) { "Cannot protect TCP diagnostic socket" }
                 val start = SystemClock.elapsedRealtime()
-                socket.connect(InetSocketAddress(node.host, node.port), 2500)
+                socket.connect(InetSocketAddress(ip, node.port), 3500)
                 (SystemClock.elapsedRealtime() - start).coerceIn(0, 60000).toInt()
             }
         }.getOrDefault(-1)
