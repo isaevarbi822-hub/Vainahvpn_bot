@@ -438,6 +438,9 @@ class MainActivity : Activity() {
         return nav
     }
     private fun requestConnection(){
+        if(selectedNode == null){
+            notice("Сначала выбери сервер из подписки H1Cloud.");return
+        }
         if(vault.load()==null){
             notice("Сначала добавь HTTPS-ссылку подписки из личного кабинета.");return
         }
