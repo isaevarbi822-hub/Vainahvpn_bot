@@ -8,13 +8,13 @@ import android.net.VpnService
  */
 interface TunnelEngine {
     val ready: Boolean
-    fun connect(service: VpnService, selectedVlessUri: String): Result<Unit>
+    fun connect(service: VpnService, singBoxConfigJson: String): Result<Unit>
     fun disconnect()
 }
 
 object UnavailableTunnelEngine : TunnelEngine {
     override val ready = false
-    override fun connect(service: VpnService, selectedVlessUri: String): Result<Unit> =
+    override fun connect(service: VpnService, singBoxConfigJson: String): Result<Unit> =
         Result.failure(UnsupportedOperationException("VLESS engine not integrated"))
     override fun disconnect() = Unit
 }
