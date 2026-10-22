@@ -2,6 +2,10 @@ package app.vainah.vpn
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
@@ -39,6 +43,65 @@ class MainActivity : Activity() {
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
+    private val refresher = Handler(Looper.getMainLooper())
+    private var statusView: TextView? = null
+    private var connectionDetailView: TextView? = null
+    private var connectionMetaView: TextView? = null
+    private var connectionButton: Button? = null
+    private val refreshTask = object : Runnable {
+        override fun run() {
+            refreshConnectionStatus()
+            refresher.postDelayed(this, 1400)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refresher.removeCallbacks(refreshTask)
+        refresher.post(refreshTask)
+    }
+
+    override fun onPause() {
+        refresher.removeCallbacks(refreshTask)
+        super.onPause()
+    }
+
+    private fun refreshConnectionStatus() {
+        val snapshot = VpnConnectionState.read(this)
+        statusView?.text = when (snapshot.phase) {
+            VpnConnectionState.STARTING -> "Подключаемся…"
+            VpnConnectionState.TUN_READY -> "Проверяем интернет…"
+            VpnConnectionState.ONLINE -> "VPN · интернет доступен"
+            VpnConnectionState.FAILED -> "VPN не подключён"
+            else -> "Не подключено"
+        }
+        connectionDetailView?.text = when (snapshot.phase) {
+            VpnConnectionState.ONLINE ->
+                "HTTPS через VPN доступен. Внешний IP и DNS ещё требуют проверки."
+            VpnConnectionState.STARTING, VpnConnectionState.TUN_READY -> snapshot.detail
+            VpnConnectionState.FAILED -> snapshot.detail
+            else -> if (EngineRegistry.active.ready)
+                "Экспериментальный libbox: защита трафика ещё не подтверждена."
+                else "VPN-движок пока не установлен. Трафик не защищён."
+        }
+        connectionMetaView?.text =
+            if (snapshot.server.isNotBlank() && snapshot.phase != VpnConnectionState.OFF) {
+                "Сервер: ${snapshot.server}" +
+                    if (snapshot.tcpLatencyMs >= 0)
+                        " · TCP ${snapshot.tcpLatencyMs} мс" else " · задержка неизвестна"
+            } else "Выбери сервер из подписки"
+        connectionButton?.text = if (snapshot.canDisconnect)
+            "⏻   Отключить VPN" else if (EngineRegistry.active.ready)
+            "⏻   Испытать VPN-движок" else "⏻   Подключиться"
+    }
+
+    private fun stopTunnel() {
+        startService(Intent(this, VainahVpnService::class.java).apply {
+            action = VainahVpnService.ACTION_DISCONNECT
+        })
+        // UI update is driven by actual service-owned status.
+        refresher.postDelayed({ refreshConnectionStatus() }, 300)
+    }
     private fun dp(n: Int) = (resources.displayMetrics.density * n).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,6 +114,10 @@ class MainActivity : Activity() {
         window.statusBarColor = d.background
         window.navigationBarColor = d.background
         renderPage()
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 4520)
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -178,14 +245,22 @@ class MainActivity : Activity() {
             setOnClickListener { requestConnection() }
         }
         preview.addView(power,LinearLayout.LayoutParams(-1,dp(196)))
-        add(preview,text("Не подключено",25f,d.ink,true).apply{
-            gravity=Gravity.CENTER
-        })
-        add(preview,text(if (EngineRegistry.active.ready) "Экспериментальный libbox: подключение и защита трафика ещё не подтверждены." else "VPN-движок H1Cloud/VLESS пока не встроен. Трафик не защищён.",
-            12f,d.muted).apply{ gravity=Gravity.CENTER },8)
+        val currentStatus = text("Не подключено",25f,d.ink,true).apply {
+            gravity = Gravity.CENTER
+        }
+        statusView = currentStatus
+        add(preview,currentStatus)
+        val stateDetail = text("",12f,d.muted).apply { gravity=Gravity.CENTER }
+        connectionDetailView = stateDetail
+        add(preview,stateDetail,8)
+        val stateMeta = text("",12f,d.muted).apply { gravity=Gravity.CENTER }
+        connectionMetaView = stateMeta
+        add(preview,stateMeta,9)
         val connect=action(if (EngineRegistry.active.ready) "⏻   Испытать VPN-движок" else "⏻   Подключиться",true)
         add(preview,connect,17)
+        connectionButton = connect
         connect.setOnClickListener { requestConnection() }
+        refreshConnectionStatus()
         val vpnDiagnostics = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
         val lastError = vpnDiagnostics.getString("last_failure", null)
         val lastStage = vpnDiagnostics.getString("last_stage", null)
@@ -449,6 +524,10 @@ class MainActivity : Activity() {
         return nav
     }
     private fun requestConnection(){
+        if (VpnConnectionState.read(this).canDisconnect) {
+            stopTunnel()
+            return
+        }
         if(selectedNode == null){
             notice("Сначала выбери сервер из подписки H1Cloud.");return
         }
@@ -475,6 +554,7 @@ class MainActivity : Activity() {
         val intent=Intent(this,VainahVpnService::class.java).apply{
             action=VainahVpnService.ACTION_CONNECT
             putExtra(VainahVpnService.EXTRA_SELECTED_VLESS,selected)
+            putExtra(VainahVpnService.EXTRA_SELECTED_LABEL,selectedNode?.label.orEmpty())
         }
         if(Build.VERSION.SDK_INT>=26)startForegroundService(intent)else startService(intent)
     }
