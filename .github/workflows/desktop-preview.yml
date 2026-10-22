@@ -79,6 +79,23 @@ jobs:
           node desktop/scripts/check-engine-config.cjs $engine
       - name: Build Windows NSIS installer
         run: npm run --prefix desktop dist:win
+      - name: Verify installer signature status and calculate Windows checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem -Path 'desktop/dist' -Filter '*.exe' -File)
+          if ($files.Count -lt 1) { throw 'Missing Windows installer' }
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Host ("Installer: " + $file.Name)
+            Write-Host ("Authenticode status: " + $signature.Status)
+            Write-Host ("SHA256: " + (Get-FileHash -FilePath $file.FullName -Algorithm SHA256).Hash)
+            if ($signature.Status -eq 'NotSigned') {
+              Write-Warning 'Unsigned developer preview: SmartScreen may block installation. Do not bypass security warnings.'
+            } elseif ($signature.Status -ne 'Valid') {
+              throw ('Installer signature has unexpected status: ' + $signature.Status)
+            }
+          }
       - name: Upload Windows preview
         uses: actions/upload-artifact@v4
         with:
