@@ -5,6 +5,9 @@ import io.nekohasekai.libbox.CommandServerHandler
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
+import io.nekohasekai.libbox.SetupOptions
+import android.content.Context
+import java.io.File
 
 /**
  * Experimental compile-time adapter to the real libbox Java API.
@@ -13,6 +16,23 @@ import io.nekohasekai.libbox.PlatformInterface
  * Included only with -PvainahEnableLibbox=true.
  */
 internal object LibboxNativeApi {
+    @Synchronized
+    fun setup(context: Context) {
+        // libbox needs writable base/working/temp paths before NewCommandServer.
+        // Its Go setup routine also initializes file ownership and crash logging.
+        val base = File(context.filesDir, "libbox").apply { mkdirs() }
+        val work = File(base, "work").apply { mkdirs() }
+        val temp = File(context.cacheDir, "libbox").apply { mkdirs() }
+        check(base.isDirectory && work.isDirectory && temp.isDirectory)
+        Libbox.setup(SetupOptions().apply {
+            basePath = base.absolutePath
+            workingPath = work.absolutePath
+            tempPath = temp.absolutePath
+            crashReportSource = "android"
+            logMaxLines = 1000L
+            debug = false
+        })
+    }
     fun validateConfiguration(config: String) {
         Libbox.checkConfig(config)
     }
