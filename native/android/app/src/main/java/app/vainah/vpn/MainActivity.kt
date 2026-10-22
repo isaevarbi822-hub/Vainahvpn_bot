@@ -67,7 +67,13 @@ class MainActivity : Activity() {
     }
 
     private fun refreshConnectionStatus() {
-        val snapshot = VpnConnectionState.read(this)
+        var snapshot = VpnConnectionState.read(this)
+        if ((snapshot.phase == VpnConnectionState.ONLINE ||
+                snapshot.phase == VpnConnectionState.TUN_READY) &&
+            !VainahVpnService.runningInProcess) {
+            VpnConnectionState.failed(this, "VPN-служба завершилась, соединение не защищено")
+            snapshot = VpnConnectionState.read(this)
+        }
         statusView?.text = when (snapshot.phase) {
             VpnConnectionState.STARTING -> "Подключаемся…"
             VpnConnectionState.TUN_READY -> "Проверяем интернет…"
