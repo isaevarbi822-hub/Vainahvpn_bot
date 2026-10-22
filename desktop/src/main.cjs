@@ -192,7 +192,7 @@ app.whenReady().then(()=>{
           message:'Не удалось проверить конфигурацию sing-box. VPN не запущен.'};
         const result=await engineSession.start(enginePath(),chosenDirectProfile);
         return {ok:result.ok,state:engineSession.status.state,protected:false,
-          message:result.ok?'Движок запущен, VPN ещё не подтверждён':'Запуск движка не удался'};
+          message:result.ok?'Движок запущен, VPN ещё не подтверждён':(result.reason||'Запуск движка не удался')};
       }
       // Re-open defensively: the selected file may have changed since inspection.
       const stat=await fs.lstat(chosenFile);
@@ -221,7 +221,7 @@ app.whenReady().then(()=>{
       if(!checked.ok)return {ok:false,message:'Проверка sing-box не прошла'};
       const result=await engineSession.start(enginePath(),payload);
       return {ok:result.ok,state:engineSession.status.state,protected:false,
-        message:result.ok?'Движок запущен, защита VPN ещё не подтверждена':'Не удалось запустить движок'};
+        message:result.ok?'Движок запущен, защита VPN ещё не подтверждена':(result.reason||'Не удалось запустить движок')};
     }catch{return {ok:false,message:'Ошибка проверки или запуска VPN-движка'}}
   });
   ipcMain.handle('vainah:stop-engine',async event=>{
