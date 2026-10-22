@@ -60,7 +60,7 @@ class VainahVpnService : VpnService() {
             ACTION_CONNECT -> {
                 if (started) return START_NOT_STICKY
                 checkpoint("service_received_connect")
-                val rawNode = intent.getStringExtra(EXTRA_SELECTED_VLESS)
+                val rawNode = intent.getStringExtra(EXTRA_SELECTED_VLESS).orEmpty()
                 val config = rawNode?.let { runCatching { VlessRealityConfig.profile(it) }.getOrNull() }
                 if (!EngineRegistry.active.ready || config == null || SecureSubscription(this).load() == null) {
                     VpnConnectionState.failed(this, "Не удалось проверить подписку или сервер")
