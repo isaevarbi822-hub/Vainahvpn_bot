@@ -122,3 +122,36 @@ test('disconnect racing with startup cannot resurrect engine',async()=>{
    await fs.rm(dir,{recursive:true,force:true});
  }
 });
+
+test('unexpected TUN failure is reported without exposing engine logs',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-failure-check-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ child.stderr=new EventEmitter();
+ child.kill=()=>{queueMicrotask(()=>child.emit('exit',0));return true;};
+ const session=new SingBoxSession({platform:'win32',runner:()=>{
+   queueMicrotask(()=>child.emit('spawn'));
+   return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   assert.equal((await session.start(binary,sample)).ok,true);
+   child.stderr.emit('data',Buffer.from('create tun failed: secret should not leak'));
+   child.emit('exit',1);
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(session.status.state,'stopped');
+   assert.equal(session.status.protected,false);
+   assert.equal(session.status.reason,'Не удалось создать сетевой TUN-адаптер.');
+   assert.doesNotMatch(session.status.reason,/secret/);
+ }finally{
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
