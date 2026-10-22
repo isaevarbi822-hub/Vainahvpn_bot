@@ -126,6 +126,7 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?{
     ...PREVIEW_STATUS,
     state: engineSession.status.state,
+    reason: engineSession.status.reason,
     explanation: engineSession.status.state==='running-unverified'
       ? 'Движок запущен, но защита трафика НЕ подтверждена. Это тестовый режим.'
       : PREVIEW_STATUS.explanation
