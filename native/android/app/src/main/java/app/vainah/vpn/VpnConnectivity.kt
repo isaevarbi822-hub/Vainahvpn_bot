@@ -1,6 +1,9 @@
 package app.vainah.vpn
 
 import android.net.VpnService
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.content.Context
 import android.os.SystemClock
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
@@ -24,13 +27,25 @@ object VpnConnectivity {
     }
 
     /** Unprotected HTTPS requests must pass through the TUN and exit via VPN. */
-    fun verifyInternetThroughTunnel(): Boolean {
+    fun verifyInternetThroughTunnel(service: VpnService): Boolean {
+        val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        // Bind to VPN explicitly: the VPN app's own default network can differ.
+        val deadline = SystemClock.elapsedRealtime() + 3500L
+        var vpnNetwork: android.net.Network? = null
+        while (SystemClock.elapsedRealtime() < deadline) {
+            vpnNetwork = connectivity.allNetworks.firstOrNull {
+                connectivity.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+            if (vpnNetwork != null) break
+            Thread.sleep(150)
+        }
+        val network = vpnNetwork ?: return false
         for (url in arrayOf(
             "https://cp.cloudflare.com/generate_204",
             "https://connectivitycheck.gstatic.com/generate_204"
         )) {
             val okay = runCatching {
-                val connection = (URL(url).openConnection() as HttpURLConnection)
+                val connection = (network.openConnection(URL(url)) as HttpURLConnection)
                 try {
                     connection.instanceFollowRedirects = false
                     connection.connectTimeout = 3500
