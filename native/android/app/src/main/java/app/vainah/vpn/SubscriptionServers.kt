@@ -23,7 +23,7 @@ object SubscriptionServers {
                 "испан" in lower || "🇪🇸" in clean -> "🇪🇸 Испания"
             else -> null
         }
-        return country?.let { if (clean == it || clean == it.substringAfter(" ")) it else if (clean.length <= 30) "$it · $clean" else it } ?: clean
+        return country ?: clean
     }
 
     fun load(raw: String): List<String> {
