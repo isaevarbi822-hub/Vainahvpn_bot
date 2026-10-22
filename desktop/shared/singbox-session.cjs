@@ -11,12 +11,12 @@ class SingBoxSession {
   constructor({runner=spawn,platform=process.platform}={}) {
     this.platform=platform;
     this.runner=runner; this.child=null; this.temp=null; this.state='stopped';
-    this.exitPromise=null;
+    this.exitPromise=null; this.lastError=null;
   }
   get status() {return Object.freeze({state:this.state,protected:false});}
   async start(binary,xrayJson) {
     if(this.state!=='stopped'||this.child||this.temp)return {ok:false,reason:'Already running or starting'};
-    this.state='starting';
+    this.state='starting'; this.lastError=null;
     try {
       if(this.platform!=='win32')throw Error('Windows-only engine');
       if(typeof binary!=='string'||!path.isAbsolute(binary)||path.basename(binary).toLowerCase()!=='sing-box.exe')
@@ -34,9 +34,22 @@ class SingBoxSession {
         return {ok:false,reason:'Startup cancelled',protected:false};
       }
       const child=this.runner(binary,['run','-c',configPath],{
-        cwd:this.temp,windowsHide:true,shell:false,stdio:'ignore'
+        cwd:this.temp,windowsHide:true,shell:false,stdio:['ignore','ignore','pipe']
       });
       this.child=child;
+      // Inspect only known failure categories. Never store/log raw engine output,
+      // because diagnostics can contain server addresses or credentials.
+      if(child.stderr?.on)child.stderr.on('data',chunk=>{
+        const line=String(chunk).slice(0,2048).toLowerCase();
+        if(/access is denied|permission denied|requires administrator|administrator privilege/.test(line))
+          this.lastError='Недостаточно системных прав для запуска TUN.';
+        else if(/wintun|tun device|create tun|network adapter/.test(line))
+          this.lastError='Не удалось создать сетевой TUN-адаптер.';
+        else if(/no such host|lookup .* failed|dns.*failed/.test(line))
+          this.lastError='Ошибка DNS при обращении к серверу.';
+        else if(/invalid config|decode config|unknown field/.test(line))
+          this.lastError='Движок отклонил конфигурацию.';
+      });
       this.exitPromise=new Promise(resolve=>{
         let settled=false;
         const finish=()=>{
@@ -82,17 +95,17 @@ class SingBoxSession {
       // missing driver, bad config). Do not report success for that failure.
       await Promise.race([
         this.exitPromise,
-        new Promise(resolve=>setTimeout(resolve,250))
+        new Promise(resolve=>setTimeout(resolve,1500))
       ]);
       if(this.child!==child||this.state!=='starting'){
         if(this.child===child)await this.stop();
-        return {ok:false,reason:'Engine exited or startup was cancelled',protected:false};
+        return {ok:false,reason:this.lastError||'Движок остановился сразу после запуска.',protected:false};
       }
       this.state='running-unverified';
       return {ok:true,started:true,protected:false};
     } catch {
       await this.stop();
-      return {ok:false,reason:'Could not start native engine',protected:false};
+      return {ok:false,reason:this.lastError||'Не удалось запустить VPN-движок.',protected:false};
     }
   }
   async stop() {
