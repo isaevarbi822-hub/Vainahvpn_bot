@@ -192,7 +192,7 @@ class MainActivity : Activity() {
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Серверы подписки",19f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
-            "Ссылка сохранена. Нажми «Обновить серверы», чтобы увидеть список."
+            "Синхронизируем серверы из подписки. Новые локации появятся автоматически."
             else "Добавь одну HTTPS-подписку в кабинете. Все её серверы появятся здесь после подключения синхронизации.",
             12f,d.muted),7)
         val serverResults=column()
@@ -224,7 +224,7 @@ class MainActivity : Activity() {
                 }
             }.start()
         }
-        val goProfile=action("Добавить или изменить подписку")
+        // Refresh the current subscription whenever the server screen opens.\n        // New nodes appear without adding another URL or reinstalling the app.\n        if (vault.load()!=null) loadServers.post { loadServers.performClick() }\n        val goProfile=action("Добавить или изменить подписку")
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
