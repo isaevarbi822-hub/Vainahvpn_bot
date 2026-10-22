@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private var tab = Tab.HOME
     private var deviceFilter = 0
     private var chosenServer = -1
+    private var selectedNode: VainahNode? = null
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -204,18 +205,20 @@ class MainActivity : Activity() {
             if(link==null){notice("Сначала добавь HTTPS-подписку.");return@setOnClickListener}
             loadServers.isEnabled=false
             Thread {
-                val result=runCatching { SubscriptionServers.load(link) }
+                val result=runCatching { SubscriptionServers.loadNodes(link) }
                 runOnUiThread {
                     loadServers.isEnabled=true
                     serverResults.removeAllViews()
                     result.onSuccess { names ->
                         chosenServer = -1
-                        names.forEachIndexed { index, name ->
-                            val choice=action(name)
+                        selectedNode = null
+                        names.forEachIndexed { index, node ->
+                            val choice=action(node.label)
                             add(serverResults,choice,7)
                             choice.setOnClickListener {
                                 chosenServer=index
-                                notice("Выбран: $name. VPN-туннель Android пока не подключён.")
+                                selectedNode=node
+                                notice("Выбран: ${node.label}. VPN-туннель Android пока не подключён.")
                             }
                         }
                     }.onFailure {
@@ -341,6 +344,7 @@ class MainActivity : Activity() {
         save.setOnClickListener{
             if(vault.save(input.text.toString())){
                 chosenServer = -1
+                selectedNode = null
                 input.text.clear();renderPage()
                 notice("Ссылка сохранена локально и зашифрована с помощью Android Keystore.")
             }else notice("Нужна корректная HTTPS-ссылка подписки из кабинета.")
