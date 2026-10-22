@@ -184,6 +184,23 @@ struct ContentView: View {
 
             connectionCard
                 .padding(.top, 25)
+            VainahCard {
+                VStack(alignment: .leading, spacing: 11) {
+                    overline("СЕРВЕРЫ И КОНФИГУРАЦИИ")
+                    Text("Серверы подписки")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(VainahDesign.ink)
+                    Text(saved
+                         ? "Ссылка сохранена. Загрузка списка серверов из H1Cloud ещё не реализована."
+                         : "Добавь одну HTTPS-подписку в кабинете. После реализации синхронизации здесь будут её серверы.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VainahDesign.muted)
+                    callToAction("Добавить или изменить подписку") {
+                        selected = .account
+                    }
+                }
+            }
+            .padding(.top, 17)
             statistics
                 .padding(.top, 17)
 
@@ -447,11 +464,10 @@ struct ContentView: View {
                         .foregroundStyle(VainahDesign.muted)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    SecureField("HTTPS-ссылка подписки", text: $subscription)
+                    TextField("HTTPS-ссылка подписки", text: $subscription)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
-                        .textContentType(.password)
                         .font(.system(size: 13))
                         .padding(15)
                         .background(VainahDesign.background.opacity(0.72),
@@ -459,7 +475,7 @@ struct ContentView: View {
                         .accessibilityLabel("Секретная HTTPS-ссылка VPN")
                         .padding(.top, 5)
 
-                    callToAction("Сохранить профиль", prominent: true) {
+                    callToAction("Добавить подписку", prominent: true) {
                         if SecureSubscription.save(subscription) {
                             saved = true
                             subscription = ""
