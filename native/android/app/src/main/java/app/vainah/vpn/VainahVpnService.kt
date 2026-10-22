@@ -23,20 +23,37 @@ class VainahVpnService : VpnService() {
         private const val ID = 2103
     }
     private var started = false
+    // Synchronous checkpoints survive an abrupt native-process crash.
+    private fun checkpoint(stage: String) {
+        getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+            .putString("last_stage", stage)
+            .putBoolean("startup_pending", true)
+            .commit()
+    }
+    private fun completeStartup() {
+        getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+            .putString("last_stage", "engine_started_unverified")
+            .putBoolean("startup_pending", false)
+            .commit()
+    }
     private fun failure(stage: String, error: Throwable) {
         Log.e("VainahVpn", "VPN failed at $stage", error)
         getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
             .putString("last_failure", "$stage: ${error.javaClass.simpleName}")
+            .putBoolean("startup_pending", false)
             .apply()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_DISCONNECT -> {
+                getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+                    .putBoolean("startup_pending", false).apply()
                 disconnect()
                 return START_NOT_STICKY
             }
             ACTION_CONNECT -> {
+                checkpoint("service_received_connect")
                 val node = intent.getStringExtra(EXTRA_SELECTED_VLESS)
                 val config = node?.let { runCatching { VlessRealityConfig.profile(it) }.getOrNull() }
                 if (!EngineRegistry.active.ready || config == null || SecureSubscription(this).load() == null) {
@@ -44,6 +61,7 @@ class VainahVpnService : VpnService() {
                     return START_NOT_STICKY
                 }
                 try {
+                    checkpoint("starting_foreground_notification")
                     startVisibleService()
                 } catch (error: Exception) {
                     failure("foreground service", error)
@@ -52,11 +70,13 @@ class VainahVpnService : VpnService() {
                 }
                 Thread {
                     try {
+                        checkpoint("starting_libbox_native_engine")
                         // A future real engine must route authenticated packets
                         // before reporting Result.success.
                         val result = EngineRegistry.active.connect(this, config)
                         result.exceptionOrNull()?.let { failure("libbox startup", it) }
                         if (result.isFailure) disconnect()
+                        else completeStartup()
                     } catch (error: Throwable) {
                         failure("unexpected tunnel error", error)
                         disconnect()
