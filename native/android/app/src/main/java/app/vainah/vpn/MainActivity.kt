@@ -173,7 +173,7 @@ class MainActivity : Activity() {
         add(preview,bar)
         add(preview,overline("ВАШЕ СОЕДИНЕНИЕ"),24)
         val power=VainahPower(this).apply {
-            contentDescription="Подключиться к VPN. Движок VLESS пока не встроен."
+            contentDescription=if (EngineRegistry.active.ready) "Испытать экспериментальный VPN-движок" else "Подключиться к VPN. Движок VLESS пока не встроен."
             isClickable=true;isFocusable=true
             setOnClickListener { requestConnection() }
         }
@@ -181,9 +181,9 @@ class MainActivity : Activity() {
         add(preview,text("Не подключено",25f,d.ink,true).apply{
             gravity=Gravity.CENTER
         })
-        add(preview,text("VPN-движок H1Cloud/VLESS пока не встроен. Трафик не защищён.",
+        add(preview,text(if (EngineRegistry.active.ready) "Экспериментальный libbox: подключение и защита трафика ещё не подтверждены." else "VPN-движок H1Cloud/VLESS пока не встроен. Трафик не защищён.",
             12f,d.muted).apply{ gravity=Gravity.CENTER },8)
-        val connect=action("⏻   Подключиться",true)
+        val connect=action(if (EngineRegistry.active.ready) "⏻   Испытать VPN-движок" else "⏻   Подключиться",true)
         add(preview,connect,17)
         connect.setOnClickListener { requestConnection() }
         add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
@@ -218,7 +218,7 @@ class MainActivity : Activity() {
                             choice.setOnClickListener {
                                 chosenServer=index
                                 selectedNode=node
-                                notice("Выбран: ${node.label}. VPN-туннель Android пока не подключён.")
+                                notice(if (EngineRegistry.active.ready) "Выбран: ${node.label}. Экспериментальный VPN-движок доступен для теста; реальная защита ещё не проверена." else "Выбран: ${node.label}. VPN-туннель Android пока не подключён.")
                             }
                         }
                     }.onFailure {
@@ -274,7 +274,7 @@ class MainActivity : Activity() {
         val setup=action("Открыть мастер подключения ↗",true)
         add(start,setup,17)
         setup.setOnClickListener{openSite("device-center.html")}
-        add(start,text("Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
+        add(start,text(if (EngineRegistry.active.ready) "Экспериментальная версия: проверь IP и DNS перед использованием." else "Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
     }
     private fun plans(parent: LinearLayout) {
         intro(parent,"ТАРИФЫ VAINAH",
