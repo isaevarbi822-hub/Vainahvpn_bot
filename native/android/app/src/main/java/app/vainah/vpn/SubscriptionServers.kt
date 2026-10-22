@@ -27,7 +27,7 @@ object SubscriptionServers {
                 output.toByteArray()
             }
             val source=bytes.toString(Charsets.UTF_8).trim()
-            val decoded=if(source.startsWith("vless://")) source else runCatching {
+            val decoded=if(source.startsWith("vless://") || source.contains("\\nvless://")) source else runCatching {
                 String(Base64.decode(source.filterNot { it.isWhitespace() },Base64.DEFAULT),Charsets.UTF_8)
             }.getOrDefault(source)
             val lines=decoded.lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -35,8 +35,16 @@ object SubscriptionServers {
             val supported=lines.filter { line ->
                 if(!line.startsWith("vless://"))false else runCatching {
                     val uri=java.net.URI(line)
-                    val params=uri.rawQuery.orEmpty()
-                    params.contains("security=reality") && (params.contains("type=tcp") || params.contains("type=raw"))
+                    val params=uri.rawQuery.orEmpty().split('&').mapNotNull {
+                        val parts=it.split('=',limit=2)
+                        if(parts.size==2) parts[0] to parts[1] else null
+                    }.toMap()
+                    val id=uri.rawUserInfo.orEmpty()
+                    uri.scheme=="vless" && uri.host!=null && uri.port in 1..65535 &&
+                    runCatching { java.util.UUID.fromString(id) }.isSuccess &&
+                    params["security"]=="reality" &&
+                    (params["type"]==null || params["type"]=="tcp" || params["type"]=="raw") &&
+                    !params["pbk"].isNullOrBlank() && !params["sni"].isNullOrBlank()
                 }.getOrDefault(false)
             }
             if(supported.isEmpty())throw IllegalStateException("Нет поддерживаемых VLESS REALITY серверов")
