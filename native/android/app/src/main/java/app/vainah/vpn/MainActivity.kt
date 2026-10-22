@@ -186,6 +186,17 @@ class MainActivity : Activity() {
         connect.setOnClickListener { requestConnection() }
         add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
 
+        val servers=panel()
+        add(parent,servers,17)
+        add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
+        add(servers,text("Серверы подписки",19f,d.ink,true),9)
+        add(servers,text(if(vault.load()!=null)
+            "Ссылка подписки сохранена. Загрузка серверов из H1Cloud ещё не реализована; список пока недоступен."
+            else "Добавь одну HTTPS-подписку в кабинете. Все её серверы появятся здесь после подключения синхронизации.",
+            12f,d.muted),7)
+        val goProfile=action("Добавить или изменить подписку")
+        add(servers,goProfile,12)
+        goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
         for ((head,sub) in listOf("6 тарифов" to "от 30 дней",
                                  "3 / 6" to "устройств",
@@ -286,14 +297,13 @@ class MainActivity : Activity() {
             hint="https://... (личная ссылка подписки)"
             setHintTextColor(d.muted);setTextColor(d.ink);textSize=13f
             inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
-            transformationMethod=PasswordTransformationMethod.getInstance()
             setSingleLine(true)
             background=shape(Color.rgb(14,21,38),Color.rgb(14,21,38),12f)
             setPadding(dp(14),dp(15),dp(14),dp(15))
             importantForAutofill=View.IMPORTANT_FOR_AUTOFILL_NO
         }
         add(vaultCard,input,15)
-        val save=action("Сохранить профиль",true)
+        val save=action("Добавить подписку",true)
         add(vaultCard,save,12)
         save.setOnClickListener{
             if(vault.save(input.text.toString())){
