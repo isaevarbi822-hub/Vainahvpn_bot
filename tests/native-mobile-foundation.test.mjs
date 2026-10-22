@@ -173,7 +173,7 @@ test('Android connection UI and notifications show real verified status and offe
   assert.match(service,/ACTION_DISCONNECT/);
   assert.match(service,/EXTRA_SELECTED_LABEL/);
   assert.match(service,/VpnConnectionState\.verified\(this\)/);
-  assert.match(service,/verifyInternetThroughTunnel\(this\)/);
+  assert.match(service,/diagnoseTunnel\(this\)/);
   assert.match(service,/"Отключить", stopAction/);
   assert.match(ui,/stopTunnel\(\)/);
   assert.match(ui,/VpnConnectionState\.read\(this\)/);
