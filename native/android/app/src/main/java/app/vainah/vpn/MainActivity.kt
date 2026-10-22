@@ -194,6 +194,27 @@ class MainActivity : Activity() {
             "Ссылка подписки сохранена. Загрузка серверов из H1Cloud ещё не реализована; список пока недоступен."
             else "Добавь одну HTTPS-подписку в кабинете. Все её серверы появятся здесь после подключения синхронизации.",
             12f,d.muted),7)
+        val serverResults=column()
+        add(servers,serverResults,8)
+        val loadServers=action("Обновить серверы")
+        add(servers,loadServers,10)
+        loadServers.setOnClickListener {
+            val link=vault.load()
+            if(link==null){notice("Сначала добавь HTTPS-подписку.");return@setOnClickListener}
+            loadServers.isEnabled=false
+            Thread {
+                val result=runCatching { SubscriptionServers.load(link) }
+                runOnUiThread {
+                    loadServers.isEnabled=true
+                    serverResults.removeAllViews()
+                    result.onSuccess { names ->
+                        names.forEach { name -> add(serverResults,text(name,13f,d.ink),7) }
+                    }.onFailure {
+                        add(serverResults,text("Не удалось загрузить VLESS REALITY серверы. Проверь ссылку.",12f,d.muted),7)
+                    }
+                }
+            }.start()
+        }
         val goProfile=action("Добавить или изменить подписку")
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
