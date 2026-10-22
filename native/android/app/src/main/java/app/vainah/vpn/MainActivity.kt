@@ -48,6 +48,7 @@ class MainActivity : Activity() {
     private var connectionDetailView: TextView? = null
     private var connectionMetaView: TextView? = null
     private var connectionButton: Button? = null
+    private var ipCheckButton: Button? = null
     private val refreshTask = object : Runnable {
         override fun run() {
             refreshConnectionStatus()
@@ -97,6 +98,7 @@ class MainActivity : Activity() {
                     if (snapshot.tcpLatencyMs >= 0)
                         " · TCP ${snapshot.tcpLatencyMs} мс" else " · задержка неизвестна"
             } else "Выбери сервер из подписки"
+        ipCheckButton?.visibility = if (snapshot.canDisconnect) View.VISIBLE else View.GONE
         connectionButton?.text = if (snapshot.canDisconnect)
             "⏻   Отключить VPN" else if (EngineRegistry.active.ready)
             "⏻   Испытать VPN-движок" else "⏻   Подключиться"
@@ -267,6 +269,13 @@ class MainActivity : Activity() {
         add(preview,connect,17)
         connectionButton = connect
         connect.setOnClickListener { requestConnection() }
+        val ipButton = action("Проверить IP и интернет ↗")
+        ipCheckButton = ipButton
+        add(preview, ipButton, 9)
+        ipButton.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.cloudflare.com/cdn-cgi/trace")))
+        }
         refreshConnectionStatus()
         val vpnDiagnostics = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
         val lastError = vpnDiagnostics.getString("last_failure", null)
