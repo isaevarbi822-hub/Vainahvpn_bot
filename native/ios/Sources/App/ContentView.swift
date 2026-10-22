@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var subscription = ""
     @State private var saved = SecureSubscription.load() != nil
     @State private var serverNames: [String] = []
+    @State private var chosenServer: Int?
     @State private var loadingServers = false
     @State private var notice: String?
     @State private var showErase = false
@@ -51,6 +52,8 @@ struct ContentView: View {
                 SecureSubscription.remove()
                 saved = false
                 subscription = ""
+                serverNames = []
+                chosenServer = nil
             }
         } message: {
             Text("Будет удалена только ссылка на этом устройстве.")
@@ -198,11 +201,11 @@ struct ContentView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
                     if !serverNames.isEmpty {
-                        ForEach(serverNames, id: \.self) { name in
-                            Text(name)
-                                .font(.system(size: 13))
-                                .foregroundStyle(VainahDesign.ink)
-                                .padding(.vertical, 4)
+                        ForEach(serverNames.indices, id: \.self) { index in
+                            callToAction((chosenServer == index ? "✓ " : "") + serverNames[index]) {
+                                chosenServer = index
+                                notice = "Сервер выбран. VPN-туннель iOS ещё не подключён."
+                            }
                         }
                     }
                     callToAction(loadingServers ? "Загружаем серверы…" : "Обновить серверы") {
@@ -214,6 +217,7 @@ struct ContentView: View {
                         Task {
                             do {
                                 serverNames=try await SubscriptionServers.load(link)
+                                chosenServer = nil
                             } catch {
                                 notice="Не удалось загрузить VLESS REALITY серверы. Проверь ссылку и доступность подписки."
                             }
@@ -504,6 +508,8 @@ struct ContentView: View {
                         if SecureSubscription.save(subscription) {
                             saved = true
                             subscription = ""
+                            serverNames = []
+                            chosenServer = nil
                             notice = "Ссылка сохранена в Keychain только на этом устройстве."
                         } else {
                             notice = "Вставь корректную HTTPS-ссылку из кабинета Vainah VPN."
