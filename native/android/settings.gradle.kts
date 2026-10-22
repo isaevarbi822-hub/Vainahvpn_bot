@@ -10,6 +10,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Opt-in libbox integration: JitPack is used only with -PvainahEnableLibbox=true.
+        if (providers.gradleProperty("vainahEnableLibbox").orNull == "true") {
+            maven(url = "https://jitpack.io")
+        }
     }
 }
 rootProject.name = "VainahVPN"
