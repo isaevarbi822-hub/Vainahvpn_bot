@@ -89,6 +89,18 @@ jobs:
           unzip -p "$aar_path" classes.jar > /tmp/vainah-libbox-classes.jar
           test -s /tmp/vainah-libbox-classes.jar
           jar tf /tmp/vainah-libbox-classes.jar > libbox-api-report/classes.txt
+          echo 'libbox public API:'
+          while IFS= read -r cls; do
+            case "$cls" in
+              libbox/*.class)
+                name="${cls%.class}"
+                name="${name//\\//.}"
+                javap -classpath /tmp/vainah-libbox-classes.jar -public "$name" 2>/dev/null || true
+                ;;
+            esac
+          done < libbox-api-report/classes.txt > libbox-api-report/signatures.txt
+          grep -E 'public (class|interface|static|.*Service|.*Platform|.*Command)' libbox-api-report/signatures.txt | head -n 170 || true
+
           test -s libbox-api-report/classes.txt
           echo "Inspect classes.txt for library API surface. No user credentials are recorded." > libbox-api-report/README.txt
       - name: Upload libbox class index
