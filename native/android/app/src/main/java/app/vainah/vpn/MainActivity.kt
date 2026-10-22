@@ -186,6 +186,11 @@ class MainActivity : Activity() {
         val connect=action(if (EngineRegistry.active.ready) "⏻   Испытать VPN-движок" else "⏻   Подключиться",true)
         add(preview,connect,17)
         connect.setOnClickListener { requestConnection() }
+        val lastError = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
+            .getString("last_failure", null)
+        if (!lastError.isNullOrBlank() && EngineRegistry.active.ready) {
+            add(preview,text("Последняя ошибка движка: $lastError",11f,d.muted),9)
+        }
         add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
 
         val servers=panel()
