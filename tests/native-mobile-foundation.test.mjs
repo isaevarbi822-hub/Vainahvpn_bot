@@ -162,3 +162,29 @@ test('Experimental Android libbox boots with setup, typed callbacks and retained
   assert.doesNotMatch(platform,/detachFd\(/);
   assert.match(xml,/ACCESS_NETWORK_STATE/);
 });
+
+test('Android connection UI and notifications show real verified status and offer disconnect',()=>{
+  const service=read(android+'VainahVpnService.kt');
+  const ui=read(android+'MainActivity.kt');
+  const network=read(android+'VpnConnectivity.kt');
+  const platform=read('android/app/src/libbox/java/app/vainah/vpn/LibboxAndroidPlatform.kt');
+  const profile=read(android+'VlessRealityConfig.kt');
+  const manifest=read('android/app/src/main/AndroidManifest.xml');
+  assert.match(service,/ACTION_DISCONNECT/);
+  assert.match(service,/EXTRA_SELECTED_LABEL/);
+  assert.match(service,/VpnConnectionState\.verified\(this\)/);
+  assert.match(service,/verifyInternetThroughTunnel\(this\)/);
+  assert.match(service,/"Отключить", stopAction/);
+  assert.match(ui,/stopTunnel\(\)/);
+  assert.match(ui,/VpnConnectionState\.read\(this\)/);
+  assert.match(ui,/TCP.*мс/);
+  assert.match(manifest,/POST_NOTIFICATIONS/);
+  assert.match(network,/service\.protect\(socket\)/);
+  assert.match(network,/TRANSPORT_VPN/);
+  assert.match(network,/network\.openConnection/);
+  assert.match(platform,/options\.inet4Address/);
+  assert.match(platform,/options\.inet6Address/);
+  assert.match(platform,/props\.dnsServers/);
+  assert.match(platform,/props\.routes/);
+  assert.match(profile,/fd00:19::1\/126/);
+});
