@@ -20,6 +20,8 @@ class VainahVpnService : VpnService() {
         const val EXTRA_SELECTED_VLESS = "app.vainah.vpn.SELECTED_VLESS"
         const val EXTRA_SELECTED_LABEL = "app.vainah.vpn.SELECTED_LABEL"
         const val ACTION_DISCONNECT = "app.vainah.vpn.DISCONNECT"
+        @Volatile var runningInProcess: Boolean = false
+            private set
         private const val CHANNEL = "vainah_connection"
         private const val ID = 2103
     }
@@ -159,10 +161,12 @@ class VainahVpnService : VpnService() {
             startForeground(ID, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else startForeground(ID, notice)
         started = true
+        runningInProcess = true
     }
 
     private fun disconnect(userRequested: Boolean) {
         connectionGeneration++
+        runningInProcess = false
         if (userRequested) VpnConnectionState.disconnected(this)
         if (started) {
             started = false
@@ -182,6 +186,7 @@ class VainahVpnService : VpnService() {
 
     override fun onDestroy() {
         connectionGeneration++
+        runningInProcess = false
         if (started) {
             started = false
             runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
