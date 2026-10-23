@@ -42,8 +42,8 @@ export async function createNativeOrder(user,plan){
     if(Number(pending.rows[0].count)>=2)return null;
     const id=randomUUID();
     await db.query(`INSERT INTO vpn_native_orders
-       (id,customer_id,plan_days,device_limit,amount_kopeks)
-       VALUES($1,$2,$3,$4,$5)`,[id,customer.id,plan.days,plan.deviceLimit,plan.kopeks]);
+       (id,customer_id,plan_days,device_limit,amount_kopeks,delivery_email)
+       VALUES($1,$2,$3,$4,$5,$6)`,[id,customer.id,plan.days,plan.deviceLimit,plan.kopeks,user.email]);
     return {id,customerId:customer.id};
   });
 }
@@ -64,7 +64,8 @@ export async function failNativeOrder(id){
 export async function readNativeOrder(id){
   const db=await getPool();
   const r=await db.query(`
-    SELECT o.*,c.auth_provider,c.identity_subject,c.delivery_email,c.client_name
+    SELECT o.*,c.auth_provider,c.identity_subject,c.client_name,
+           COALESCE(o.delivery_email,c.delivery_email) AS delivery_email
     FROM vpn_native_orders o JOIN vpn_native_customers c ON c.id=o.customer_id
     WHERE o.id=$1`,[id]);
   return r.rows[0]||null;
@@ -134,6 +135,41 @@ export async function readNativeVpnAccess(order){
   if(!client||client.name!==order.client_name||Number(client.expires_at)*1000<=Date.now())return null;
   return secureSubscriptionUrl(client.subscription_url||client.sub_url);
 }
+/**
+ * DURABLY reserve paid days before any H1Cloud creation/PATCH.
+ * A later database/HTTP failure must never mint the same days again on retry.
+ * Advisory lock is per Clerk customer, so concurrent renewals reserve in order.
+ */
+export async function reserveNativeExpiry(orderId){
+  return transaction(async db=>{
+    const r=await db.query(`SELECT o.*,c.client_name FROM vpn_native_orders o
+      JOIN vpn_native_customers c ON c.id=o.customer_id
+      WHERE o.id=$1 FOR UPDATE OF o`,[orderId]);
+    const order=r.rows[0];
+    if(!order||order.status!=='paid'||order.delivery_state!=='processing')return null;
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1),71911)',[String(order.customer_id)]);
+    if(order.target_expires_at)return order.target_expires_at;
+    const existing=(await panel('/clients/'+encodeURIComponent(order.client_name)))?.client||null;
+    if(existing&&existing.name!==order.client_name)throw Error('H1_CUSTOMER_MISMATCH');
+    const current=await db.query(
+      'SELECT expires_at FROM vpn_native_entitlements WHERE customer_id=$1 FOR UPDATE',
+      [order.customer_id]);
+    const savedMs=current.rows[0]?.expires_at?new Date(current.rows[0].expires_at).getTime():0;
+    const panelMs=Number(existing?.expires_at||0)*1000;
+    const base=Math.max(Date.now(),savedMs,Number.isFinite(panelMs)?panelMs:0);
+    const target=new Date(base+Number(order.plan_days)*86400000);
+    if(!Number.isFinite(target.getTime()))throw Error('INVALID_RESERVED_EXPIRY');
+    await db.query(`INSERT INTO vpn_native_entitlements(customer_id,expires_at)
+      VALUES($1,$2) ON CONFLICT(customer_id) DO UPDATE
+      SET expires_at=GREATEST(vpn_native_entitlements.expires_at,EXCLUDED.expires_at),
+          updated_at=now()`,[order.customer_id,target]);
+    await db.query(`UPDATE vpn_native_orders
+      SET target_expires_at=$2,updated_at=now()
+      WHERE id=$1 AND target_expires_at IS NULL`,[orderId,target]);
+    return target;
+  });
+}
+
 async function fulfillH1(orderId){
   const pool=await getPool(),db=await pool.connect();
   let delivery='retry_required',lastError='H1_DELIVERY_FAILED';
@@ -150,16 +186,9 @@ async function fulfillH1(orderId){
     try {
       const existing=(await panel('/clients/'+encodeURIComponent(order.client_name)))?.client||null;
       const prior=Number(existing?.expires_at||0);
-      let target=order.target_expires_at?new Date(order.target_expires_at):null;
-      if(!target) {
-        const e=await db.query('SELECT expires_at FROM vpn_native_entitlements WHERE customer_id=$1 FOR UPDATE',[order.customer_id]);
-        const base=Math.max(Date.now(),prior*1000,e.rows[0]?.expires_at?new Date(e.rows[0].expires_at).getTime():0);
-        target=new Date(base+Number(order.plan_days)*86400000);
-        await db.query(`INSERT INTO vpn_native_entitlements(customer_id,expires_at) VALUES($1,$2)
-          ON CONFLICT(customer_id) DO UPDATE SET expires_at=EXCLUDED.expires_at,updated_at=now()`,
-          [order.customer_id,target]);
-        await db.query('UPDATE vpn_native_orders SET target_expires_at=$2 WHERE id=$1',[orderId,target]);
-      }
+      const target=order.target_expires_at?new Date(order.target_expires_at):null;
+      if(!target||!Number.isFinite(target.getTime()))
+        throw Error('NATIVE_EXPIRY_MUST_BE_RESERVED_FIRST');
       const expires_at=Math.max(Math.floor(target.getTime()/1000),prior);
       const limit=Math.max(Number(existing?.device_limit)||3,Number(order.device_limit)||3);
       if(existing) {
@@ -204,7 +233,21 @@ export async function fulfillNativePaidOrder(orderId) {
       (delivery_state='retry' AND updated_at<now()-interval '90 seconds') OR
       (delivery_state='processing' AND delivery_lease_until<now()))
     RETURNING id`,[orderId]);
-  const result=claimed.rowCount===1?await fulfillH1(orderId):{delivery:'not_claimed'};
+  let result={delivery:'not_claimed'};
+  if(claimed.rowCount===1){
+    try {
+      // Transactional reservation MUST commit before talking to H1Cloud.
+      const target=await reserveNativeExpiry(orderId);
+      if(!target)throw Error('NATIVE_RESERVATION_UNAVAILABLE');
+      result=await fulfillH1(orderId);
+    }catch{
+      await db.query(`UPDATE vpn_native_orders
+        SET delivery_state='retry',delivery_lease_until=NULL,
+            last_delivery_error='RESERVATION_FAILED',updated_at=now()
+        WHERE id=$1 AND status='paid' AND delivery_state='processing'`,[orderId]).catch(()=>{});
+      result={delivery:'retry_required'};
+    }
+  }
   if(result.delivery==='delivered'||result.delivery==='not_claimed')
     await sendNativeEmailIfDue(orderId).catch(()=>{});
   return result;
