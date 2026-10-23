@@ -3,7 +3,7 @@
 BEGIN;
 ALTER TABLE vpn_native_customers DROP CONSTRAINT IF EXISTS vpn_native_customers_auth_provider_check;
 ALTER TABLE vpn_native_customers ADD CONSTRAINT vpn_native_customers_auth_provider_check
-  CHECK(auth_provider IN ('email','phone','telegram','yandex'));
+  CHECK(auth_provider IN ('clerk','email','phone','telegram','yandex'));
 CREATE TABLE IF NOT EXISTS vpn_native_login_links (
   id uuid PRIMARY KEY,
   auth_provider text NOT NULL CHECK(auth_provider IN ('telegram','yandex')),
