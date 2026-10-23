@@ -82,7 +82,7 @@ final class NativeAccount: ObservableObject {
                           bearer: String? = nil) async throws -> [String: Any] {
         guard let url = URL(string: "/.netlify/functions/" + endpoint, relativeTo: origin)
         else { throw LoginError.invalid }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url.absoluteURL)
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         request.timeoutInterval = 14
         request.setValue("application/json", forHTTPHeaderField: "Accept")
