@@ -16,11 +16,24 @@ export function planCatalog(env=process.env) {
   return entries.map(plan=>({...plan,priceRub:(plan.kopeks/100).toFixed(2)}));
 }
 export function planById(id,env=process.env) {return planCatalog(env).find(plan=>plan.id===String(id));}
+export function checkoutPrerequisites(env=process.env) {
+  // Public result intentionally contains only readiness booleans, never keys.
+  const present = key => typeof env[key]==='string' && env[key].trim().length>0;
+  return Object.freeze({
+    database:present('DATABASE_URL'),
+    rollypay:present('ROLLYPAY_API_KEY')&&present('ROLLYPAY_SIGNING_SECRET'),
+    panel:present('PANEL_BASE_URL')&&present('PANEL_API_TOKEN'),
+    site:present('PUBLIC_SITE_ORIGIN'),
+    session:present('SESSION_SIGNING_KEY'),
+    telegram:present('TELEGRAM_BOT_TOKEN'),
+    // A Clerk secret alone does not establish a verified session integration.
+    clerkIntegrated:false,
+    migrationsVerified:false,
+    deliveryVerified:false,
+    liveReviewed:false
+  });
+}
 export function checkoutReady(env=process.env) {
-  // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
-  const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
-    'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
-  // Checkout is intentionally locked until the production system passes a separate review. 
-  // Do not unlock through environment variables alone.
+  // Live payments remain disabled until verified auth, migrations and delivery.
   return false;
 }
