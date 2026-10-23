@@ -4,6 +4,7 @@ import {fetchPayment} from './lib/rollypay-client.mjs';
 import {validPaymentId} from './lib/rollypay-identifiers.mjs';
 import {updateVerifiedPayment} from './lib/subscription-db.mjs';
 import {fulfillPaidOrder} from './lib/h1-fulfillment.mjs';
+import {readNativeOrder,validateNativePayment,recordNativePayment,fulfillNativePaidOrder} from './lib/native-commerce.mjs';
 
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
@@ -30,6 +31,24 @@ export default async function handler(request){
        verified.payment_currency!=='RUB' || amount===null ||
        verified.status!==event.status || verified.test===true || verified.environment==='sandbox'){
       return json({error:'Payment provider mismatch'},409);
+    }
+    // New mobile orders are separate from Telegram IDs and entitlements.
+    // Native transactions must match the provider and stored invoice exactly.
+    const native=await readNativeOrder(event.order_id);
+    if(native){
+      try {validateNativePayment(native,verified)}
+      catch{return json({error:'Mobile payment provider mismatch'},409)}
+      if(verified.status!==event.status || amount!==Number(native.amount_kopeks))
+        return json({error:'Mobile payment amount mismatch'},409);
+      const saved=await recordNativePayment(event.order_id,event.payment_id,verified.status);
+      if(saved.error)return json({error:'Mobile ledger mismatch'},409);
+      if(verified.status==='paid'){
+        const delivered=await fulfillNativePaidOrder(event.order_id);
+        if(delivered.delivery==='retry_required')
+          return json({error:'Mobile delivery pending retry',paymentRecorded:true},503);
+        return json({ok:true,mobile:true,delivery:delivered.delivery});
+      }
+      return json({ok:true,mobile:true,status:verified.status});
     }
     const result=await updateVerifiedPayment({
       orderId:event.order_id,paymentId:event.payment_id,
