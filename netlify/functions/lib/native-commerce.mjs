@@ -9,7 +9,7 @@ export function nativeCommerceReady(env=process.env){
     !!env.RESEND_API_KEY && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.RESEND_FROM_EMAIL||'');
 }
 export async function accountForIdentity(user,db=null){
-  if(!user || !['email','phone'].includes(user.provider) ||
+  if(!user || !['email','phone','telegram','yandex'].includes(user.provider) ||
     !/^[a-f0-9]{64}$/.test(user.subject||''))throw Error('INVALID_IDENTITY');
   const pool=db||await getPool();
   // Identity subject is an HMAC of a verified contact, not PII or a Telegram ID.
