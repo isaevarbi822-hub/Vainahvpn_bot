@@ -35,3 +35,9 @@ The site already defines six server-owned RUB plans, a session-bound invoice end
 Reference official current store policies before publishing:
 - https://support.google.com/googleplay/android-developer/answer/9858738
 - https://developer.apple.com/app-store/review/guidelines/
+
+## Authentication decision (October 2026)
+
+The intended login options are **email and Telegram only**; phone login is disabled by product decision. Before checkout may be enabled, both must resolve to a stable, server-verified customer subject. Current `subscription-checkout.mjs` accepts only the signed Telegram cookie, whereas email login uses a separate signed alternate cookie. Do **not** interpret an email cookie as a Telegram ID, and do not generate a fabricated Telegram ID. Build a customer identity table and account-linking migration first, mapping each provider's verified subject to one owner-scoped customer ID. Preserve existing Telegram orders through a reviewed migration, avoid merging accounts on an unverified email claim, and test entitlement retrieval for both login types.
+
+Current code also contains legacy phone/Yandex UI and alternate-session handlers; changing provider options in an external authentication dashboard alone does not remove those paths. Confirm the actual active authentication implementation before treating either login as production-ready. Checkout remains disabled until the ownership and merchant tests pass.
