@@ -883,13 +883,13 @@ class MainActivity : Activity() {
         val providers=panel()
         add(parent,providers,16)
         add(providers,overline("ВХОД С CLERK"))
-        add(providers,text("Email · SMS · профиль и проверенная почта",
+        add(providers,text("Регистрация по email ИЛИ телефону",
             17f,d.ink,true),11)
         add(providers,text(if(clerkLoggedIn())
-            "✓ Вход через Clerk подтверждён. Подписка будет отправлена " +
-                "только на подтверждённый email в профиле."
-            else "Clerk отправляет код по email или SMS и проверяет его " +
-                "внутри приложения. Требуется сборка с включённым Clerk SDK.",
+            "✓ Вход через Clerk подтверждён. Дополнительная почта " +
+                "потребуется только перед покупкой VPN для доставки ключа."
+            else "Выбери вход по почте или телефону. Код приходит только " +
+                "на выбранный контакт. Международные номера доступны по коду страны.",
             12f,d.muted),9)
         val signIn=action(if(clerkLoggedIn())"Открыть профиль Clerk"
             else "Войти / зарегистрироваться через Clerk",true)
