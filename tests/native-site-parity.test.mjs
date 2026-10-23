@@ -38,18 +38,22 @@ test('native tariff prices and device limits equal server canonical catalog',()=
   assert.equal(checkoutReady(),false);
 });
 
-test('native screens mirror major website sections with four usable native tabs',()=>{
+test('native screens keep four usable tabs and share website design',()=>{
   for(const code of [androidApp,iosApp]){
-    for(const label of ['Интернет под твоим','контролем.','ТАРИФЫ VAINAH',
-      'ЛИЧНЫЙ КАБИНЕТ','ЦЕНТР ПОДДЕРЖКИ','ВАШЕ СОЕДИНЕНИЕ',
+    for(const label of ['ЛИЧНЫЙ КАБИНЕТ','ЦЕНТР ПОДДЕРЖКИ',
       'Всё важное.','В одном месте.'])
-      assert.ok(code.includes(label),'missing website copy: '+label);
+      assert.ok(code.includes(label),'missing shared content: '+label);
     assert.ok(code.includes('https://vainahvpnbot0.netlify.app/'));
     assert.ok(code.includes('Не подключено') || code.includes('tunnel.state.rawValue'));
     assert.ok(code.includes('Подключиться'));
     assert.ok(!code.includes('WebView('));
     assert.ok(!code.includes('https://api.telegram.org/bot'));
   }
+  for(const label of ['МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ',
+    'УПРАВЛЕНИЕ ТУННЕЛЕМ','ЦЕНТР ПРИВАТНОСТИ','ТАРИФЫ И ПОДПИСКИ'])
+    assert.ok(androidApp.includes(label),'redesigned Android copy missing: '+label);
+  for(const label of ['Интернет под твоим','контролем.','ВАШЕ СОЕДИНЕНИЕ'])
+    assert.ok(iosApp.includes(label),'original iOS copy missing: '+label);
   for(const title of ['Главная','Тарифы','Кабинет','Помощь'])
     assert.ok(androidApp.includes('"'+title+'"'));
   assert.equal((iosApp.match(/\.tabItem/g)||[]).length,4);
@@ -65,7 +69,19 @@ test('account screen does not invent remote entitlements, payments or a working 
   assert.match(read('native/ios/Sources/App/TunnelController.swift'),/static let available = false/);
   assert.match(read('native/android/app/src/main/java/app/vainah/vpn/TunnelEngine.kt'),/override val ready = false/);
   const androidExecutableSource=androidApp.replace(/\/\*[\s\S]*?\*\//g,'');
-  assert.doesNotMatch(androidExecutableSource,/payment|billing|startCheckout|clerk-secret/);
+  assert.doesNotMatch(androidExecutableSource,/ROLLYPAY_API_KEY|ROLLYPAY_SIGNING_SECRET|PANEL_API_TOKEN|clerk-secret|pay\.rollypay\.io/);
+  assert.match(androidApp,/BuildConfig\.VAINAH_DIRECT_CHECKOUT_ENABLED/);
+  assert.match(androidApp,/NativeCheckout\.fetchAvailability/);
+  const checkout=read('native/android/app/src/main/java/app/vainah/vpn/NativeCheckout.kt');
+  assert.match(checkout,/checkoutReady/);
+  assert.match(checkout,/plan\.priceRub/);
+  assert.match(checkout,/if \(VainahPlans\.all\.none/);
+  assert.doesNotMatch(checkout,/createInvoice|paymentId|PANEL_API_TOKEN|ROLLYPAY_API_KEY/);
+  const gradle=read('native/android/app/build.gradle.kts');
+  assert.match(gradle,/vainahStandaloneCheckout/);
+  assert.match(gradle,/VAINAH_DIRECT_CHECKOUT_ENABLED/);
+  // The production checkout gate must remain explicitly disabled.
+  assert.equal(checkoutReady(),false);
   assert.doesNotMatch(iosApp,/purchase\(|RollyPay|PANEL_API_TOKEN/);
 });
 
@@ -81,12 +97,13 @@ test('all native support links resolve to existing public website pages',()=>{
   assert.match(iosApp,/https:\/\/vainahvpnbot0\.netlify\.app\//);
 });
 
-test('first-run walkthrough is clear on Android and iOS and never claims real VPN',()=>{
+test('first-run walkthrough remains clear without claiming VPN on unsupported builds',()=>{
   for(const code of [androidApp,iosApp]){
     assert.match(code,/ПЕРВЫЙ ЗАПУСК · 3 ПРОСТЫХ ШАГА/);
-    for(const term of ['Войди в аккаунт','Проверь подписку','Настрой устройство','мастер подключения']){
+    for(const term of ['Войди в аккаунт','Проверь подписку','мастер подключения'])
       assert.ok(code.toLowerCase().includes(term.toLowerCase()),term);
-    }
     assert.match(code,/VPN (пока )?не подключается|VPN ещё не подключается/);
   }
+  assert.match(androidApp,/Подключи сервер/);
+  assert.match(iosApp,/Настрой устройство/);
 });
