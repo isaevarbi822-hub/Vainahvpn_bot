@@ -130,7 +130,14 @@ class SingBoxSession {
     this.state='stopping';
     const child=this.child;
     if(child){
-      try {child.kill();}catch{}
+      let signalSent=false;
+      try {signalSent=child.kill();}catch{}
+      // A refused termination is not a successful disconnect. Keep ownership
+      // of the process and its private config for a later retry.
+      if(signalSent===false && this.child===child){
+        this.state='stop-failed';
+        return {ok:false,reason:'Engine process refused termination',protected:false};
+      }
       // Never block UI forever waiting for a hung subprocess.
       await Promise.race([this.exitPromise||Promise.resolve(),new Promise(resolve=>setTimeout(resolve,2000))]);
     }
