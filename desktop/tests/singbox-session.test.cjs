@@ -155,3 +155,41 @@ test('unexpected TUN failure is reported without exposing engine logs',async()=>
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+
+test('fatal TUN diagnostic during startup rejects session and removes credentials',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-start-diagnostic-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ child.stderr=new EventEmitter();
+ child.kill=()=>{queueMicrotask(()=>child.emit('exit',1));return true};
+ let configPath;
+ const session=new SingBoxSession({platform:'win32',runner:(_exe,args)=>{
+   configPath=args[2];
+   queueMicrotask(()=>{
+     child.emit('spawn');
+     child.stderr.emit('data',Buffer.from('create tun failed: sensitive host token'));
+   });
+   return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   const result=await session.start(binary,sample);
+   assert.equal(result.ok,false);
+   assert.equal(result.protected,false);
+   assert.equal(result.reason,'Не удалось создать сетевой TUN-адаптер.');
+   assert.equal(session.status.state,'stopped');
+   assert.doesNotMatch(result.reason,/sensitive/);
+   await assert.rejects(fs.stat(configPath),{code:'ENOENT'});
+ }finally{
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
