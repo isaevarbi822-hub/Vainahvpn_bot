@@ -54,14 +54,14 @@ class NativeIdentity(private val context: Context) {
             prefs.edit().putString("last_order",id).apply()
     }
 
+    data class LoginChallenge(val id:String,val method:String,val contact:String)
+    data class LoginResult(val token:String,val emailVerified:Boolean)
+    data class Invoice(val orderId:String,val payUrl:String)
+    data class Order(val status:String,val delivery:String,val subscriptionUrl:String?,
+                     val emailState:String)
+
     companion object{
         private const val ORIGIN="https://vainahvpnbot0.netlify.app"
-        data class LoginChallenge(val id:String,val method:String,val contact:String)
-        data class LoginResult(val token:String,val emailVerified:Boolean)
-        data class Invoice(val orderId:String,val payUrl:String)
-        data class Order(val status:String,val delivery:String,val subscriptionUrl:String?,
-                         val emailState:String)
-
         private fun exchange(endpoint:String,body:JSONObject?,token:String?=null):JSONObject {
             val conn=URL(ORIGIN+"/.netlify/functions/"+endpoint)
                 .openConnection() as HttpURLConnection
