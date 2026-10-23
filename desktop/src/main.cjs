@@ -11,6 +11,7 @@ const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('e
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { safeServerLabel } = require('../shared/server-label.cjs');
+const { diagnosticPage } = require('../shared/diagnostic-pages.cjs');
 const { readCheckoutStatus } = require('../shared/checkout-status.cjs');
 const { checkTunDependencies } = require('../shared/windows-tun-dependencies.cjs');
 
@@ -149,6 +150,15 @@ app.whenReady().then(()=>{
     preview:true
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
+  ipcMain.handle('vainah:open-network-test',async (event,name)=>{
+    if(!authorizedSender(event))return {ok:false};
+    const target=diagnosticPage(name);
+    if(!target)return {ok:false};
+    // The system browser performs this independent of Electron's own
+    // network probes. The user explicitly chooses the diagnostic site.
+    try { await shell.openExternal(target); return {ok:true}; }
+    catch { return {ok:false}; }
+  });
   ipcMain.handle('vainah:checkout-readiness',async event=>{
     if(!authorizedSender(event))return {ready:false,catalogMatches:false};
     // Read-only check. No invoice, no payment API, no secret merchant keys.

@@ -68,11 +68,23 @@
       dialog.showModal();
     }
   }
+  async function openNetworkDiagnostic(name){
+    if(!window.vainah?.openNetworkTest)return;
+    const outcome=await window.vainah.openNetworkTest(name).catch(()=>({ok:false}));
+    if(!outcome?.ok){
+      const dialog=document.getElementById('connection-dialog');
+      document.getElementById('dialog-title').textContent='Диагностика недоступна';
+      document.getElementById('dialog-description').textContent='Не удалось открыть проверку в системном браузере.';
+      dialog.showModal();
+    }
+  }
   document.addEventListener('click',event=>{
     const viewButton=event.target.closest('button[data-view]');
     if(viewButton){showPage(viewButton.dataset.view);return}
     const link=event.target.closest('button[data-link]');
     if(link){void openOfficial(link.dataset.link);return}
+    const diagnostic=event.target.closest('button[data-network-test]');
+    if(diagnostic){void openNetworkDiagnostic(diagnostic.dataset.networkTest);return}
     const filter=event.target.closest('button[data-devices]');
     if(filter){deviceFilter=Number(filter.dataset.devices);renderPlans()}
   });
