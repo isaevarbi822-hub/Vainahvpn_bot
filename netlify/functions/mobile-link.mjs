@@ -2,7 +2,7 @@ import {randomUUID,randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {json} from './lib/security.mjs';
 import {sameOrigin,sessionFromRequest} from './lib/telegram-identity.mjs';
 import {cookie,verifySigned,altCookieName,identityHash} from './lib/alternate-auth.mjs';
-import {makeMobileSession,limitedJson} from './lib/mobile-auth.mjs';
+import {limitedJson} from './lib/mobile-auth.mjs';
 import {getPool,transaction} from './lib/subscription-db.mjs';
 
 const idValid=id=>typeof id==='string'&&
@@ -87,8 +87,7 @@ export default async function handler(request){
    });
    if(outcome.error)return json({error:'Link expired or invalid'},403);
    if(outcome.pending)return json({pending:true});
-   const token=makeMobileSession(outcome,secret);
-   return json({authenticated:true,provider:outcome.provider,emailVerified:false,token});
+   return json({error:'Для мобильных покупок необходим вход через Clerk.'},403);
  }catch(error) {
    console.warn('Mobile browser login:',error?.name||'Error');
    return json({error:'Вход временно недоступен'},503);
