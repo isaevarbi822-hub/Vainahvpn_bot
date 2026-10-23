@@ -11,6 +11,12 @@ private enum SiteTab: Hashable {
  */
 struct ContentView: View {
     @StateObject private var tunnel = TunnelController()
+    @StateObject private var nativeAccount = NativeAccount()
+    @State private var nativeMethod = "email"
+    @State private var nativeContact = ""
+    @State private var nativeCode = ""
+    @State private var attachingEmail = false
+    @State private var nativeMessage = ""
     @State private var selected: SiteTab = .home
     @State private var devices = 0
     @State private var subscription = ""
@@ -633,7 +639,7 @@ struct ContentView: View {
                     Text("Тариф · срок · устройства · покупки")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(VainahDesign.ink)
-                    Text("Приложение пока не считывает личные покупки. Реальные данные после Telegram Login показывает сайт.")
+                    Text("Мобильный вход по телефону или почте доступен ниже. Доступ к покупкам на сервере появится после подтверждения оплаты.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
                     websiteButton("Войти в личный кабинет ↗", "account.html", prominent: true)
@@ -651,11 +657,113 @@ struct ContentView: View {
                     Text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не открывает заказы другого аккаунта.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
-                    websiteButton("Выбрать способ входа ↗", "account.html")
+                    Text("Почта и телефон подтверждаются прямо в Vainah VPN. Telegram и Яндекс используют внешние приложения. Их веб-сессии пока не связаны с мобильными покупками.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VainahDesign.muted)
+                    Link("Открыть Telegram ↗", destination: URL(string: "https://t.me/Vainahvpn_bot")!)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(VainahDesign.purple)
+                    Link("Войти через Яндекс ↗", destination: URL(string: "https://vainahvpnbot0.netlify.app/.netlify/functions/yandex-start")!)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(VainahDesign.purple)
                 }
             }
             .padding(.top, 16)
+
+            nativeLogin
+                .padding(.top, 16)
         }
+    }
+
+    private var nativeLogin: some View {
+        VainahCard(featured: true) {
+            VStack(alignment: .leading, spacing: 12) {
+                overline("ВХОД В ПРИЛОЖЕНИЕ")
+                Text(nativeAccount.authenticated
+                    ? "✓ Мобильный аккаунт подтверждён"
+                    : "Войди по коду из письма или SMS")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(VainahDesign.ink)
+                if nativeAccount.authenticated {
+                    Text(nativeAccount.emailVerified
+                        ? "Email подтверждён и может получать ключ после покупки."
+                        : "Чтобы получать VPN по почте, подтверди адрес отдельно.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VainahDesign.muted)
+                    if !nativeAccount.emailVerified {
+                        Button("Добавить email для доставки") {
+                            attachingEmail = true
+                            nativeMethod = "email"
+                            nativeContact = ""
+                            nativeCode = ""
+                        }
+                        .foregroundStyle(VainahDesign.purple)
+                    }
+                    Button("Выйти из мобильного аккаунта") {
+                        nativeAccount.signOut()
+                        nativeMessage = "Сеанс на этом устройстве завершён."
+                    }
+                    .foregroundStyle(VainahDesign.muted)
+                }
+                if !nativeAccount.authenticated || attachingEmail {
+                    if !attachingEmail {
+                        Picker("Способ входа", selection: $nativeMethod) {
+                            Text("Почта").tag("email")
+                            Text("Телефон").tag("phone")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    TextField(attachingEmail ? "Email для VPN-подписки"
+                              : nativeMethod == "phone" ? "+79991234567" : "name@example.com",
+                              text: $nativeContact)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(attachingEmail || nativeMethod == "email" ? .emailAddress : .phonePad)
+                        .padding(13)
+                        .background(VainahDesign.background, in: RoundedRectangle(cornerRadius: 12))
+                    if nativeAccount.challengePending {
+                        Text("Мы отправили код подтверждения. Введи цифры из сообщения.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(VainahDesign.muted)
+                        TextField("Код подтверждения", text: $nativeCode)
+                            .keyboardType(.numberPad)
+                            .padding(13)
+                            .background(VainahDesign.background, in: RoundedRectangle(cornerRadius: 12))
+                        Button("Подтвердить вход") {
+                            Task {
+                                do {
+                                    try await nativeAccount.confirm(code: nativeCode.trimmingCharacters(in: .whitespacesAndNewlines))
+                                    nativeCode = ""
+                                    nativeContact = ""
+                                    attachingEmail = false
+                                    nativeMessage = "Контакт подтверждён. Вход сохранён в Keychain."
+                                } catch { nativeMessage = error.localizedDescription }
+                            }
+                        }
+                        .disabled(nativeAccount.busy)
+                        .foregroundStyle(VainahDesign.purple)
+                    } else {
+                        Button("Выслать код проверки") {
+                            Task {
+                                do {
+                                    try await nativeAccount.send(method: nativeMethod,
+                                         contact: nativeContact, attachEmail: attachingEmail)
+                                    nativeMessage = "Код отправлен. Введи его ниже."
+                                } catch { nativeMessage = error.localizedDescription }
+                            }
+                        }
+                        .disabled(nativeAccount.busy)
+                        .foregroundStyle(VainahDesign.purple)
+                    }
+                }
+                if !nativeMessage.isEmpty {
+                    Text(nativeMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(VainahDesign.muted)
+                }
+            }
+        }
+        .task { await nativeAccount.refresh() }
     }
 
     private var help: some View {
