@@ -44,11 +44,16 @@ internal class LibboxAndroidPlatform(
         if (android.os.Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
 
         // Never invent Android tunnel addresses: use the actual libbox inbound.
+        val fallbackVirtualDns = mutableListOf<String>()
         val ipv4 = options.inet4Address
         var hasV4 = false
         while (ipv4.hasNext()) {
             val prefix = ipv4.next()
             builder.addAddress(prefix.address(), prefix.prefix())
+            // sing-box 1.14 derives the virtual DNS from TUN prefix when
+            // options.dnsServerAddress is absent. Never invent public DNS.
+            TunDnsFallback.nextAddress(prefix.address(), prefix.prefix())
+                ?.let { fallbackVirtualDns.add(it) }
             hasV4 = true
         }
         val ipv6 = options.inet6Address
@@ -56,6 +61,8 @@ internal class LibboxAndroidPlatform(
         while (ipv6.hasNext()) {
             val prefix = ipv6.next()
             builder.addAddress(prefix.address(), prefix.prefix())
+            TunDnsFallback.nextAddress(prefix.address(), prefix.prefix())
+                ?.let { fallbackVirtualDns.add(it) }
             hasV6 = true
         }
         check(hasV4 || hasV6) { "No libbox TUN address" }
@@ -98,14 +105,23 @@ internal class LibboxAndroidPlatform(
                 }
             }
         }
-        // Explicit DNS sent into the encrypted tunnel, never DNS on the underlying network.
+        // The OS resolver must target the virtual DNS configured by
+        // sing-box, never an unrelated public IP on the physical network.
         val dns = runCatching { options.dnsServerAddress }.getOrNull()
         var dnsFound = false
         while (dns?.hasNext() == true) {
-            builder.addDnsServer(dns.next())
-            dnsFound = true
+            val providedAddress = dns.next()
+            if (providedAddress.isNotBlank()) {
+                builder.addDnsServer(providedAddress)
+                dnsFound = true
+            }
         }
-        if (!dnsFound) builder.addDnsServer("1.1.1.1")
+        if (!dnsFound) {
+            check(fallbackVirtualDns.isNotEmpty()) {
+                "TUN virtual DNS unavailable: refusing unsafe fallback"
+            }
+            fallbackVirtualDns.distinct().forEach { builder.addDnsServer(it) }
+        }
 
         val fd = builder.establish() ?: error("Android denied TUN")
         tun = fd
