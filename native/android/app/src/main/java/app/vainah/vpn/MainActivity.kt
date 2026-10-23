@@ -329,7 +329,8 @@ class MainActivity : Activity() {
                     prefs.getString("last_stage", null),
                     prefs.getString("vpn_probe_reason", null),
                     Build.VERSION.SDK_INT,
-                    VainahVpnService.runningInProcess
+                    VainahVpnService.runningInProcess,
+                    VpnConnectivity.androidVpnFacts(this)
                 )
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clipboard.setPrimaryClip(ClipData.newPlainText("Vainah VPN diagnostics", report))

@@ -5,6 +5,17 @@ package app.vainah.vpn
  * No subscription URL, UUID, host, token, username or config JSON may cross
  * the clipboard. Only safe internal codes and the Android API level.
  */
+/**
+ * Captures sanitized Android link facts for troubleshooting. Null means
+ * unobservable, never that a route is definitely broken or missing.
+ */
+data class VpnNetworkFacts(
+    val visible: Boolean? = null,
+    val ipv4DefaultRoute: Boolean? = null,
+    val ipv6DefaultRoute: Boolean? = null,
+    val dnsConfigured: Boolean? = null
+)
+
 object VpnDiagnosticReport {
     private val safeCode = Regex("^[a-z][a-z0-9_]{0,63}$")
     private val phases = setOf("off", "starting", "tun_ready", "online", "failed")
@@ -17,8 +28,14 @@ object VpnDiagnosticReport {
         lastStage: String?,
         probeReason: String?,
         androidApiLevel: Int,
-        serviceRunning: Boolean
+        serviceRunning: Boolean,
+        networkFacts: VpnNetworkFacts? = null
     ): String {
+        fun flag(value: Boolean?): String = when (value) {
+            true -> "yes"
+            false -> "no"
+            null -> "unknown"
+        }
         val safePhase = phase?.takeIf { it in phases } ?: "unknown"
         val safeApi = androidApiLevel.takeIf { it in 26..99 }?.toString() ?: "unknown"
         return listOf(
@@ -28,6 +45,10 @@ object VpnDiagnosticReport {
             "service_running=${if (serviceRunning) "yes" else "no"}",
             "last_stage=${code(lastStage)}",
             "https_probe=${code(probeReason)}",
+            "android_vpn_visible=${flag(networkFacts?.visible)}",
+            "android_ipv4_default_route=${flag(networkFacts?.ipv4DefaultRoute)}",
+            "android_ipv6_default_route=${flag(networkFacts?.ipv6DefaultRoute)}",
+            "android_vpn_dns_configured=${flag(networkFacts?.dnsConfigured)}",
             "vpn_egress=not_verified_on_device"
         ).joinToString("\n")
     }

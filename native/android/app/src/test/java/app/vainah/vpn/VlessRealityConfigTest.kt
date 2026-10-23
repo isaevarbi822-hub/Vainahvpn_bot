@@ -44,8 +44,16 @@ class VlessRealityConfigTest {
         assertEquals("https", upstream.getString("type"))
         assertEquals("vainah-selected", upstream.getString("detour"))
         assertEquals("vainah-selected", profile.getJSONObject("route").getString("final"))
-        assertEquals("hijack-dns", profile.getJSONObject("route")
-            .getJSONArray("rules").getJSONObject(0).getString("action"))
+        val rules = profile.getJSONObject("route").getJSONArray("rules")
+        assertEquals(2, rules.length())
+        val virtualDnsRule = rules.getJSONObject(0)
+        assertEquals("hijack-dns", virtualDnsRule.getString("action"))
+        val ips = virtualDnsRule.getJSONArray("ip_cidr")
+        assertEquals("172.19.0.2/32", ips.getString(0))
+        assertEquals("fd00:19::2/128", ips.getString(1))
+        val otherDnsRule = rules.getJSONObject(1)
+        assertEquals(53, otherDnsRule.getInt("port"))
+        assertEquals("hijack-dns", otherDnsRule.getString("action"))
     }
 
     @Test fun serverIpPreResolvedAndRealityIdentityRetained() {

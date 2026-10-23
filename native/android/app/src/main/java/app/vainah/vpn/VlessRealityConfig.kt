@@ -89,7 +89,16 @@ object VlessRealityConfig {
             .put(JSONObject().put("type", "direct").put("tag", "direct")))
         put("route", JSONObject().put("final", "vainah-selected")
             .put("auto_detect_interface", true)
-            .put("rules", JSONArray().put(JSONObject()
-                .put("protocol", "dns").put("action", "hijack-dns"))))
+            .put("rules", JSONArray()
+                // sing-box 1.14 explicitly requires hijack routing for custom
+                // dns_address. Matching virtual IPs works even before the
+                // traffic's protocol can be sniffed.
+                .put(JSONObject().put("ip_cidr", JSONArray()
+                    .put("172.19.0.2/32").put("fd00:19::2/128"))
+                    .put("action", "hijack-dns"))
+                // Intercept all remaining ordinary DNS (TCP and UDP port 53)
+                // to avoid silently proxying plain DNS to physical resolvers.
+                .put(JSONObject().put("port", 53)
+                    .put("action", "hijack-dns"))))
     }.toString()
 }

@@ -17,6 +17,36 @@ import java.net.URL
  * bootstrap DNS recursion. No node URI, secrets, or IP are written to logs.
  */
 object VpnConnectivity {
+    /**
+     * OS-observed VPN routes/DNS, not TUN configuration assumptions.
+     * Only boolean metadata is returned, never a VPN address or server IP.
+     * A default route is necessary but cannot by itself prove internet egress.
+     */
+    fun androidVpnFacts(context: Context): VpnNetworkFacts = runCatching {
+        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE)
+            as ConnectivityManager
+        val network = connectivity.allNetworks.firstOrNull {
+            connectivity.getNetworkCapabilities(it)?.hasTransport(
+                NetworkCapabilities.TRANSPORT_VPN) == true
+        } ?: return@runCatching VpnNetworkFacts(visible = false)
+        val link = connectivity.getLinkProperties(network)
+            ?: return@runCatching VpnNetworkFacts(visible = true)
+        val ipv4Default = link.routes.any { route ->
+            route.destination?.prefixLength == 0 &&
+                route.destination?.address is java.net.Inet4Address
+        }
+        val ipv6Default = link.routes.any { route ->
+            route.destination?.prefixLength == 0 &&
+                route.destination?.address is java.net.Inet6Address
+        }
+        VpnNetworkFacts(
+            visible = true,
+            ipv4DefaultRoute = ipv4Default,
+            ipv6DefaultRoute = ipv6Default,
+            dnsConfigured = link.dnsServers.isNotEmpty()
+        )
+    }.getOrDefault(VpnNetworkFacts())
+
     data class UpstreamProbe(val numericAddress: String, val tcpLatencyMs: Int)
 
     fun prepareUpstream(service: VpnService, rawVless: String): UpstreamProbe {
