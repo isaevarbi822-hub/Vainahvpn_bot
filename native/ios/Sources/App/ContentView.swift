@@ -16,8 +16,12 @@ struct ContentView: View {
     @State private var subscription = ""
     @State private var saved = SecureSubscription.load() != nil
     @State private var serverNames: [String] = []
+    @State private var serverProfiles: [SubscriptionServer] = []
+    @State private var serverSearch = ""
+    @State private var selectedServerId: String?
     @State private var chosenServer: Int?
     @State private var loadingServers = false
+    @State private var serverSyncStatus = "Серверы ещё не загружены"
     @State private var notice: String?
     @State private var showErase = false
 
@@ -38,6 +42,17 @@ struct ContentView: View {
         }
         .tint(VainahDesign.purple)
         .preferredColorScheme(.dark)
+        // Refresh H1Cloud locations only on the Home tab. Nothing secret is
+        // sent to analytics or to a watch. Cancellation leaves old rows.
+        .task(id: selected) {
+            guard selected == .home else { return }
+            await refreshServers()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 300_000_000_000)
+                if Task.isCancelled { return }
+                await refreshServers()
+            }
+        }
         .alert("Vainah VPN", isPresented: Binding(
             get: { notice != nil },
             set: { if !$0 { notice = nil } }
@@ -53,7 +68,10 @@ struct ContentView: View {
                 saved = false
                 subscription = ""
                 serverNames = []
+                serverProfiles = []
+                selectedServerId = nil
                 chosenServer = nil
+                serverSyncStatus = "Подписка удалена"
             }
         } message: {
             Text("Будет удалена только ссылка на этом устройстве.")
@@ -74,13 +92,13 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     brandHeader
                     content()
-                    Text("Vainah VPN · iOS · Нативное приложение")
+                    Text("Vainah VPN 0.5 · iPhone / iPad")
                         .font(.system(size: 11))
                         .foregroundStyle(VainahDesign.muted)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 29)
                 }
-                .frame(maxWidth: 650)
+                .frame(maxWidth: 790)
                 .padding(.horizontal, 20)
                 .padding(.top, 22)
                 .padding(.bottom, 37)
@@ -174,55 +192,49 @@ struct ContentView: View {
 
     private var home: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heading("VAINAH VPN · ТВОЙ СЕРВИС ПОДПИСКИ",
-                    Text("Интернет под твоим ")
-                    + Text("контролем.").foregroundColor(VainahDesign.purple),
-                    "Выбирай тарифы, управляй подпиской и находи помощь за пару нажатий.")
-            callToAction("Выбрать тариф  ↗", prominent: true) {
-                selected = .plans
-            }
-            .padding(.top, 5)
-            callToAction("Мой кабинет") {
-                selected = .account
-            }
-            .padding(.top, 10)
-
+            heading("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ",
+                    Text("Подключайся. ")
+                    + Text("Выбирай свободу.").foregroundColor(VainahDesign.purple),
+                    "Сервер, подписка и приватность — в одном месте, как на Android.")
             connectionCard
-                .padding(.top, 25)
+                .padding(.top, 12)
+            privacyCard
+                .padding(.top, 14)
             VainahCard {
                 VStack(alignment: .leading, spacing: 11) {
                     overline("СЕРВЕРЫ И КОНФИГУРАЦИИ")
-                    Text("Серверы подписки")
-                        .font(.system(size: 20, weight: .bold))
+                    Text("Твои локации")
+                        .font(.system(size: 23, weight: .bold))
                         .foregroundStyle(VainahDesign.ink)
                     Text(saved
-                         ? "Ссылка сохранена. Загрузка списка серверов из H1Cloud ещё не реализована."
-                         : "Добавь одну HTTPS-подписку в кабинете. После реализации синхронизации здесь будут её серверы.")
+                         ? "SUB / Xray JSON · обновление при открытии и каждые 5 минут."
+                         : "Добавь личную HTTPS-подписку в кабинете для загрузки локаций.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
+                    Text(serverSyncStatus)
+                        .font(.system(size: 11))
+                        .foregroundStyle(VainahDesign.sky)
+                    TextField("Поиск страны или локации", text: $serverSearch)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(12)
+                        .background(VainahDesign.background.opacity(0.6),
+                                    in: RoundedRectangle(cornerRadius: 12))
                     if !serverNames.isEmpty {
-                        ForEach(serverNames.indices, id: \.self) { index in
-                            callToAction((chosenServer == index ? "✓ " : "") + serverNames[index]) {
-                                chosenServer = index
-                                notice = "Сервер выбран. VPN-туннель iOS ещё не подключён."
+                        ForEach(Array(serverProfiles.enumerated()).filter {
+                            serverSearch.isEmpty ||
+                                $0.element.label.localizedCaseInsensitiveContains(serverSearch)
+                        }, id: \.offset) { item in
+                            callToAction((selectedServerId == item.element.id ? "✓ " : "")
+                                         + item.element.label) {
+                                selectedServerId = item.element.id
+                                chosenServer = item.offset
+                                notice = "Сервер выбран. Для iOS нужен отдельный VLESS Packet Tunnel движок. Android APK здесь не работает."
                             }
                         }
                     }
                     callToAction(loadingServers ? "Загружаем серверы…" : "Обновить серверы") {
-                        guard !loadingServers,let link=SecureSubscription.load() else {
-                            notice = "Сначала добавь HTTPS-подписку."
-                            return
-                        }
-                        loadingServers=true
-                        Task {
-                            do {
-                                serverNames=try await SubscriptionServers.load(link)
-                                chosenServer = nil
-                            } catch {
-                                notice="Не удалось загрузить VLESS REALITY серверы. Проверь ссылку и доступность подписки."
-                            }
-                            loadingServers=false
-                        }
+                        Task { await refreshServers() }
                     }
                     callToAction("Добавить или изменить подписку") {
                         selected = .account
@@ -232,6 +244,11 @@ struct ContentView: View {
             .padding(.top, 17)
             statistics
                 .padding(.top, 17)
+            HStack(spacing: 12) {
+                callToAction("Тарифы  ↗") { selected = .plans }
+                callToAction("Мой кабинет  ↗") { selected = .account }
+            }
+            .padding(.top, 12)
 
             overline("ЛИЧНЫЙ КАБИНЕТ")
                 .padding(.top, 30)
@@ -307,6 +324,57 @@ struct ContentView: View {
         }
     }
 
+    @MainActor
+    private func refreshServers() async {
+        guard !loadingServers, let link = SecureSubscription.load() else { return }
+        loadingServers = true
+        serverSyncStatus = "Синхронизируем локации…"
+        defer { loadingServers = false }
+        do {
+            let profiles = try await SubscriptionServers.loadProfiles(link)
+            // Do not mix a response from an old subscription with a new one.
+            guard SecureSubscription.load() == link else {
+                serverSyncStatus = "Подписка изменилась. Обнови список ещё раз."
+                return
+            }
+            serverProfiles = profiles
+            serverNames = profiles.map(\.label)
+            if let selectedServerId, let index = profiles.firstIndex(where: {
+                $0.id == selectedServerId
+            }) {
+                chosenServer = index
+            } else {
+                selectedServerId = nil
+                chosenServer = nil
+            }
+            serverSyncStatus = "Обновлено: \(profiles.count) локаций"
+        } catch {
+            // Retain last-known-good rows; never display a private URL.
+            serverSyncStatus = "Не удалось обновить. Старый список сохранён."
+        }
+    }
+
+    private var privacyCard: some View {
+        VainahCard {
+            VStack(alignment: .leading, spacing: 12) {
+                overline("ЦЕНТР ПРИВАТНОСТИ")
+                Text("IP, DNS и IPv6")
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundStyle(VainahDesign.ink)
+                Text("Внешние тесты увидят твой IP. Результат не гарантирует отсутствие всех утечек.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(VainahDesign.muted)
+                Link("Проверить IP и интернет ↗",
+                     destination: URL(string:"https://www.cloudflare.com/cdn-cgi/trace")!)
+                Link("Проверить DNS ↗",
+                     destination: URL(string:"https://www.dnsleaktest.com/")!)
+                Link("Проверить IPv6 ↗",
+                     destination: URL(string:"https://test-ipv6.com/")!)
+            }
+            .tint(VainahDesign.purple)
+        }
+    }
+
     private var connectionCard: some View {
         VainahCard(featured: true) {
             VStack(spacing: 14) {
@@ -321,7 +389,7 @@ struct ContentView: View {
                         .foregroundStyle(VainahDesign.green)
                 }
                 .padding(.bottom, 9)
-                Text("ВАШЕ СОЕДИНЕНИЕ")
+                Text("УПРАВЛЕНИЕ ТУННЕЛЕМ")
                     .font(.system(size: 11, weight: .heavy))
                     .tracking(1.5)
                     .foregroundStyle(VainahDesign.purple)
@@ -331,7 +399,7 @@ struct ContentView: View {
                     Task { await tunnel.connect() }
                 } label: {
                     VainahPowerButton()
-                        .frame(height: 194)
+                        .frame(height: 174)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
@@ -350,7 +418,7 @@ struct ContentView: View {
                     Task { await tunnel.connect() }
                 }
                 .padding(.top, 3)
-                Text("Реальный статус, без имитации защиты.")
+                Text("Туннель iOS не включается до установки проверенного движка NetworkExtension.")
                     .font(.system(size: 11))
                     .foregroundStyle(VainahDesign.muted)
             }
@@ -360,9 +428,9 @@ struct ContentView: View {
 
     private var statistics: some View {
         HStack(spacing: 0) {
-            statistic("6 тарифов", "от 30 дней")
-            statistic("3 / 6", "устройств")
-            statistic("Безлимит", "трафик")
+            statistic("H1Cloud", "локации")
+            statistic("6 тарифов", "от 99 ₽")
+            statistic("DNS/IPv6", "проверки")
         }
         .padding(.vertical, 17)
         .background(
@@ -390,10 +458,10 @@ struct ContentView: View {
 
     private var plans: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heading("ТАРИФЫ VAINAH",
-                    Text("Выбери свой ")
-                    + Text("формат доступа.").foregroundColor(VainahDesign.purple),
-                    "Все тарифы с безлимитным трафиком; цены как на нашем сайте.")
+            heading("ТАРИФЫ И ПОДПИСКИ",
+                    Text("Доступ на твоих ")
+                    + Text("условиях.").foregroundColor(VainahDesign.purple),
+                    "Шесть тарифов Vainah VPN. Настоящие покупки доступны только после серверного подтверждения оплаты.")
 
             VainahCard {
                 VStack(alignment: .leading, spacing: 11) {
@@ -422,7 +490,7 @@ struct ContentView: View {
             VainahCard(featured: true) {
                 VStack(alignment: .leading, spacing: 12) {
                     overline("ПРОЗРАЧНЫЕ УСЛОВИЯ")
-                    Text("Оплата в приложении пока отключена. Просмотр тарифов ничего не списывает.")
+                    Text("Оплата в iOS-приложении не активирована. Цены те же, что на Android. Для выпуска через App Store потребуется соответствующий способ оплаты.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
                     Link(destination: siteURL("compare.html")) {
@@ -456,6 +524,9 @@ struct ContentView: View {
                 Text(plan.priceRub == 1000 ? "1 000 ₽" : "\(plan.priceRub) ₽")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundStyle(VainahDesign.ink)
+                Text("≈ \(plan.priceRub / (plan.days == 365 ? 12 : max(1, plan.days / 30))) ₽/мес")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(VainahDesign.purple)
                 Text(plan.days.description + " дней · " + (plan.deviceLimit == 6 ? "6 устройств" : "3 устройства") + " · Безлимитный трафик")
                     .font(.system(size: 12))
                     .foregroundStyle(VainahDesign.muted)
@@ -509,6 +580,8 @@ struct ContentView: View {
                             saved = true
                             subscription = ""
                             serverNames = []
+                            serverProfiles = []
+                            selectedServerId = nil
                             chosenServer = nil
                             notice = "Ссылка сохранена в Keychain только на этом устройстве."
                         } else {
@@ -577,10 +650,10 @@ struct ContentView: View {
             VainahCard(featured: true) {
                 VStack(alignment: .leading, spacing: 11) {
                     overline("ЧТО НУЖНО ЗНАТЬ")
-                    Text("Когда заработает подключение?")
+                    Text("Как проверить приватность?")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(VainahDesign.ink)
-                    Text("После безопасной интеграции и испытаний VLESS-движка. Пока интернет не проходит через Vainah VPN.")
+                    Text("Открой проверки IP, DNS и IPv6 в браузере после подключения поддерживаемого VPN-клиента. iOS-движок Vainah пока не интегрирован.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
                 }
