@@ -28,16 +28,20 @@ Clerk backend verification for **mobile purchases** now:
 The old `mobile-auth` Twilio send/check API is explicitly disabled, so no
 fake codes are sent and no two incompatible identity systems can issue VPNs.
 
-## Mobile SDK still to finish before public rollout
+## Native Clerk UI: integrated as experimental build features
 
-Use **Clerk Android SDK** (`clerk-android-ui`, AuthView, Jetpack Compose)
-for an in-app email/SMS OTP and social-sign-in UI. Use the **Clerk iOS SDK**
-(`ClerkKit`, `ClerkKitUI`, AuthView) on supported iOS versions.
-These SDKs manage their own sessions. Obtain a fresh signed session JWT
-using their documented token API for every authenticated order request;
-do not reuse or mint the removed 7-day app session or store a Clerk secret key.
-The current Android/iOS draft screens still contain outdated OTP presentation
-logic; they must be migrated to these SDKs before accepting real payments.
+- Android: Official Clerk Android UI uses Compose `AuthView` in an internal
+  activity when `-PvainahEnableClerk=true`, with a PUBLIC Clerk key from
+  your instance (`-PvainahClerkPublishableKey=...`). The stable APK
+  continues to compile without Clerk. Order requests use a fresh
+  `Session.fetchToken()` from Clerk; no separate OTP provider or app-issued
+  login tokens are used.
+- iOS: Official ClerkKit/ClerkKitUI `AuthView` and `UserProfileView`
+  are linked with Swift Package Manager. Publishable key is read from a
+  build setting; the server secret never enters the app. iOS payment
+  remains disabled pending App Store requirements.
+- These are draft integrations. Build tests and real-device sign-in,
+  recovery, refresh and verified-email delivery must pass before release.
 
 For Telegram and Yandex: the existing independent browser sign-ins **do not
 automatically create Clerk users** or Clerk mobile sessions. A server-reviewed
@@ -72,8 +76,8 @@ comply with the provider's identity, age and contractual requirements.
 
 ## Work needed before merging this PR
 
-1. Replace Android and iOS OTP components with official Clerk native SDKs,
-   including signup, session refresh and account recovery.
+1. Verify native Clerk SDK compilation and real-device sign-in with signup,
+   session refresh and account recovery.
 2. Verify Clerk JWT authorized-party policy with real signed test tokens on
    both native platforms, and confirm the same Clerk ID owns all order APIs.
 3. Test verified email addition in Clerk for a phone-only account. Test that
