@@ -12,6 +12,7 @@ const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { safeServerLabel } = require('../shared/server-label.cjs');
 const { readCheckoutStatus } = require('../shared/checkout-status.cjs');
+const { checkTunDependencies } = require('../shared/windows-tun-dependencies.cjs');
 
 let mainWindow;
 const engineSession = new SingBoxSession();
@@ -212,6 +213,11 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:start-engine',async event=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(process.platform!=='win32'||(!chosenFile&&!chosenDirectProfile))return {ok:false,message:'Сначала добавь VLESS-ключ или Xray JSON'};
+    // Never attempt to modify system routes when the native TUN driver
+    // is absent. No driver is downloaded at runtime.
+    const prerequisites = await checkTunDependencies(enginePath());
+    if(!prerequisites.ok)return {ok:false,protected:false,
+      message:'Не найден проверенный Wintun в составе приложения. VPN не запускается.'};
     try{
       if(chosenDirectProfile){
         // Validate imported HTTPS/VLESS profiles before touching TUN or routes.

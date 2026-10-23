@@ -44,7 +44,9 @@
           "from": "vendor/sing-box/windows-x64",
           "to": "engines/sing-box",
           "filter": [
-            "sing-box.exe"
+            "sing-box.exe",
+            "wintun.dll",
+            "WINTUN-LICENSE.txt"
           ]
         }
       ]

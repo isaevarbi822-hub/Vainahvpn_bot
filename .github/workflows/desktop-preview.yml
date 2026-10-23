@@ -64,6 +64,29 @@ jobs:
           if (-not $binary) { throw 'sing-box.exe not found in official archive' }
           New-Item -ItemType Directory -Force -Path 'desktop/vendor/sing-box/windows-x64' | Out-Null
           Copy-Item $binary.FullName 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+      - name: Download and verify official Wintun x64 package and license
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://www.wintun.net/builds/wintun-0.14.1.zip'
+          $expected = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+          $archive = Join-Path $env:RUNNER_TEMP 'wintun-0.14.1.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'wintun-verified'
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Official Wintun archive SHA256 mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $extract
+          $dll = Join-Path $extract 'wintun/bin/amd64/wintun.dll'
+          $license = Join-Path $extract 'wintun/LICENSE.txt'
+          if (-not (Test-Path $dll) -or -not (Test-Path $license)) {
+            throw 'Official Wintun DLL or redistributable license missing'
+          }
+          $signature = Get-AuthenticodeSignature -FilePath $dll
+          if ($signature.Status -ne 'Valid') { throw 'Wintun driver DLL signature invalid' }
+          $dest = 'desktop/vendor/sing-box/windows-x64'
+          Copy-Item $dll (Join-Path $dest 'wintun.dll')
+          Copy-Item $license (Join-Path $dest 'WINTUN-LICENSE.txt')
+          Write-Host 'Verified official signed Wintun 0.14.1 and license'
       - name: Smoke-test verified sing-box executable
         shell: pwsh
         run: |
@@ -72,6 +95,11 @@ jobs:
           if (-not (Test-Path $engine)) { throw 'Bundled engine not found' }
           & $engine version
           if ($LASTEXITCODE -ne 0) { throw 'Bundled sing-box executable failed smoke test' }
+          foreach ($filename in @('wintun.dll', 'WINTUN-LICENSE.txt')) {
+            if (-not (Test-Path (Join-Path (Split-Path $engine) $filename))) {
+              throw "Missing required Wintun component: $filename"
+            }
+          }
       - name: Check generated TUN configuration
         shell: pwsh
         run: |
