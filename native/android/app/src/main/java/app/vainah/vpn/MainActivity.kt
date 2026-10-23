@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -287,6 +290,23 @@ class MainActivity : Activity() {
         val lastError = vpnDiagnostics.getString("last_failure", null)
         val lastStage = vpnDiagnostics.getString("last_stage", null)
         val interrupted = vpnDiagnostics.getBoolean("startup_pending", false)
+        if (EngineRegistry.active.ready) {
+            val copyDiagnostic = action("Скопировать безопасную диагностику")
+            add(preview, copyDiagnostic, 12)
+            copyDiagnostic.setOnClickListener {
+                val prefs = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
+                val report = VpnDiagnosticReport.create(
+                    VpnConnectionState.read(this).phase,
+                    prefs.getString("last_stage", null),
+                    prefs.getString("vpn_probe_reason", null),
+                    Build.VERSION.SDK_INT,
+                    VainahVpnService.runningInProcess
+                )
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Vainah VPN diagnostics", report))
+                notice("Коды состояния скопированы. VPN-ссылки, ключи и IP не включены.")
+            }
+        }
         if (EngineRegistry.active.ready) {
             if (interrupted && !lastStage.isNullOrBlank()) {
                 add(preview,text("Запуск VPN прервался на этапе: $lastStage",11f,d.muted),9)
