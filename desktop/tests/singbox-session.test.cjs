@@ -336,3 +336,36 @@ test('refused termination keeps engine owned and allows a clean retry',async()=>
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+
+test('concurrent disconnect requests signal the VPN process only once',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-double-stop-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ let kills=0,completeExit;
+ child.kill=()=>{kills++;completeExit=()=>child.emit('exit',0);return true};
+ const session=new SingBoxSession({platform:'win32',runner:()=>{
+   queueMicrotask(()=>child.emit('spawn'));return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   assert.equal((await session.start(binary,sample)).ok,true);
+   const first=session.stop(),second=session.stop();
+   assert.equal(kills,1);
+   completeExit();
+   const results=await Promise.all([first,second]);
+   assert.deepEqual(results.map(r=>r.ok),[true,true]);
+   assert.equal(session.status.state,'stopped');
+ }finally{
+   if(session.child)child.emit('exit',0);
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
