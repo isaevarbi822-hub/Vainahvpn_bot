@@ -12,6 +12,7 @@ val clerkPublishableKey = providers.gradleProperty("vainahClerkPublishableKey").
 if (clerkEnabled) {
     apply(plugin = "org.jetbrains.kotlin.plugin.compose")
 }
+val isolatedPreview = providers.gradleProperty("vainahIsolatedPreview").orNull == "true"
 val standaloneCheckout = providers.gradleProperty("vainahStandaloneCheckout")
     .orNull == "true"
 
@@ -44,6 +45,13 @@ android {
     }
     buildTypes {
         getByName("release") { isMinifyEnabled = false }
+        getByName("debug") {
+            // A test UI APK must never replace the user's working VPN.
+            if (isolatedPreview) {
+                applicationIdSuffix = ".preview"
+                versionNameSuffix = "-preview"
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
