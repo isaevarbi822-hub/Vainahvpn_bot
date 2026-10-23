@@ -134,10 +134,15 @@ test('Both mobile clients select real subscription rows without claiming protect
 
 test('Mobile subscriptions validate REALITY nodes and refuse iOS redirects',()=>{
  const android=read('android/app/src/main/java/app/vainah/vpn/SubscriptionServers.kt');
+ const parser=read('android/app/src/main/java/app/vainah/vpn/SubscriptionPayloadParser.kt');
+ const config=read('android/app/src/main/java/app/vainah/vpn/VlessRealityConfig.kt');
  const ios=read('ios/Sources/Shared/SubscriptionServers.swift');
- assert.match(android,/UUID\.fromString/);
- assert.match(android,/params\["pbk"\]/);
- assert.match(android,/params\["sni"\]/);
+ assert.match(android,/SubscriptionPayloadParser\.nodes/);
+ assert.match(parser,/UUID\.fromString/);
+ assert.match(parser,/VlessRealityConfig\.outbound/);
+ assert.match(parser,/stream\.optString\("network"/);
+ assert.match(config,/params\["pbk"\]/);
+ assert.match(config,/params\["sni"\]/);
  assert.match(ios,/NoSubscriptionRedirect/);
  assert.match(ios,/completionHandler\(nil\)/);
  assert.match(ios,/UUID\(uuidString:user\)/);
