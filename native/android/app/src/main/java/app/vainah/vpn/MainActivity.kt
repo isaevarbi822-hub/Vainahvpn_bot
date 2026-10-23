@@ -804,11 +804,11 @@ class MainActivity : Activity() {
                     }
                     runOnUiThread {
                         if(isFinishing||isDestroyed)return@runOnUiThread
-                        result.onSuccess {
-                            runCatching { mobileIdentity.save(it.token) }
+                        result.onSuccess { login ->
+                            runCatching { mobileIdentity.save(login.token) }
                                 .onSuccess {
                                     renderPage()
-                                    notice(if(it.emailVerified)
+                                    notice(if(login.emailVerified)
                                         "Вход подтверждён. Почта проверена — она может получать VPN после покупки."
                                         else "Вход подтверждён. Перед покупкой подтверди почту для доставки ключа.")
                                 }.onFailure{notice("Не удалось безопасно сохранить вход.")}
