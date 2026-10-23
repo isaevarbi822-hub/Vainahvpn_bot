@@ -33,13 +33,14 @@ enum VlessRealityConfig {
             guard let value = item.value else { return nil }
             return (item.name, value)
         })
+        let sid = query["sid"] ?? ""
         guard query["security"] == "reality",
               ["tcp", "raw"].contains(query["type"] ?? "tcp"),
               let sni = query["sni"], sni.count <= 253, !sni.isEmpty,
               let pbk = query["pbk"], pbk.range(
                 of: #"^[A-Za-z0-9_-]{43}$"#, options: .regularExpression
               ) != nil,
-              let sid = query["sid"] ?? "", sid.count <= 16,
+              sid.count <= 16,
               sid.count % 2 == 0, sid.range(
                 of: #"^[0-9a-fA-F]*$"#, options: .regularExpression
               ) != nil else { return nil }
