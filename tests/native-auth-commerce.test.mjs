@@ -5,6 +5,8 @@ import checkout from '../netlify/functions/mobile-checkout.mjs';
 import {mobileSession,makeMobileSession,nativeChallenge,checkChallenge} from '../netlify/functions/lib/mobile-auth.mjs';
 import {nativeCommerceReady,validateNativePayment} from '../netlify/functions/lib/native-commerce.mjs';
 import {identityHash} from '../netlify/functions/lib/alternate-auth.mjs';
+import {equalHash} from '../netlify/functions/mobile-link.mjs';
+import {createHash} from 'node:crypto';
 
 const signing='v'.repeat(48);
 const sender='me@example.com';
@@ -89,4 +91,22 @@ test('native SMS/email auth never accepts provider-unapproved checks',async()=>{
    globalThis.fetch=fetcher;
    for(const [k,v] of Object.entries(saved))if(v===undefined)delete process.env[k];else process.env[k]=v;
  }
+});
+
+test('one-use browser pairing uses hashed polling secret and provider-bound Telegram subject',()=>{
+ const secret='a'.repeat(64),hash=createHash('sha256').update(secret).digest('hex');
+ assert.equal(equalHash(hash,hash),true);
+ assert.equal(equalHash(hash,'0'.repeat(64)),false);
+ assert.equal(equalHash(hash,null),false);
+ const tgId='123456789';
+ const subject=identityHash('telegram',tgId,signing);
+ const token=makeMobileSession({provider:'telegram',subject,telegramId:tgId},signing);
+ const request=new Request('https://vpn.example.test/.netlify/functions/mobile-link',
+   {headers:{authorization:'Bearer '+token}});
+ assert.equal(mobileSession(request,signing).telegramId,tgId);
+ assert.throws(()=>makeMobileSession({provider:'telegram',subject,telegramId:'987654321'},signing));
+ const yandex=makeMobileSession({provider:'yandex',
+   subject:identityHash('yandex','yandex-example-id',signing)},signing);
+ const yandexRequest=new Request(request.url,{headers:{authorization:'Bearer '+yandex}});
+ assert.equal(mobileSession(yandexRequest,signing).provider,'yandex');
 });
