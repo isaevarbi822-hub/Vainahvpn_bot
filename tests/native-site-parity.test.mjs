@@ -52,8 +52,9 @@ test('native screens keep four usable tabs and share website design',()=>{
   for(const label of ['МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ',
     'УПРАВЛЕНИЕ ТУННЕЛЕМ','ЦЕНТР ПРИВАТНОСТИ','ТАРИФЫ И ПОДПИСКИ'])
     assert.ok(androidApp.includes(label),'redesigned Android copy missing: '+label);
-  for(const label of ['Интернет под твоим','контролем.','ВАШЕ СОЕДИНЕНИЕ'])
-    assert.ok(iosApp.includes(label),'original iOS copy missing: '+label);
+  for(const label of ['МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ',
+    'УПРАВЛЕНИЕ ТУННЕЛЕМ','ЦЕНТР ПРИВАТНОСТИ','ТАРИФЫ И ПОДПИСКИ'])
+    assert.ok(iosApp.includes(label),'redesigned iOS copy missing: '+label);
   for(const title of ['Главная','Тарифы','Кабинет','Помощь'])
     assert.ok(androidApp.includes('"'+title+'"'));
   assert.equal((iosApp.match(/\.tabItem/g)||[]).length,4);
