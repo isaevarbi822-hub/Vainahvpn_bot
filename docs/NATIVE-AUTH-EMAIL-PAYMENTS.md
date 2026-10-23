@@ -47,7 +47,7 @@ review/entitlement rules are met.**
 - Twilio Verify configured for SMS **and email** in one service; Verify email
   must be connected to a supported email provider in the Twilio console.
 - Configure Resend, including a verified sending domain:
-  `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (e.g. `Vainah VPN <vpn@example.com>`).
+  `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (e.g. `vpn@example.com`).
 - Configure H1Cloud, PostgreSQL, Telegram site credentials where applicable,
   RollyPay webhook and merchant secrets in Netlify **private environment only**.
 - Double-check webhook uses `rollypay-live-webhook` and no real customer
