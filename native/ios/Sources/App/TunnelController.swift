@@ -23,9 +23,19 @@ final class TunnelController: ObservableObject {
     // Pre-flight checks occur in the UI process. The profile URI is a bearer
     // credential; never put it in logs, error messages or NE configuration.
     @Published private(set) var profilePrepared = false
+    private var currentProfileId: String?
+
+    func resetProfile() {
+        currentProfileId = nil
+        profilePrepared = false
+        state = .disconnected
+        explanation = "Выбери сервер новой подписки перед подключением."
+    }
 
     func prepare(_ server: SubscriptionServer) {
+        currentProfileId = nil
         profilePrepared = VlessRealityConfig.validate(server.uri)
+        if profilePrepared { currentProfileId = server.id }
         if !profilePrepared {
             state = .unavailable
             explanation = "Выбранный сервер не поддерживается. Нужен VLESS REALITY TCP."
@@ -41,7 +51,7 @@ final class TunnelController: ObservableObject {
             explanation = "Сначала сохрани HTTPS-ссылку подписки."
             return
         }
-        guard profilePrepared else {
+        guard profilePrepared, currentProfileId != nil else {
             state = .unavailable
             explanation = "Сначала выбери и проверь VLESS REALITY TCP сервер."
             return

@@ -71,6 +71,7 @@ struct ContentView: View {
                 serverProfiles = []
                 selectedServerId = nil
                 chosenServer = nil
+                tunnel.resetProfile()
                 serverSyncStatus = "Подписка удалена"
             }
         } message: {
@@ -348,6 +349,7 @@ struct ContentView: View {
             } else {
                 selectedServerId = nil
                 chosenServer = nil
+                tunnel.resetProfile()
             }
             serverSyncStatus = "Обновлено: \(profiles.count) локаций"
         } catch {
@@ -585,6 +587,7 @@ struct ContentView: View {
                             serverProfiles = []
                             selectedServerId = nil
                             chosenServer = nil
+                            tunnel.resetProfile()
                             notice = "Ссылка сохранена в Keychain только на этом устройстве."
                         } else {
                             notice = "Вставь корректную HTTPS-ссылку из кабинета Vainah VPN."
