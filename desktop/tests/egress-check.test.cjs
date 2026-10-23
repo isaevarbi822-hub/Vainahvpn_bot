@@ -31,3 +31,42 @@ test('HTTPS trace reader only accepts bounded successful response',async()=>{
   }});
   assert.equal(value.country,'ES');
 });
+
+test('Fresh HTTPS egress probe disables socket pooling and disallows redirects',async()=>{
+  const {EventEmitter}=require('node:events');
+  const {freshHttpsRequest}=require('../shared/egress-check.cjs');
+  const requests=[];
+  const transport={request(options,done){
+    requests.push(options);
+    const req=new EventEmitter();
+    req.end=()=>{
+      const response=new EventEmitter();
+      response.statusCode=200;
+      response.headers={'content-length':'25'};
+      queueMicrotask(()=>{
+        done(response);
+        response.emit('data',Buffer.from('ip=198.51.100.10\nloc=NO\n'));
+        response.emit('end');
+      });
+    };
+    req.destroy=error=>req.emit('error',error);
+    return req;
+  }};
+  const a=await freshHttpsRequest('https://www.cloudflare.com/cdn-cgi/trace',{}, {transport});
+  const b=await freshHttpsRequest('https://www.cloudflare.com/cdn-cgi/trace',{}, {transport});
+  assert.equal(a.status,200);
+  assert.equal((await b.arrayBuffer()).toString('utf8').includes('loc=NO'),true);
+  assert.equal(requests.length,2);
+  for(const request of requests){
+    assert.equal(request.agent,false);
+    assert.equal(request.headers.Connection,'close');
+    assert.equal(request.hostname,'www.cloudflare.com');
+    assert.equal(request.path,'/cdn-cgi/trace');
+  }
+  await assert.rejects(freshHttpsRequest('https://example.net/',{}, {transport}));
+  assert.equal(requests.length,2);
+});
+test('Malformed IP address and large response never become a valid exit',()=>{
+  for(const bad of ['....','1.2.3.999','2001:::db8','127.0.0.1:443'])
+    assert.equal(parseTrace('ip='+bad+'\nloc=NO',{salt}),null);
+});
