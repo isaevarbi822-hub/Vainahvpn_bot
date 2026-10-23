@@ -20,7 +20,8 @@ export function validateProductionPayment(order,payment) {
      payment.payment_currency!=='RUB' ||
      parseRubPrice(String(payment.amount??''))!==Number(order.amount_kopeks) ||
      !PAYMENT_STATES.has(payment.status) ||
-     payment.test===true || payment.environment==='sandbox'){
+     (payment.test!==undefined && payment.test!==false) ||
+     (payment.environment!==undefined && payment.environment!=='production')){
     throw Error('ROLLYPAY_VERIFICATION_MISMATCH');
   }
   return payment.status;
