@@ -5,16 +5,25 @@ export function mobileSession(request,secret=process.env.SESSION_SIGNING_KEY) {
   const header=request.headers.get('authorization')||'';
   if(!/^Bearer [A-Za-z0-9._-]{10,2100}$/.test(header))return null;
   const session=verifySigned(header.slice(7),secret,'mobile-session');
-  if(!session || !['email','phone'].includes(session.provider) ||
+  if(!session || !['email','phone','telegram','yandex'].includes(session.provider) ||
      !/^[a-f0-9]{64}$/.test(session.sub||''))return null;
   if(session.email!==undefined && normalizeContact('email',session.email)!==session.email)return null;
-  return {provider:session.provider,subject:session.sub,email:session.email||null};
+  const telegramId=session.telegramId||null;
+  if(session.provider==='telegram' &&
+    (!/^[1-9][0-9]{0,17}$/.test(telegramId||'')||
+     identityHash('telegram',telegramId,secret)!==session.sub))return null;
+  return {provider:session.provider,subject:session.sub,email:session.email||null,
+    ...(telegramId?{telegramId}:{})};
 }
-export function makeMobileSession({provider,subject,email=null},secret,now=Date.now()) {
-  if(!['email','phone'].includes(provider)||!/^[a-f0-9]{64}$/.test(subject||''))throw Error('INVALID_SUBJECT');
+export function makeMobileSession({provider,subject,email=null,telegramId=null},secret,now=Date.now()) {
+  if(!['email','phone','telegram','yandex'].includes(provider)||!/^[a-f0-9]{64}$/.test(subject||''))throw Error('INVALID_SUBJECT');
   if(email!==null && normalizeContact('email',email)!==email)throw Error('INVALID_EMAIL');
+  if(telegramId!==null &&
+    (provider!=='telegram'||!/^[1-9][0-9]{0,17}$/.test(telegramId)||
+     identityHash('telegram',telegramId,secret)!==subject))throw Error('INVALID_TELEGRAM_LINK');
   return issueSigned({purpose:'mobile-session',provider,sub:subject,
-    ...(email?{email}:{}),exp:Math.floor(now/1000)+7*86400},secret);
+    ...(email?{email}:{}),...(telegramId?{telegramId}:{}),
+    exp:Math.floor(now/1000)+7*86400},secret);
 }
 export function nativeChallenge(method,contact,secret,{linkTo=null,now=Date.now()}={}) {
   const normalized=normalizeContact(method,contact);
