@@ -105,6 +105,7 @@ class VainahVpnService : VpnService() {
                 val label = intent.getStringExtra(EXTRA_SELECTED_LABEL)
                     ?.take(80)?.takeIf { it.isNotBlank() } ?: "Выбранный сервер"
                 VpnConnectionState.starting(this, label)
+                VpnTrafficStore.clear(this)
                 try {
                     checkpoint("starting_foreground_notification")
                     startVisibleService()
@@ -222,6 +223,7 @@ class VainahVpnService : VpnService() {
     private fun disconnect(userRequested: Boolean) {
         connectionGeneration++
         val wasCurrentService = foregroundLease.release(this)
+        if (wasCurrentService) VpnTrafficStore.clear(this)
         if (userRequested && wasCurrentService) VpnConnectionState.disconnected(this)
         if (started) {
             started = false

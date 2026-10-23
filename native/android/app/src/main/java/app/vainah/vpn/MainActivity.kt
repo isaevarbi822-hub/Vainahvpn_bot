@@ -58,6 +58,7 @@ class MainActivity : Activity() {
     private var statusView: TextView? = null
     private var connectionDetailView: TextView? = null
     private var connectionMetaView: TextView? = null
+    private var trafficView: TextView? = null
     private var connectionButton: Button? = null
     private var ipCheckButton: Button? = null
     private val refreshTask = object : Runnable {
@@ -126,6 +127,14 @@ class MainActivity : Activity() {
                 "Экспериментальный libbox: защита трафика ещё не подтверждена."
                 else "VPN-движок пока не установлен. Трафик не защищён."
         }
+        trafficView?.text = if (snapshot.canDisconnect) {
+            val traffic = VpnTrafficStore.read(this)
+            if (traffic == null) "Трафик libbox: счётчики пока недоступны"
+            else "Скорость ↓ ${VpnTrafficStore.format(traffic.downlink)}/с" +
+                " · ↑ ${VpnTrafficStore.format(traffic.uplink)}/с" +
+                "\nЗа сеанс ↓ ${VpnTrafficStore.format(traffic.downlinkTotal)}" +
+                " · ↑ ${VpnTrafficStore.format(traffic.uplinkTotal)}"
+        } else "Статистика появится после подключения"
         connectionMetaView?.text =
             if (snapshot.server.isNotBlank() && snapshot.phase != VpnConnectionState.OFF) {
                 "Сервер: ${snapshot.server}" +
@@ -303,6 +312,11 @@ class MainActivity : Activity() {
         val stateMeta = text("",12f,d.muted).apply { gravity=Gravity.CENTER }
         connectionMetaView = stateMeta
         add(preview,stateMeta,9)
+        val trafficStatus = text("Статистика появится после подключения",12f,d.muted).apply {
+            gravity = Gravity.CENTER
+        }
+        trafficView = trafficStatus
+        add(preview,trafficStatus,9)
         val connect=action(if (EngineRegistry.active.ready) "⏻   Испытать VPN-движок" else "⏻   Подключиться",true)
         add(preview,connect,17)
         connectionButton = connect

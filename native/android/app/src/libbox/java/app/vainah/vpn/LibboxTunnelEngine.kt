@@ -14,6 +14,7 @@ class LibboxTunnelEngine : TunnelEngine {
     override val ready: Boolean = true
     @Volatile private var commandServer: CommandServer? = null
     @Volatile private var platform: LibboxAndroidPlatform? = null
+    @Volatile private var trafficMonitor: LibboxTrafficMonitor? = null
 
     private fun stage(service: VpnService, name: String) {
         service.getSharedPreferences("vpn_diagnostics", android.content.Context.MODE_PRIVATE)
@@ -82,12 +83,17 @@ class LibboxTunnelEngine : TunnelEngine {
             }
             // TUN establishment does not prove internet access.
             check(bridge.hasTun()) { "libbox did not request Android TUN" }
+            // Status stream reports actual core traffic. No sampling of app
+            // UID packets (which would incorrectly include subscription API).
+            trafficMonitor = LibboxTrafficMonitor(service).also { it.start() }
         }.onFailure {
             disconnect()
         }
 
     @Synchronized
     override fun disconnect() {
+        trafficMonitor?.stop()
+        trafficMonitor = null
         val current = commandServer
         commandServer = null
         try { current?.closeService() } catch (_: Exception) {}
