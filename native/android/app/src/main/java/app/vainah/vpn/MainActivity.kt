@@ -854,6 +854,9 @@ class MainActivity : Activity() {
                 if(isFinishing||isDestroyed)return@runOnUiThread
                 result.onSuccess { flow ->
                     externalLogin=flow
+                    // Rebuild the account before Custom Tabs, so the Finish button
+                    // is present when the user returns from official OAuth.
+                    renderPage()
                     try {
                         CustomTabsIntent.Builder().setShowTitle(true)
                             .setToolbarColor(d.background).build()
