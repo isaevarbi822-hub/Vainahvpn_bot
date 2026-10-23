@@ -30,39 +30,17 @@ object EngineRegistry {
         }.getOrDefault(UnavailableTunnelEngine)
     }
 
-    // VPN services can be recreated during a rapid stop/start sequence.
-    // A delayed shutdown from the OLD service must never close a NEW tunnel.
-    private val lifecycleLock = Any()
-    private var owner: VpnService? = null
+    private val sessionGate = OwnedTunnelGate()
 
     fun connectOwned(
         service: VpnService,
         config: String,
         isStillRequested: () -> Boolean
-    ): Result<Unit> = synchronized(lifecycleLock) {
-        if (!isStillRequested()) {
-            return@synchronized Result.failure(
-                IllegalStateException("VPN connection was cancelled")
-            )
-        }
-        if (owner != null && owner !== service) {
-            return@synchronized Result.failure(
-                IllegalStateException("Previous VPN session still active")
-            )
-        }
-        val result = active.connect(service, config)
-        if (result.isSuccess) owner = service
-        result
+    ): Result<Unit> = sessionGate.connect(service, isStillRequested) {
+        active.connect(service, config)
     }
 
-    fun disconnectOwned(service: VpnService) = synchronized(lifecycleLock) {
-        // If the service never successfully opened this engine, it does not
-        // have permission to close another service's established session.
-        if (owner !== service) return@synchronized
-        try {
-            active.disconnect()
-        } finally {
-            owner = null
-        }
+    fun disconnectOwned(service: VpnService) = sessionGate.disconnect(service) {
+        active.disconnect()
     }
 }
