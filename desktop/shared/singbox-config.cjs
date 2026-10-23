@@ -31,16 +31,38 @@ function buildSingBoxConfig(xrayJson, outboundIndex) {
     throw new Error('Invalid REALITY short ID');
   return {
     log:{level:'warn',output:'',timestamp:false},
-    dns:{servers:[{type:'local',tag:'local-dns'}],final:'local-dns'},
-    inbounds:[{type:'tun',tag:'vainah-tun',address:['172.18.0.1/30'],auto_route:true,strict_route:true}],
+    // Only initial server-hostname resolution can use the OS resolver.
+    // Regular application DNS uses HTTPS THROUGH the VLESS outbound.
+    // TLS server_name pins the DoH identity even when the IP is literal.
+    dns:{
+      servers:[
+        {type:'local',tag:'bootstrap-only'},
+        {type:'https',tag:'vpn-doh',server:'1.1.1.1',path:'/dns-query',
+         tls:{enabled:true,server_name:'cloudflare-dns.com'},detour:'vainah-proxy'}
+      ],
+      final:'vpn-doh',
+      strategy:'prefer_ipv4'
+    },
+    inbounds:[{
+      type:'tun',tag:'vainah-tun',
+      address:['172.18.0.1/30','fdfe:dcba:9876::1/126'],
+      dns_mode:'hijack',auto_route:true,strict_route:true
+    }],
     outbounds:[{
       type:'vless',tag:'vainah-proxy',server:server.address,server_port:server.port,
       uuid:user.id,flow:user.flow||'',
+      domain_resolver:'bootstrap-only',
       tls:{enabled:true,server_name:real.serverName,
         utls:{enabled:true,fingerprint:real.fingerprint||'chrome'},
         reality:{enabled:true,public_key:real.publicKey,short_id:shortId}}
     }],
-    route:{auto_detect_interface:true,final:'vainah-proxy'}
+    route:{
+      auto_detect_interface:true,
+      // Port 53 is intercepted locally; encrypted DoH from the sing-box DNS
+      // engine is sent via VLESS. No generic "direct" fallback outbound.
+      rules:[{port:53,action:'hijack-dns'}],
+      final:'vainah-proxy'
+    }
   };
 }
 module.exports={buildSingBoxConfig};

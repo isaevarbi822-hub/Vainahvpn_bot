@@ -36,3 +36,19 @@ test('refuses missing supported VLESS outbound without fallback to direct',()=>{
  p.outbounds[0].streamSettings.network='grpc';
  assert.throws(()=>buildSingBoxConfig(p),/VLESS outbound required/);
 });
+
+test('desktop DNS and both IP families are routed through the VLESS engine',()=>{
+ const cfg=buildSingBoxConfig(sample());
+ assert.equal(cfg.inbounds[0].dns_mode,'hijack');
+ assert.equal(cfg.inbounds[0].strict_route,true);
+ assert.ok(cfg.inbounds[0].address.some(x=>x.includes(':')));
+ assert.equal(cfg.dns.final,'vpn-doh');
+ const remote=cfg.dns.servers.find(x=>x.tag==='vpn-doh');
+ assert.equal(remote.type,'https');
+ assert.equal(remote.detour,'vainah-proxy');
+ assert.equal(remote.tls.server_name,'cloudflare-dns.com');
+ assert.equal(cfg.outbounds[0].domain_resolver,'bootstrap-only');
+ assert.deepEqual(cfg.route.rules,[{port:53,action:'hijack-dns'}]);
+ assert.equal(cfg.route.final,'vainah-proxy');
+ assert.equal(cfg.outbounds.some(x=>x.type==='direct'),false);
+});
