@@ -2,7 +2,7 @@
 // Never forward raw Node/Electron errors: they may contain a bearer URL.
 function subscriptionErrorMessage(error){
  const cause=String(error?.message||'');
- const code=String(error?.code||'');
+ const code=String(error?.code||error?.cause?.code||'');
  if(cause==='Invalid subscription URL'||cause==='HTTPS hostname required')
   return 'Неверная HTTPS-ссылка подписки или порт сервера.';
  if(cause==='Subscription target unavailable')
@@ -21,11 +21,15 @@ function subscriptionErrorMessage(error){
   return 'Сервер подписки не ответил в течение 8 секунд.';
  if(cause==='Subscription server rejected request')
   return 'Сервер вернул HTTP-ошибку или перенаправление. Проверь действительность подписки.';
- if(cause==='Unsupported subscription format')
+ if(cause==='Unsupported subscription'||cause==='Unsupported subscription format')
   return 'Получен неподдерживаемый формат подписки (возможен Clash YAML или HTML).';
  if(cause==='No supported VLESS REALITY TCP servers')
   return 'Подписка прочитана, но VLESS TCP REALITY серверов не найдено.';
  if(cause==='Subscription too large')return 'Подписка больше 256 КБ.';
+ if(['ERR_TLS_HANDSHAKE_TIMEOUT','ERR_SOCKET_CONNECTION_TIMEOUT'].includes(code))
+  return 'Тайм-аут при установлении защищённого HTTPS-соединения.';
+ if(['ECONNABORTED','EADDRNOTAVAIL'].includes(code))
+  return 'Windows не смогла установить HTTPS-соединение. Проверь сеть и VPN-прокси.';
  // Only fixed text: never include error.message, error.stack, hostname, URL or token.
  return 'Неизвестная ошибка HTTPS. Проверь доступность ссылки в браузере Windows.';
 }
