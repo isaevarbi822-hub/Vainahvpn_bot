@@ -37,8 +37,15 @@ test('Desktop uses the website design and guides users honestly',()=>{
     assert.ok(site.includes(color),color+' missing on website');
     assert.ok(css.includes(color),color+' missing in desktop');
   }
-  assert.match(html,/Интернет под твоим/);
-  assert.match(html,/контролем/);
+  assert.match(html,/МОЙ VPN · ПАНЕЛЬ УПРАВЛЕНИЯ 0\.5/);
+  assert.match(html,/Выбирай свободу/);
+  assert.match(html,/id="home-server-search"/);
+  assert.match(html,/ЦЕНТР ПРИВАТНОСТИ/);
+  const ipc=read('desktop/src/preload.cjs');
+  assert.match(ipc,/getCheckoutReadiness/);
+  assert.match(read('desktop/src/main.cjs'),/authorizedSender\(event\)/);
+  assert.match(read('desktop/shared/checkout-status.cjs'),/catalogMatches:false/);
+  assert.equal(checkoutReady(),false);
   for(const page of ['home','guide','plans','account','devices','help'])
     assert.match(html,new RegExp('id="view-'+page+'"'));
   assert.match(html,/VPN не активен/);
