@@ -20,6 +20,7 @@ class LibboxTunnelEngine : TunnelEngine {
             .edit().putString("last_stage", name).putBoolean("startup_pending", true).commit()
     }
 
+    @Synchronized
     override fun connect(service: VpnService, singBoxConfigJson: String): Result<Unit> =
         runCatching {
             check(commandServer == null) { "VPN is already running" }
@@ -76,6 +77,7 @@ class LibboxTunnelEngine : TunnelEngine {
             disconnect()
         }
 
+    @Synchronized
     override fun disconnect() {
         val current = commandServer
         commandServer = null
