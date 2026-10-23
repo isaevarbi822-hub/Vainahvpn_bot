@@ -17,8 +17,8 @@ android {
         applicationId = "app.vainah.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "0.5.0"
+        versionCode = 17
+        versionName = "0.5.1"
         buildConfigField("boolean", "VAINAH_DIRECT_CHECKOUT_ENABLED",
             if (standaloneCheckout) "true" else "false")
     }

@@ -233,3 +233,19 @@ test('VPN physical bootstrap and encrypted DNS never falsely claim browser egres
   assert.ok(service.includes('VpnConnectionState.tunnelUnverified(this)'));
   assert.ok(ui.includes('Туннель активен · проверь браузер'));
 });
+
+test('Mobile dashboard 0.5.1 is compact and does not fake iOS connection',()=>{
+  const androidUi=read(android+'MainActivity.kt');
+  const iosUi=read(ios+'App/ContentView.swift');
+  for(const code of [androidUi,iosUi]){
+    assert.match(code,/VPN под контролем/);
+    assert.match(code,/УПРАВЛЕНИЕ ТУННЕЛЕМ/);
+    assert.match(code,/ЦЕНТР ПРИВАТНОСТИ/);
+  }
+  assert.match(androidUi,/LinearLayout\.LayoutParams\(dp\(112\),dp\(112\)\)/);
+  assert.match(androidUi,/val statisticsPanel=panel\(\)/);
+  assert.doesNotMatch(androidUi,/⏻/);
+  assert.match(iosUi,/VainahPowerButton\(active: tunnel\.state == \.connected\)/);
+  assert.match(iosUi,/\.disabled\(!VLESSCore\.available\)/);
+  assert.match(iosUi,/frame\(width: 106, height: 106\)/);
+});

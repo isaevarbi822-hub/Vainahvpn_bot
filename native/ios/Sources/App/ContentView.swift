@@ -193,14 +193,19 @@ struct ContentView: View {
 
     private var home: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heading("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ",
-                    Text("Подключайся. ")
-                    + Text("Выбирай свободу.").foregroundColor(VainahDesign.purple),
-                    "Сервер, подписка и приватность — в одном месте, как на Android.")
+            overline("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ")
+                .padding(.top, 22)
+            Text("VPN под контролем.")
+                .font(.system(size: 30, weight: .bold, design: .rounded))
+                .tracking(-0.9)
+                .foregroundStyle(VainahDesign.ink)
+                .padding(.top, 9)
+            Text("Подключение, локации и скорость — всё рядом.")
+                .font(.system(size: 12))
+                .foregroundStyle(VainahDesign.muted)
+                .padding(.top, 6)
             connectionCard
-                .padding(.top, 12)
-            privacyCard
-                .padding(.top, 14)
+                .padding(.top, 16)
             VainahCard {
                 VStack(alignment: .leading, spacing: 11) {
                     overline("СЕРВЕРЫ И КОНФИГУРАЦИИ")
@@ -243,9 +248,11 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(.top, 17)
+            .padding(.top, 14)
             statistics
-                .padding(.top, 17)
+                .padding(.top, 14)
+            privacyCard
+                .padding(.top, 14)
             HStack(spacing: 12) {
                 callToAction("Тарифы  ↗") { selected = .plans }
                 callToAction("Мой кабинет  ↗") { selected = .account }
@@ -381,52 +388,69 @@ struct ContentView: View {
 
     private var connectionCard: some View {
         VainahCard(featured: true) {
-            VStack(spacing: 14) {
-                HStack {
-                    Text("✦  VAINAH VPN")
-                        .font(.system(size: 11, weight: .heavy))
-                        .tracking(1)
-                        .foregroundStyle(VainahDesign.purple)
-                    Spacer()
-                    Text("Нативный клиент")
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    overline("✦ VAINAH VPN")
+                    Spacer(minLength: 8)
+                    Text(tunnel.state == .connected ? "ТУННЕЛЬ ОТКРЫТ" : "НЕ ПОДКЛЮЧЕНО")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(VainahDesign.green)
+                        .foregroundStyle(tunnel.state == .connected
+                                         ? VainahDesign.green : VainahDesign.muted)
+                        .lineLimit(1).minimumScaleFactor(0.75)
                 }
-                .padding(.bottom, 9)
-                Text("УПРАВЛЕНИЕ ТУННЕЛЕМ")
-                    .font(.system(size: 11, weight: .heavy))
-                    .tracking(1.5)
-                    .foregroundStyle(VainahDesign.purple)
+                overline("УПРАВЛЕНИЕ ТУННЕЛЕМ")
+                    .padding(.top, 2)
+                HStack(alignment: .center, spacing: 15) {
+                    Button {
+                        Task { await tunnel.connect() }
+                    } label: {
+                        VainahPowerButton(active: tunnel.state == .connected)
+                            .frame(width: 106, height: 106)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!VLESSCore.available)
+                    .accessibilityLabel("Подключиться к VPN")
+                    .accessibilityHint("iOS-движок VLESS ещё не встроен")
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(tunnel.state.rawValue)
+                            .font(.system(size: 23, weight: .bold, design: .rounded))
+                            .foregroundStyle(VainahDesign.ink)
+                            .lineLimit(2).minimumScaleFactor(0.8)
+                        Text(tunnel.explanation)
+                            .font(.system(size: 11))
+                            .foregroundStyle(VainahDesign.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button {
-                    Task { await tunnel.connect() }
-                } label: {
-                    VainahPowerButton()
-                        .frame(height: 174)
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Подключиться к VPN")
-                .accessibilityHint("Без VLESS-движка VPN пока не устанавливает соединение")
-
-                Text(tunnel.state.rawValue)
-                    .font(.system(size: 25, weight: .bold, design: .rounded))
-                    .foregroundStyle(VainahDesign.ink)
-                Text(tunnel.explanation)
-                    .font(.system(size: 12))
-                    .foregroundStyle(VainahDesign.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                callToAction("⏻  Подключиться", prominent: true) {
+                HStack(spacing: 8) {
+                    Image(systemName: "server.rack")
+                        .foregroundStyle(VainahDesign.purple)
+                    Text(serverProfiles.first(where: { $0.id == selectedServerId })?.label
+                         ?? "Сервер не выбран")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(VainahDesign.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button("Локации") {
+                        notice = "Выбери страну в разделе локаций ниже."
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                }
+                .padding(11)
+                .background(VainahDesign.surface2.opacity(0.85),
+                            in: RoundedRectangle(cornerRadius: 12))
+                callToAction(VLESSCore.available ? "Подключиться"
+                             : "VPN для iOS готовится", prominent: true) {
                     Task { await tunnel.connect() }
                 }
-                .padding(.top, 3)
-                Text("Туннель iOS не включается до установки проверенного движка NetworkExtension.")
+                .disabled(!VLESSCore.available)
+                Text("Для iPhone и iPad нужен подписанный VLESS Packet Tunnel. " +
+                     "Статус защиты не имитируется.")
                     .font(.system(size: 11))
                     .foregroundStyle(VainahDesign.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -774,22 +798,27 @@ private struct VainahMark: View {
 }
 
 private struct VainahPowerButton: View {
+    let active: Bool
+
     var body: some View {
         ZStack {
             Circle()
                 .fill(RadialGradient(
-                    colors: [VainahDesign.purple.opacity(0.35),
-                             VainahDesign.purple.opacity(0.13), .clear],
-                    center: .center, startRadius: 10, endRadius: 110
+                    colors: [active ? VainahDesign.green.opacity(0.28)
+                                    : VainahDesign.purple.opacity(0.28), .clear],
+                    center: .center, startRadius: 12, endRadius: 65
                 ))
-                .frame(width: 199, height: 199)
+                .frame(width: 106, height: 106)
             Circle()
-                .strokeBorder(VainahDesign.purple, lineWidth: 3)
-                .frame(width: 127, height: 127)
-                .background(VainahDesign.purple.opacity(0.11), in: Circle())
+                .strokeBorder(active ? VainahDesign.green : VainahDesign.purple,
+                              lineWidth: 2.5)
+                .frame(width: 83, height: 83)
+                .background((active ? VainahDesign.green : VainahDesign.purple)
+                    .opacity(0.12), in: Circle())
             Image(systemName: "power")
-                .font(.system(size: 48, weight: .medium))
-                .foregroundStyle(VainahDesign.purple)
+                .font(.system(size: 34, weight: .medium))
+                .foregroundStyle(active ? VainahDesign.green : VainahDesign.purple)
         }
+        .accessibilityHidden(true)
     }
 }

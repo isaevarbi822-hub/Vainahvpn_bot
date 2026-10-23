@@ -146,7 +146,7 @@ class MainActivity : Activity() {
                     "\nДиагностика: $diagnosticCode" else ""
             VpnConnectionState.FAILED -> snapshot.detail
             else -> if (EngineRegistry.active.ready)
-                "Экспериментальный libbox: защита трафика ещё не подтверждена."
+                "Выбери локацию, подключись и проверь свой IP в браузере."
                 else "VPN-движок пока не установлен. Трафик не защищён."
         }
         trafficView?.text = if (snapshot.canDisconnect) {
@@ -162,11 +162,11 @@ class MainActivity : Activity() {
                 "Сервер: ${snapshot.server}" +
                     if (snapshot.tcpLatencyMs >= 0)
                         " · TCP медиана ${snapshot.tcpLatencyMs} мс" else " · задержка неизвестна"
-            } else "Выбери сервер из подписки"
+            } else selectedNode?.let { "Выбрано: ${it.label}" }
+                ?: "Выбери сервер из подписки"
         ipCheckButton?.visibility = if (snapshot.canDisconnect) View.VISIBLE else View.GONE
-        connectionButton?.text = if (snapshot.canDisconnect)
-            "⏻   Отключить VPN" else if (EngineRegistry.active.ready)
-            "⏻   Испытать VPN-движок" else "⏻   Подключиться"
+        connectionButton?.text = if (snapshot.canDisconnect) "Отключить VPN"
+            else "Подключиться"
     }
 
     private fun stopTunnel() {
@@ -269,7 +269,7 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply {
             isFillViewport = true; isVerticalScrollBarEnabled = false
         }
-        val body = column().apply { setPadding(dp(20),dp(22),dp(20),dp(38)) }
+        val body = column().apply { setPadding(dp(16),dp(18),dp(16),dp(32)) }
         scroll.addView(body)
         root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
         root.addView(bottomBar(),LinearLayout.LayoutParams(-1,dp(69)))
@@ -281,7 +281,7 @@ class MainActivity : Activity() {
             Tab.ACCOUNT -> account(body)
             Tab.HELP -> help(body)
         }
-        add(body,text("VAINAH VPN · 0.5 · Нативный Android клиент",11f,d.muted),26)
+        add(body,text("VAINAH VPN · 0.5.1 · Android",11f,d.muted),26)
     }
 
     private fun brandHeader(parent: LinearLayout) {
@@ -310,57 +310,72 @@ class MainActivity : Activity() {
         add(parent,text(description,13f,d.muted),9)
     }
     private fun home(parent: LinearLayout) {
-        add(parent,overline("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ"),28)
-        add(parent,text("Подключайся.\nВыбирай свободу.",35f,d.ink,true),10)
-        add(parent,text("Сервер, соединение и приватность в одном месте.",
-            13f,d.muted),8)
+        add(parent,overline("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ"),20)
+        add(parent,text("VPN под контролем.",29f,d.ink,true),8)
+        add(parent,text("Подключение, локации и скорость — всё рядом.",
+            12f,d.muted),5)
 
         val preview=panel(true)
         add(parent,preview,20)
         val bar=row()
-        bar.addView(overline("✦ VAINAH VPN"),LinearLayout.LayoutParams(0,-2,1f))
-        bar.addView(text("Нативный клиент",10f,d.green,true))
-        add(preview,bar)
-        val liveLabel = text("○ VPN отключён",12f,d.muted,true).apply {
-            gravity = Gravity.CENTER
+        bar.addView(overline("✦ VAINAH VPN"),
+            LinearLayout.LayoutParams(0,-2,1f))
+        val liveLabel=text("○ VPN отключён",11f,d.muted,true).apply {
+            gravity=Gravity.END
         }
-        activeConnectionLabel = liveLabel
-        add(preview,liveLabel,19)
-        add(preview,overline("УПРАВЛЕНИЕ ТУННЕЛЕМ"),19)
+        activeConnectionLabel=liveLabel
+        bar.addView(liveLabel)
+        add(preview,bar)
+        add(preview,overline("УПРАВЛЕНИЕ ТУННЕЛЕМ"),13)
+
+        // Status, power and server fit in one compact card even on small phones.
+        // Both power and CTA invoke the existing VpnService lifecycle.
+        val statusRow=row()
         val power=VainahPower(this).apply {
-            contentDescription=if (EngineRegistry.active.ready) "Испытать экспериментальный VPN-движок" else "Подключиться к VPN. Движок VLESS пока не встроен."
+            contentDescription="Подключиться к VPN"
             isClickable=true;isFocusable=true
             setOnClickListener { requestConnection() }
         }
-        powerView = power
-        preview.addView(power,LinearLayout.LayoutParams(-1,dp(162)))
-        val currentStatus = text("Не подключено",25f,d.ink,true).apply {
-            gravity = Gravity.CENTER
+        powerView=power
+        statusRow.addView(power,LinearLayout.LayoutParams(dp(112),dp(112)))
+        val summary=column().apply { setPadding(dp(13),0,0,0) }
+        val currentStatus=text("Не подключено",23f,d.ink,true).apply {
+            maxLines=2
         }
-        statusView = currentStatus
-        add(preview,currentStatus)
-        val stateDetail = text("",12f,d.muted).apply { gravity=Gravity.CENTER }
-        connectionDetailView = stateDetail
-        add(preview,stateDetail,8)
-        val stateMeta = text("",12f,d.muted).apply { gravity=Gravity.CENTER }
-        connectionMetaView = stateMeta
-        add(preview,stateMeta,9)
-        val trafficStatus = text("Статистика появится после подключения",12f,d.muted).apply {
-            gravity = Gravity.CENTER
-        }
-        trafficView = trafficStatus
-        add(preview,trafficStatus,9)
-        val connect=action(if (EngineRegistry.active.ready) "⏻   Испытать VPN-движок" else "⏻   Подключиться",true)
-        add(preview,connect,17)
-        connectionButton = connect
+        statusView=currentStatus
+        add(summary,currentStatus)
+        val stateDetail=text("",11f,d.muted).apply { maxLines=4 }
+        connectionDetailView=stateDetail
+        add(summary,stateDetail,6)
+        statusRow.addView(summary,LinearLayout.LayoutParams(0,-2,1f))
+        add(preview,statusRow,12)
+
+        val stateMeta=text("",12f,d.sky).apply { maxLines=2 }
+        connectionMetaView=stateMeta
+        add(preview,stateMeta,8)
+        val connect=action("Подключиться",true)
+        add(preview,connect,13)
+        connectionButton=connect
         connect.setOnClickListener { requestConnection() }
-        val ipButton = action("Проверить IP и интернет ↗")
-        ipCheckButton = ipButton
-        add(preview, ipButton, 9)
+        val ipButton=action("Проверить внешний IP ↗")
+        ipCheckButton=ipButton
+        add(preview,ipButton,8)
         ipButton.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://www.cloudflare.com/cdn-cgi/trace")))
         }
+
+        val statisticsPanel=panel()
+        add(parent,statisticsPanel,14)
+        add(statisticsPanel,overline("СКОРОСТЬ И ТРАФИК"))
+        val trafficStatus=text("Статистика появится после подключения",13f,d.ink)
+        trafficView=trafficStatus
+        add(statisticsPanel,trafficStatus,8)
+        add(statisticsPanel,text("Показатели поступают из libbox.",11f,d.muted),5)
+
+        // Locations are shown before privacy tests; service code is unchanged.
+        val servers=panel()
+        add(parent,servers,14)
         val privacy = panel()
         add(parent,privacy,16)
         add(privacy,overline("ЦЕНТР ПРИВАТНОСТИ"))
@@ -399,7 +414,7 @@ class MainActivity : Activity() {
         val interrupted = vpnDiagnostics.getBoolean("startup_pending", false)
         if (EngineRegistry.active.ready) {
             val copyDiagnostic = action("Скопировать безопасную диагностику")
-            add(preview, copyDiagnostic, 12)
+            add(privacy, copyDiagnostic, 12)
             copyDiagnostic.setOnClickListener {
                 val prefs = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)
                 val report = VpnDiagnosticReport.create(
@@ -417,12 +432,12 @@ class MainActivity : Activity() {
         }
         if (EngineRegistry.active.ready) {
             if (interrupted && !lastStage.isNullOrBlank()) {
-                add(preview,text("Запуск VPN прервался на этапе: $lastStage",11f,d.muted),9)
+                add(privacy,text("Запуск VPN прервался на этапе: $lastStage",11f,d.muted),9)
             } else if (!lastError.isNullOrBlank()) {
-                add(preview,text("Последняя ошибка движка: $lastError",11f,d.muted),9)
+                add(privacy,text("Последняя ошибка движка: $lastError",11f,d.muted),9)
             }
         }
-        add(preview,text("Данные о соединении берутся из Android и libbox.",11f,d.muted),13)
+        add(privacy,text("Диагностика использует Android и libbox.",11f,d.muted),13)
         val shortcuts = row().apply {
             background = shape(d.surface2,d.surface,18f)
             setPadding(dp(9),dp(12),dp(9),dp(12))
@@ -437,8 +452,6 @@ class MainActivity : Activity() {
         }
         add(parent,shortcuts,15)
 
-        val servers=panel()
-        add(parent,servers,17)
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Твои локации",23f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
@@ -524,6 +537,7 @@ class MainActivity : Activity() {
                             "Выбери сервер для подключения"
                         else "✓ Выбрано: ${restored.label}"
                         serverResults.removeAllViews()
+                        refreshConnectionStatus()
                         names.forEachIndexed { index, node ->
                             val choice=action(if (node == restored) "✓ ${node.label}" else node.label)
                             add(serverResults,choice,7)
@@ -531,6 +545,7 @@ class MainActivity : Activity() {
                                 chosenServer=index
                                 selectedNode=node
                                 selectedLocation.text = "✓ Выбрано: ${node.label}"
+                                refreshConnectionStatus()
                                 // Mark the selection without exposing the raw
                                 // VLESS URL, UUID, host or subscriber token.
                                 for (child in 0 until serverResults.childCount) {
