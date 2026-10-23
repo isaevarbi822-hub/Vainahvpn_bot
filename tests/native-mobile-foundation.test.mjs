@@ -177,7 +177,10 @@ test('Android connection UI and notifications show real verified status and offe
   const manifest=read('android/app/src/main/AndroidManifest.xml');
   assert.match(service,/ACTION_DISCONNECT/);
   assert.match(service,/EXTRA_SELECTED_LABEL/);
-  assert.match(service,/VpnConnectionState\.verified\(this\)/);
+  // Self-owned HTTPS may bypass Android VPN; require browser validation.
+  assert.match(service,/VpnConnectionState\.tunnelAwaitingBrowserValidation\(this\)/);
+  assert.doesNotMatch(service,/VpnConnectionState\.verified\(this\)/);
+  assert.match(platform,/non-blocking VPN file descriptor/);
   assert.match(service,/diagnoseTunnel\(this\)/);
   assert.match(service,/"Отключить", stopAction/);
   assert.match(ui,/stopTunnel\(\)/);
