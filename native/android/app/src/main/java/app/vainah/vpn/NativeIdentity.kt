@@ -37,13 +37,16 @@ class NativeIdentity(private val context: Context) {
         val payload=cipher.iv+encrypted
         prefs.edit().putString("session",Base64.encodeToString(payload,Base64.NO_WRAP)).apply()
     }
-    fun load():String?=try{
-        val data=Base64.decode(prefs.getString("session",null)?:return null,Base64.DEFAULT)
-        if(data.size<29)return null
-        val cipher=Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE,key(),GCMParameterSpec(128,data.copyOfRange(0,12)))
-        String(cipher.doFinal(data.copyOfRange(12,data.size)),Charsets.UTF_8)
-    }catch(_:Exception){null}
+    fun load(): String? {
+        return try {
+            val stored = prefs.getString("session",null) ?: return null
+            val data=Base64.decode(stored,Base64.DEFAULT)
+            if(data.size<29)return null
+            val cipher=Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE,key(),GCMParameterSpec(128,data.copyOfRange(0,12)))
+            String(cipher.doFinal(data.copyOfRange(12,data.size)),Charsets.UTF_8)
+        }catch(_:Exception){null}
+    }
     fun clear(){prefs.edit().remove("session").remove("last_order").apply()}
     fun lastOrder():String?=prefs.getString("last_order",null)
     fun saveOrder(id:String) {
