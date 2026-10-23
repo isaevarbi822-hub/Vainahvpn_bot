@@ -131,7 +131,7 @@ export async function claimDelivery(orderId) {
 export async function deliveryDone(orderId,lockedDb=null) {
   const db=lockedDb||await getPool();
   await db.query(
-    `UPDATE vpn_orders SET delivery_state='delivered',notification_sent_at=now(),
+    `UPDATE vpn_orders SET delivery_state='delivered',
        delivery_lease_until=NULL,last_delivery_error=NULL,updated_at=now()
        WHERE id=$1 AND delivery_state='processing'`,[orderId]);
 }

@@ -2,7 +2,8 @@ import {json,verifyRollypaySignature} from './lib/security.mjs';
 import {checkoutReady,parseRubPrice} from './lib/plan-catalog.mjs';
 import {fetchPayment} from './lib/rollypay-client.mjs';
 import {validPaymentId} from './lib/rollypay-identifiers.mjs';
-import {updateVerifiedPayment} from './lib/subscription-db.mjs';
+import {updateVerifiedPayment,getInternalOrder} from './lib/subscription-db.mjs';
+import {validateProductionPayment} from './lib/reconcile-rollypay-order.mjs';
 import {fulfillPaidOrder} from './lib/h1-fulfillment.mjs';
 
 export default async function handler(request){
@@ -26,9 +27,11 @@ export default async function handler(request){
     // Verify against RollyPay API independently: signed callbacks alone are not treated as fulfillment.
     const verified=await fetchPayment(event.payment_id);
     const amount=parseRubPrice(String(verified.amount||''));
-    if(verified.order_id!==event.order_id || verified.payment_id!==event.payment_id ||
-       verified.payment_currency!=='RUB' || amount===null ||
-       verified.status!==event.status || verified.test===true || verified.environment==='sandbox'){
+    const order=await getInternalOrder(event.order_id);
+    try {validateProductionPayment(order,verified);}
+    catch {return json({error:'Payment provider mismatch'},409);}
+    if(verified.status!==event.status || amount===null ||
+       verified.payment_id!==event.payment_id){
       return json({error:'Payment provider mismatch'},409);
     }
     const result=await updateVerifiedPayment({

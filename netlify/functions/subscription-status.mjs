@@ -3,6 +3,7 @@ import {sessionFromRequest,sameOrigin} from './lib/telegram-identity.mjs';
 import {getCustomerOrder} from './lib/subscription-db.mjs';
 import {fulfillPaidOrder} from './lib/h1-fulfillment.mjs';
 import {checkoutReady} from './lib/plan-catalog.mjs';
+import {reconcileRollypayOrder} from './lib/reconcile-rollypay-order.mjs';
 
 export default async function handler(request){
   const user=sessionFromRequest(request);
@@ -14,8 +15,14 @@ export default async function handler(request){
   try {
     const order=await getCustomerOrder(id,user.telegramId);
     if(!order)return json({error:'Order not found'},404);
-    if(request.method==='POST'&&order.status==='paid'&&order.delivery_state==='retry'&&checkoutReady()){
-      await fulfillPaidOrder(id);
+    // Manual status refresh is authenticated, CSRF-protected and never trusts
+    // the browser's claim of payment. The server queries RollyPay directly.
+    if(request.method==='POST'&&checkoutReady()){
+      if(['awaiting_payment','expired','canceled'].includes(order.status)){
+        await reconcileRollypayOrder(id);
+      } else if(order.status==='paid'&&order.delivery_state==='retry'){
+        await fulfillPaidOrder(id);
+      }
     }
     const latest=request.method==='POST'?await getCustomerOrder(id,user.telegramId):order;
     return json({
