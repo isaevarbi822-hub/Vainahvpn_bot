@@ -36,9 +36,12 @@ object EngineRegistry {
         service: VpnService,
         config: String,
         isStillRequested: () -> Boolean
-    ): Result<Unit> = sessionGate.connect(service, isStillRequested) {
-        active.connect(service, config)
-    }
+    ): Result<Unit> = sessionGate.connect(
+        service,
+        isStillRequested,
+        open = { active.connect(service, config) },
+        close = { active.disconnect() }
+    )
 
     fun disconnectOwned(service: VpnService) = sessionGate.disconnect(service) {
         active.disconnect()
