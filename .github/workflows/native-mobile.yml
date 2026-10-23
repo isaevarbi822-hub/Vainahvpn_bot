@@ -178,9 +178,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # PUBLISHABLE (public) key only. GitHub repository variables are preferred;
-      # old owners may have stored the public key as an Actions secret.
-      CLERK_PUBLIC_KEY: ${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
+      # PUBLISHABLE (public) key only. GitHub repository variables are preferred.
+      CLERK_PUBLIC_KEY: \${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -201,29 +200,7 @@ jobs:
               domain=base64.urlsafe_b64decode(match.group(1)+'='*((-len(match.group(1)))%4)).decode('ascii') if match else ''
           except (ValueError,UnicodeError):
               domain=''
-          if not domain.endswith('
-    runs-on: macos-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install XcodeGen
-        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
-      - name: Generate Vainah website-matching app icon
-        run: swift native/ios/scripts/generate-icon.swift
-      - name: Generate Xcode project
-        working-directory: native/ios
-        run: xcodegen generate
-      - name: Compile iOS app and Packet Tunnel extension for simulator
-        run: >
-          xcodebuild
-          -project native/ios/VainahVPN.xcodeproj
-          -scheme VainahVPN
-          -configuration Debug
-          -sdk iphonesimulator
-          -destination 'generic/platform=iOS Simulator'
-          CODE_SIGNING_ALLOWED=NO
-          build
-) or '.' not in domain or len(domain)>254:
+          if not domain.endswith('$') or '.' not in domain or len(domain)>254:
               print("CONFIGURATION REQUIRED: set a genuine Clerk publishable key (pk_test_/pk_live_) in GitHub Actions variable VAINAH_CLERK_PUBLISHABLE_KEY. Synthetic keys are not accepted.",file=sys.stderr)
               sys.exit(1)
           print("Real-format Clerk PUBLIC key validated. Account login still requires native app configuration and real-device testing.")
