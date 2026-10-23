@@ -60,6 +60,7 @@ class MainActivity : Activity() {
     private var serverRefreshGeneration = 0
     private var lastServerRefreshAttemptMs = 0L
     private val serverRefreshIntervalMs = 5 * 60 * 1000L
+    private lateinit var mobileIdentity: NativeIdentity
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -182,6 +183,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vault = SecureSubscription(this)
+        mobileIdentity = NativeIdentity(this)
         tab = savedInstanceState?.getString("page")?.let {
             runCatching { Tab.valueOf(it) }.getOrNull()
         } ?: Tab.HOME
@@ -715,35 +717,135 @@ class MainActivity : Activity() {
     }
 
     private fun attemptCheckout(plan: VainahPlan) {
-        if (!BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ||
-            checkoutStatus?.permitted != true) {
-            notice("Платёжный сервер не подтвердил готовность. Заказ не создаётся.")
+        val token=mobileIdentity.load()
+        if(token==null){
+            notice("Для покупки войди через почту или телефон в приложении. " +
+                "Если вошёл по телефону, дополнительно подтверди почту для доставки VPN.")
+            switch(Tab.ACCOUNT)
             return
         }
-        val url = NativeCheckout.checkoutUrl(plan.id) ?: return
+        if (!BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ||
+            checkoutStatus?.permitted != true) {
+            notice("Платежи в приложении ещё не активированы. Деньги не списываются.")
+            return
+        }
         AlertDialog.Builder(this)
-            .setTitle("Оформление: ${plan.title}")
-            .setMessage("${plan.priceRub} ₽ за ${plan.days} дней. " +
-                "Оформление откроется во вкладке внутри Vainah VPN, " +
-                "затем платёжная форма RollyPay. Понадобится подтверждённый вход. " +
-                "СБП может открыть банковское приложение. VPN выдаётся " +
-                "только после серверной проверки оплаты.")
+            .setTitle("Оформить ${plan.title}")
+            .setMessage("К оплате ${plan.priceRub} ₽. После серверного подтверждения VPN " +
+                "появится в приложении, а подписка будет отправлена на подтверждённую почту. " +
+                "СБП может открыть банковское приложение.")
             .setNegativeButton("Отмена",null)
             .setPositiveButton("Продолжить"){_,_->
-                try {
-                    // Custom Tabs provide a browser-isolated checkout surface,
-                    // the app cannot inspect payment or authentication data.
-                    val tab = CustomTabsIntent.Builder()
-                        .setShowTitle(true)
-                        .setToolbarColor(d.background)
-                        .build()
-                    tab.launchUrl(this, Uri.parse(url))
-                } catch (_: Exception) {
-                    notice("Не удалось открыть защищённую платёжную вкладку. " +
-                        "Оплата не запускалась. Попробуй позже.")
-                }
+                Thread {
+                    val outcome=runCatching { NativeIdentity.createInvoice(token,plan.id) }
+                    runOnUiThread {
+                        if(isFinishing || isDestroyed)return@runOnUiThread
+                        outcome.onSuccess { invoice ->
+                            mobileIdentity.saveOrder(invoice.orderId)
+                            try{
+                                CustomTabsIntent.Builder().setShowTitle(true)
+                                    .setToolbarColor(d.background).build()
+                                    .launchUrl(this,Uri.parse(invoice.payUrl))
+                            }catch(_:Exception){
+                                notice("Платёжная вкладка недоступна. Заказ сохранён; " +
+                                    "проверить его можно в личном кабинете.")
+                            }
+                        }.onFailure {
+                            notice("Оформление не запущено. Проверь вход и подтверждение " +
+                                "почты или попробуй позже.")
+                        }
+                    }
+                }.start()
             }.show()
     }
+
+    private fun startNativeOtp(method: String, addEmail: Boolean = false) {
+        val previous=if(addEmail)mobileIdentity.load() else null
+        if(addEmail && previous==null){notice("Сначала войди в аккаунт.");return}
+        val input=EditText(this).apply {
+            hint=if(method=="phone")"+79991234567" else "name@example.com"
+            inputType=if(method=="phone")InputType.TYPE_CLASS_PHONE
+                else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            setSingleLine(true);setPadding(dp(24),dp(16),dp(24),dp(16))
+        }
+        AlertDialog.Builder(this).setTitle(
+            if(addEmail)"Подтверди почту для доставки VPN"
+            else if(method=="phone")"Вход по телефону" else "Вход по почте")
+            .setView(input).setNegativeButton("Отмена",null)
+            .setPositiveButton("Выслать код"){_,_->
+                Thread {
+                    val challenge=runCatching {
+                        NativeIdentity.sendOtp(method,input.text.toString().trim(),previous)
+                    }
+                    runOnUiThread {
+                        if(isFinishing||isDestroyed)return@runOnUiThread
+                        challenge.onSuccess { askNativeOtp(it,previous) }.onFailure {
+                            notice("Не удалось отправить код. Проверь контакт " +
+                                "и настройки Twilio Verify на сервере.")
+                        }
+                    }
+                }.start()
+            }.show()
+    }
+
+    private fun askNativeOtp(challenge:NativeIdentity.LoginChallenge,previous:String?) {
+        val input=EditText(this).apply {
+            hint="Код из SMS или письма"
+            inputType=InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true);setPadding(dp(24),dp(16),dp(24),dp(16))
+        }
+        AlertDialog.Builder(this).setTitle("Мы отправили код подтверждения")
+            .setMessage("Введи полученные цифры. Код действует ограниченное время.")
+            .setView(input).setNegativeButton("Отмена",null)
+            .setPositiveButton("Подтвердить"){_,_->
+                Thread {
+                    val result=runCatching {
+                        NativeIdentity.confirmOtp(challenge,input.text.toString().trim(),previous)
+                    }
+                    runOnUiThread {
+                        if(isFinishing||isDestroyed)return@runOnUiThread
+                        result.onSuccess {
+                            runCatching { mobileIdentity.save(it.token) }
+                                .onSuccess {
+                                    renderPage()
+                                    notice(if(it.emailVerified)
+                                        "Вход подтверждён. Почта проверена — она может получать VPN после покупки."
+                                        else "Вход подтверждён. Перед покупкой подтверди почту для доставки ключа.")
+                                }.onFailure{notice("Не удалось безопасно сохранить вход.")}
+                        }.onFailure {
+                            notice("Неверный код, истёк срок действия или сервер недоступен. " +
+                                "Запроси новый код.")
+                        }
+                    }
+                }.start()
+            }.show()
+    }
+
+    private fun checkNativeOrder(){
+        val token=mobileIdentity.load()
+        val id=mobileIdentity.lastOrder()
+        if(token==null||id==null){notice("Сначала войди и оформи подписку.");return}
+        Thread {
+            val result=runCatching { NativeIdentity.readOrder(token,id) }
+            runOnUiThread{
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { order ->
+                    if(order.status=="paid"&&order.delivery=="delivered"&&
+                        order.subscriptionUrl!=null){
+                        if(vault.save(order.subscriptionUrl)){
+                            notice("Оплата подтверждена, VPN-подписка сохранена в приложении. " +
+                                (if(order.emailState=="sent")"Ссылка также отправлена на почту."
+                                    else "Письмо с VPN ещё доставляется."))
+                        } else notice("Оплата подтверждена, но VPN-подписка ещё не импортирована.")
+                    }else{
+                        notice("Оплата: ${order.status}. Доставка VPN: ${order.delivery}. " +
+                            "Обнови статус позже или обратись в поддержку.")
+                    }
+                }.onFailure{notice("Пока не удалось проверить заказ. Попробуй позже.")}
+            }
+        }.start()
+    }
+
     private fun account(parent: LinearLayout) {
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
             "Моя подписка.",
@@ -806,9 +908,44 @@ class MainActivity : Activity() {
             17f,d.ink,true),11)
         add(providers,text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не выдаёт покупки другого аккаунта.",
             12f,d.muted),8)
-        val login=action("Выбрать способ входа ↗")
-        add(providers,login,12)
-        login.setOnClickListener{openSite("account.html")}
+        add(providers,text(if(mobileIdentity.load()!=null)
+            "✓ Вход в приложение подтверждён. Для покупки нужна проверенная почта."
+            else "Войди по SMS или email с кодом — прямо здесь, не переходя на сайт.",
+            12f,d.muted),8)
+        val emailLogin=action("Войти через email",true)
+        add(providers,emailLogin,12)
+        emailLogin.setOnClickListener{startNativeOtp("email")}
+        val phoneLogin=action("Войти через телефон")
+        add(providers,phoneLogin,8)
+        phoneLogin.setOnClickListener{startNativeOtp("phone")}
+        if(mobileIdentity.load()!=null){
+            val delivery=action("Подтвердить почту для получения VPN")
+            add(providers,delivery,8)
+            delivery.setOnClickListener{startNativeOtp("email",true)}
+            val logout=action("Выйти из мобильного аккаунта")
+            add(providers,logout,8)
+            logout.setOnClickListener{mobileIdentity.clear();renderPage()}
+        }
+        val telegram=action("Telegram ↗")
+        add(providers,telegram,8)
+        telegram.setOnClickListener{
+            notice("Вход через Telegram откроется во внешнем приложении. " +
+                "Связь этой сессии с мобильными покупками пока не подтверждена.")
+            runCatching { startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("tg://resolve?domain=Vainahvpn_bot"))) }
+                .onFailure{openSite("account.html")}
+        }
+        val yandex=action("Яндекс ID ↗")
+        add(providers,yandex,8)
+        yandex.setOnClickListener{
+            notice("Авторизация Яндекс откроется в защищённой вкладке. " +
+                "В данный момент она создаёт сессию сайта, а не мобильного API.")
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(
+                this,Uri.parse("https://vainahvpnbot0.netlify.app/.netlify/functions/yandex-start"))
+        }
+        val orderStatus=action("Проверить оплату и получить VPN")
+        add(providers,orderStatus,12)
+        orderStatus.setOnClickListener{checkNativeOrder()}
     }
     private fun help(parent: LinearLayout) {
         intro(parent,"ЦЕНТР ПОДДЕРЖКИ",
