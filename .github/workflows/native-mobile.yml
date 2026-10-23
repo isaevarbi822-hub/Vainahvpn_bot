@@ -173,6 +173,31 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  combined-vpn-clerk-compat:
+    name: Android combined libbox and Clerk source compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      # The synthetic PUBLIC key is permitted for COMPILE checks only.
+      # No APK gets uploaded, since sign-in would not work with this key.
+      - name: Compile both VPN engine and Clerk without publishing a fake-login APK
+        run: >
+          gradle -p native/android
+          -PvainahEnableLibbox=true
+          -PvainahEnableClerk=true
+          -PvainahIsolatedPreview=true
+          -PvainahClerkPublishableKey=pk_test_synthetic_ci_only_not_a_real_instance
+          :app:assembleDebug :app:testDebugUnitTest
+          --no-daemon --stacktrace
+
   full-vpn-clerk-preview:
     name: Android VPN engine + real Clerk auth APK
     runs-on: ubuntu-latest
