@@ -10,7 +10,7 @@ import kotlinx.coroutines.runBlocking
 object ClerkTokenProvider {
     @JvmStatic
     fun initialize(app:Application) {
-        if (BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY.startsWith("pk_"))
+        if (ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY))
             Clerk.initialize(app,publishableKey=BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)
     }
 
