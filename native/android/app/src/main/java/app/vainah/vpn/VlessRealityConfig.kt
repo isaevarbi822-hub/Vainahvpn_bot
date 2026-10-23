@@ -78,6 +78,10 @@ object VlessRealityConfig {
             put("type", "tun")
             put("tag", "vainah-tun")
             put("address", JSONArray().put("172.19.0.1/30").put("fd00:19::1/126"))
+            // The DNS virtual addresses must exactly match the Android
+            // VpnService.Builder DNS entries. Keep the route's hijack-dns
+            // rule when setting explicit dns_address (sing-box 1.14).
+            put("dns_address", JSONArray().put("172.19.0.2").put("fd00:19::2"))
             put("auto_route", true)
             put("dns_mode", "hijack")
         }))
