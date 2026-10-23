@@ -36,7 +36,7 @@ export function verifySigned(token,secret,purpose,now=Date.now()){
   }catch{return null}
 }
 export function identityHash(provider,identifier,secret){
-  if(!['phone','email','yandex','telegram'].includes(provider)||!identifier||
+  if(!['phone','email','yandex','telegram','clerk'].includes(provider)||!identifier||
     !secret||secret.length<32)throw Error('INVALID_IDENTITY');
   return mac(secret,provider+':'+identifier);
 }
@@ -47,7 +47,7 @@ export function newAltSession(provider,identifier,secret,now=Date.now()){
 }
 export function altSession(request,secret=process.env.SESSION_SIGNING_KEY){
   const value=verifySigned(cookie(request,altCookieName),secret,'alt-session');
-  if(!value||!['phone','email','yandex'].includes(value.provider)||
+  if(!value||!['phone','email','yandex','clerk'].includes(value.provider)||
     !/^[a-f0-9]{64}$/.test(value.sub||''))return null;
   return {provider:value.provider};
 }
