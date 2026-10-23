@@ -3,6 +3,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// External RollyPay checkout is not bundled into Google Play builds.
+// The off-Play test build still requires backend checkoutReady=true,
+// matching server prices, Telegram authentication and signed webhook.
+val standaloneCheckout = providers.gradleProperty("vainahStandaloneCheckout")
+    .orNull == "true"
+
 android {
     namespace = "app.vainah.vpn"
     compileSdk = 35
@@ -11,8 +17,13 @@ android {
         applicationId = "app.vainah.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.4.17"
+        versionCode = 16
+        versionName = "0.5.0"
+        buildConfigField("boolean", "VAINAH_DIRECT_CHECKOUT_ENABLED",
+            if (standaloneCheckout) "true" else "false")
+    }
+    buildFeatures {
+        buildConfig = true
     }
     buildTypes {
         getByName("release") { isMinifyEnabled = false }

@@ -56,9 +56,15 @@ object NativeCheckout {
             if (conn.responseCode != 200) return Availability(false, false)
             if (conn.contentLengthLong > 20_000) return Availability(false, false)
             val bytes = conn.inputStream.use { input ->
-                val limited = input.readNBytes(20_001)
-                if (limited.size > 20_000) return Availability(false, false)
-                limited
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(4096)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    if (output.size() + read > 20_000) return Availability(false, false)
+                    output.write(buffer, 0, read)
+                }
+                output.toByteArray()
             }
             return parseAvailability(String(bytes, Charsets.UTF_8))
         } catch (_: Exception) {

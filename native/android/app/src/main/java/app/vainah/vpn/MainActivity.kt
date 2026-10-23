@@ -42,6 +42,12 @@ class MainActivity : Activity() {
     private enum class Tab { HOME, PLANS, ACCOUNT, HELP }
     private var tab = Tab.HOME
     private var deviceFilter = 0
+    private var checkoutGeneration = 0
+    private var checkoutStatus: NativeCheckout.Availability? = null
+    private var checkoutStatusView: TextView? = null
+    private val checkoutButtons = mutableListOf<Pair<VainahPlan, Button>>()
+    private var activeConnectionLabel: TextView? = null
+    private var powerView: VainahPower? = null
     private var chosenServer = -1
     private var selectedNode: VainahNode? = null
     // Refresh only while the HOME screen is visible. A token also prevents
@@ -104,6 +110,20 @@ class MainActivity : Activity() {
             VpnConnectionState.failed(this, "VPN-служба завершилась, соединение не защищено")
             snapshot = VpnConnectionState.read(this)
         }
+        val tunnelActive = snapshot.phase == VpnConnectionState.TUN_READY ||
+            snapshot.phase == VpnConnectionState.ONLINE
+        powerView?.setActive(tunnelActive)
+        activeConnectionLabel?.text = when (snapshot.phase) {
+            VpnConnectionState.TUN_READY, VpnConnectionState.ONLINE ->
+                "● Туннель открыт · статус IP/DNS проверяй отдельно"
+            VpnConnectionState.STARTING -> "◌ Подключаем VPN…"
+            VpnConnectionState.FAILED -> "● VPN остановлен из-за ошибки"
+            else -> "○ VPN отключён"
+        }
+        activeConnectionLabel?.setTextColor(
+            if (tunnelActive) d.green else if (snapshot.phase == VpnConnectionState.FAILED)
+                Color.rgb(250,157,154) else d.muted
+        )
         statusView?.text = when (snapshot.phase) {
             VpnConnectionState.STARTING -> "Подключаемся…"
             VpnConnectionState.TUN_READY -> if (snapshot.detail.startsWith("VPN-туннель запущен;"))
@@ -232,6 +252,17 @@ class MainActivity : Activity() {
         serverRefreshGeneration++
         serverRefreshButton = null
         serverRefreshInFlight = false
+        checkoutGeneration++
+        checkoutButtons.clear()
+        checkoutStatusView = null
+        activeConnectionLabel = null
+        powerView = null
+        statusView = null
+        connectionDetailView = null
+        connectionMetaView = null
+        trafficView = null
+        connectionButton = null
+        ipCheckButton = null
         val root = column().apply { setBackgroundColor(d.background) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true; isVerticalScrollBarEnabled = false
@@ -248,7 +279,7 @@ class MainActivity : Activity() {
             Tab.ACCOUNT -> account(body)
             Tab.HELP -> help(body)
         }
-        add(body,text("Vainah VPN · Android · Нативное приложение",11f,d.muted),26)
+        add(body,text("VAINAH VPN · 0.5 · Нативный Android клиент",11f,d.muted),26)
     }
 
     private fun brandHeader(parent: LinearLayout) {
@@ -277,30 +308,30 @@ class MainActivity : Activity() {
         add(parent,text(description,13f,d.muted),9)
     }
     private fun home(parent: LinearLayout) {
-        intro(parent,"VAINAH VPN · ТВОЙ СЕРВИС ПОДПИСКИ",
-            "Интернет под твоим контролем.",
-            "Выбирай тарифы, управляй подпиской и находи помощь за пару нажатий.",
-            "контролем.")
-        val planButton=action("Выбрать тариф   ↗",true)
-        add(parent,planButton,19)
-        planButton.setOnClickListener { switch(Tab.PLANS) }
-        val accountButton=action("Мой кабинет")
-        add(parent,accountButton,9)
-        accountButton.setOnClickListener { switch(Tab.ACCOUNT) }
+        add(parent,overline("МОЙ VPN  /  ПАНЕЛЬ УПРАВЛЕНИЯ"),28)
+        add(parent,text("Подключайся.\nВыбирай свободу.",35f,d.ink,true),10)
+        add(parent,text("Сервер, соединение и приватность в одном месте.",
+            13f,d.muted),8)
 
         val preview=panel(true)
-        add(parent,preview,22)
+        add(parent,preview,20)
         val bar=row()
         bar.addView(overline("✦ VAINAH VPN"),LinearLayout.LayoutParams(0,-2,1f))
         bar.addView(text("Нативный клиент",10f,d.green,true))
         add(preview,bar)
-        add(preview,overline("ВАШЕ СОЕДИНЕНИЕ"),24)
+        val liveLabel = text("○ VPN отключён",12f,d.muted,true).apply {
+            gravity = Gravity.CENTER
+        }
+        activeConnectionLabel = liveLabel
+        add(preview,liveLabel,19)
+        add(preview,overline("УПРАВЛЕНИЕ ТУННЕЛЕМ"),19)
         val power=VainahPower(this).apply {
             contentDescription=if (EngineRegistry.active.ready) "Испытать экспериментальный VPN-движок" else "Подключиться к VPN. Движок VLESS пока не встроен."
             isClickable=true;isFocusable=true
             setOnClickListener { requestConnection() }
         }
-        preview.addView(power,LinearLayout.LayoutParams(-1,dp(196)))
+        powerView = power
+        preview.addView(power,LinearLayout.LayoutParams(-1,dp(162)))
         val currentStatus = text("Не подключено",25f,d.ink,true).apply {
             gravity = Gravity.CENTER
         }
@@ -328,25 +359,29 @@ class MainActivity : Activity() {
             startActivity(Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://www.cloudflare.com/cdn-cgi/trace")))
         }
+        val privacy = panel()
+        add(parent,privacy,16)
+        add(privacy,overline("ЦЕНТР ПРИВАТНОСТИ"))
+        add(privacy,text("Проверь маршруты и DNS",20f,d.ink,true),8)
         val externalCheck = text(
-            "Проверки ниже открываются во внешнем браузере. Сайты видят твой IP. " +
-                "Результат не отправляется в Vainah VPN. Тесты не доказывают отсутствие всех утечек.",
+            "Тесты открываются во внешнем браузере; сайты увидят твой публичный IP. " +
+                "Они не дают абсолютной гарантии отсутствия утечек.",
             11f,d.muted)
-        add(preview, externalCheck, 9)
+        add(privacy, externalCheck, 8)
         val dnsTest = action("Проверить DNS-утечки ↗")
-        add(preview,dnsTest,8)
+        add(privacy,dnsTest,12)
         dnsTest.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://www.dnsleaktest.com/")))
         }
         val ipv6Test = action("Проверить IPv6 ↗")
-        add(preview,ipv6Test,8)
+        add(privacy,ipv6Test,8)
         ipv6Test.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://test-ipv6.com/")))
         }
         val killSwitch = action("Защита при сбоях · настройки Android ↗")
-        add(preview,killSwitch,8)
+        add(privacy,killSwitch,8)
         killSwitch.setOnClickListener {
             notice("В настройках Android VPN можно включить «Постоянный VPN» " +
                 "и «Блокировать подключения без VPN» для Vainah VPN, если эти " +
@@ -385,12 +420,25 @@ class MainActivity : Activity() {
                 add(preview,text("Последняя ошибка движка: $lastError",11f,d.muted),9)
             }
         }
-        add(preview,text("Реальный статус, без имитации защиты.",11f,d.muted),13)
+        add(preview,text("Данные о соединении берутся из Android и libbox.",11f,d.muted),13)
+        val shortcuts = row().apply {
+            background = shape(d.surface2,d.surface,18f)
+            setPadding(dp(9),dp(12),dp(9),dp(12))
+        }
+        for ((caption,page) in listOf("Тарифы  ↗" to Tab.PLANS,
+            "Кабинет  ↗" to Tab.ACCOUNT,"Поддержка  ↗" to Tab.HELP)) {
+            val button = action(caption)
+            shortcuts.addView(button,LinearLayout.LayoutParams(0,dp(54),1f).apply {
+                marginEnd = dp(4)
+            })
+            button.setOnClickListener { switch(page) }
+        }
+        add(parent,shortcuts,15)
 
         val servers=panel()
         add(parent,servers,17)
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
-        add(servers,text("Серверы подписки",19f,d.ink,true),9)
+        add(servers,text("Твои локации",23f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
             "SUB и совместимый Xray JSON. Локации обновляются каждые 5 минут, пока приложение открыто."
             else "Добавь свою HTTPS-подписку в кабинете, чтобы увидеть её серверы.",
@@ -469,9 +517,9 @@ class MainActivity : Activity() {
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
-        for ((head,sub) in listOf("6 тарифов" to "от 30 дней",
-                                 "3 / 6" to "устройств",
-                                 "Безлимит" to "трафик")) {
+        for ((head,sub) in listOf("3 страны" to "в тесте",
+                                 "VLESS" to "REALITY",
+                                 "DNS/IPv6" to "проверка")) {
             val box=column().apply{gravity=Gravity.CENTER}
             add(box,text(head,14f,d.ink,true).apply{gravity=Gravity.CENTER})
             add(box,text(sub,10f,d.muted).apply{gravity=Gravity.CENTER})
@@ -501,7 +549,7 @@ class MainActivity : Activity() {
         for ((index,title,explain) in listOf(
             Triple("01","Войди в аккаунт","Открой настоящий сайт и выбери удобный способ входа."),
             Triple("02","Проверь подписку","Посмотри свой тариф, срок и доступ только после подтверждения."),
-            Triple("03","Настрой устройство","Используй официальный мастер, пока движок VLESS ещё не встроен.")
+            Triple("03","Подключи сервер","Выбери локацию и проверь IP в браузере после подключения.")
         )) {
             add(start,text(index+"  "+title,16f,d.ink,true),13)
             add(start,text(explain,12f,d.muted),4)
@@ -509,7 +557,7 @@ class MainActivity : Activity() {
         val setup=action("Открыть мастер подключения ↗",true)
         add(start,setup,17)
         setup.setOnClickListener{openSite("device-center.html")}
-        add(start,text(if (EngineRegistry.active.ready) "Экспериментальная версия: проверь IP и DNS перед использованием." else "Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
+        add(start,text(if (EngineRegistry.active.ready) "VPN-движок libbox доступен. Проверяй его на устройстве." else "Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
     }
     private fun plans(parent: LinearLayout) {
         intro(parent,"ТАРИФЫ VAINAH",
@@ -639,8 +687,8 @@ class MainActivity : Activity() {
         }
         val faq=panel(true);add(parent,faq,17)
         add(faq,overline("ЧТО НУЖНО ЗНАТЬ"))
-        add(faq,text("Когда заработает подключение?",18f,d.ink,true),10)
-        add(faq,text("После безопасной интеграции и испытаний нативного VLESS-движка. Пока интернет не проходит через Vainah VPN.",
+        add(faq,text("Как проверить свою приватность?",18f,d.ink,true),10)
+        add(faq,text("Проверь внешний IP, DNS и IPv6 после подключения. Никакой онлайн-тест не гарантирует отсутствие утечек во всех сетях.",
             12f,d.muted),8)
     }
     private fun bottomBar(): LinearLayout {
