@@ -25,8 +25,8 @@ android {
         manifestPlaceholders["vainahAppLabel"] = "@string/app_name"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.5.3"
+        versionCode = 20
+        versionName = "0.5.4"
         buildConfigField("boolean", "VAINAH_CLERK_ENABLED", if (clerkEnabled) "true" else "false")
         buildConfigField("String", "VAINAH_CLERK_PUBLISHABLE_KEY",
             "\""+clerkPublishableKey.replace("\\","").replace("\"","")+"\"")
@@ -77,6 +77,7 @@ kotlin {
 dependencies {
     if (clerkEnabled) {
         implementation("com.clerk:clerk-android-ui:1.1.4")
+        implementation("com.googlecode.libphonenumber:libphonenumber:9.0.41")
         implementation(platform("androidx.compose:compose-bom:2025.06.01"))
         implementation("androidx.compose.ui:ui")
         implementation("androidx.compose.material3:material3")
