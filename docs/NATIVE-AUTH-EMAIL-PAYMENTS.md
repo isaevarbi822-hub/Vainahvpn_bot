@@ -9,11 +9,10 @@ No real money can be taken until all server gates and external providers are rev
 | --- | --- | --- | --- |
 | Email | Twilio Verify email OTP | Native Android / iOS | Requires a verified email and enabled RollyPay |
 | Phone | Twilio Verify SMS OTP | Native Android / iOS | User separately confirms email using OTP before checkout |
-| Telegram | Telegram official login outside app | External Telegram/browser | Browser session only; native linking needs a secure one-time exchange |
-| Yandex ID | Yandex OAuth PKCE | External Yandex/browser | Browser session only; native linking needs a secure one-time exchange |
+| Telegram | Official Telegram Login Widget on secure website | External browser / Telegram app approval | Native one-time pairing with separate verified email for delivery |
+| Yandex ID | Yandex OAuth with PKCE | External Yandex website | Native one-time pairing with separate verified email for delivery |
 
-**Do not treat a clicked social-login link as a completed native login.** Android and iOS are
-prepared for the external launch; secure callback and exchange are not included in this change.
+**Do not treat opening a social-login URL as authentication.** The browser must establish its verified session; a separate one-use pairing code, stored as a hash in PostgreSQL, is then exchanged by the original app only. The browser never sees the native polling secret.
 
 ## Native payment flow (when enabled for an eligible standalone Android build)
 
@@ -42,8 +41,9 @@ review/entitlement rules are met.**
 
 ## Server-side requirements
 
-- Database backup, then apply `database/subscriptions.sql` and
-  `database/migrations/002-native-identities.sql`.
+- Database backup, then apply `database/subscriptions.sql`,
+  `database/migrations/002-native-identities.sql` and
+  `database/migrations/003-native-external-login.sql` in that order.
 - Twilio Verify configured for SMS **and email** in one service; Verify email
   must be connected to a supported email provider in the Twilio console.
 - Configure Resend, including a verified sending domain:
@@ -64,8 +64,7 @@ provider terms and distribution rules; do not bypass account restrictions.
 
 ## Known limitations to resolve before release
 
-- Mobile-app session exchange for external Yandex / Telegram login is
-  deliberately not implemented; those flows authenticate the existing website.
+- Browser/native pairing for Telegram and Yandex must be exercised with real configured OAuth credentials; linking native social accounts to legacy Telegram website purchases is a separate migration and is not claimed.
 - Production Twilio/Resend merchants, SMS/email deliverability, payment webhook,
   real H1Cloud provisioning and mobile handoff must be tested with actual
   configured accounts (no live charges during initial QA).
