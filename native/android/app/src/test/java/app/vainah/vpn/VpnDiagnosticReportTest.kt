@@ -15,6 +15,16 @@ class VpnDiagnosticReportTest {
         assertTrue(report.contains("vpn_egress=not_verified_on_device"))
     }
 
+    @Test fun successfulAppHttpsProbeCanBeReportedWithoutEgressClaim() {
+        val report = VpnDiagnosticReport.create(
+            "online", "vpn_https_probe_success", "https_204", 37, true
+        )
+        assertTrue(report.contains("phase=online"))
+        assertTrue(report.contains("https_probe=https_204"))
+        assertTrue(report.contains("vpn_egress=not_verified_on_device"))
+        assertFalse(report.contains("vpn_egress=verified"))
+    }
+
     @Test fun maliciousValuesCannotLeakIntoClipboard() {
         val privateUrl = "https://example.org/?token=really_private"
         val profile = "vless://secret-uuid@host.example:443"

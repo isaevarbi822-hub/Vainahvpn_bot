@@ -48,9 +48,13 @@ class VainahVpnService : VpnService() {
         editor.commit()
     }
 
-    private fun completeStartup() {
+    private fun completeStartup(probeReason: String) {
+        // The successful HTTPS status must be explicit in the safe report.
+        // This says nothing about another app's public IP or DNS behavior.
+        val code = if (probeReason == "https_204") "https_204" else "unknown"
         getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
             .putString("last_stage", "vpn_https_probe_success")
+            .putString("vpn_probe_reason", code)
             .putBoolean("startup_pending", false)
             .commit()
     }
@@ -130,7 +134,7 @@ class VainahVpnService : VpnService() {
                             return@Thread
                         }
                         if (!isCurrentAttempt(generation)) return@Thread
-                        completeStartup()
+                        completeStartup(probe.reason)
                         VpnConnectionState.verified(this)
                         showNotification()
                     } catch (error: Throwable) {
