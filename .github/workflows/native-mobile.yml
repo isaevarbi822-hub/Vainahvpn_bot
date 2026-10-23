@@ -173,6 +173,85 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  combined-vpn-clerk-compat:
+    name: Android combined libbox and Clerk source compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      # The synthetic PUBLIC key is permitted for COMPILE checks only.
+      # No APK gets uploaded, since sign-in would not work with this key.
+      - name: Compile both VPN engine and Clerk without publishing a fake-login APK
+        run: >
+          gradle -p native/android
+          -PvainahEnableLibbox=true
+          -PvainahEnableClerk=true
+          -PvainahIsolatedPreview=true
+          -PvainahClerkPublishableKey=pk_test_synthetic_ci_only_not_a_real_instance
+          :app:assembleDebug :app:testDebugUnitTest
+          --no-daemon --stacktrace
+
+  full-vpn-clerk-preview:
+    name: Android VPN engine + real Clerk auth APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # PUBLISHABLE (public) key only. Resolve common GitHub Actions
+      # repository Variable names; do not silently substitute synthetic keys.
+      # Do NOT print the key or bundle a Clerk secret in the APK.
+      CLERK_PUBLIC_KEY: ${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLIC_KEY || vars.PUBLIC_CLERK_PUBLISHABLE_KEY || vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || vars.VITE_CLERK_PUBLISHABLE_KEY || vars.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Require real Clerk publishable key (no fake auth builds)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re,base64,sys
+          value=os.environ.get("CLERK_PUBLIC_KEY","")
+          match=re.fullmatch(r'pk_(?:test|live)_([A-Za-z0-9_=-]{12,512})',value)
+          try:
+              domain=base64.urlsafe_b64decode(match.group(1)+'='*((-len(match.group(1)))%4)).decode('ascii') if match else ''
+          except (ValueError,UnicodeError):
+              domain=''
+          if not domain.endswith('$') or '.' not in domain or len(domain)>254:
+              print("CONFIGURATION REQUIRED: set a genuine Clerk publishable key (pk_test_/pk_live_) in GitHub Actions variable VAINAH_CLERK_PUBLISHABLE_KEY. Synthetic keys are not accepted.",file=sys.stderr)
+              sys.exit(1)
+          print("Real-format Clerk PUBLIC key validated. Account login still requires native app configuration and real-device testing.")
+          PY
+      - name: Compile one APK with both libbox VPN and Clerk
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p native/android \
+            -PvainahEnableLibbox=true \
+            -PvainahEnableClerk=true \
+            -PvainahIsolatedPreview=true \
+            -PvainahClerkPublishableKey="$CLERK_PUBLIC_KEY" \
+            :app:assembleDebug :app:testDebugUnitTest \
+            --no-daemon --stacktrace
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload single combined Vainah VPN 0.5.3 Preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VainahVPN-0.5.3-Android-VPN-libbox-Clerk-preview
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
   ios:
     name: iOS Simulator unsigned compile
     runs-on: macos-latest

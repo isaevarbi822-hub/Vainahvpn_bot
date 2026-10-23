@@ -735,8 +735,8 @@ class MainActivity : Activity() {
 
     private fun startClerkLogin() {
         if(!BuildConfig.VAINAH_CLERK_ENABLED ||
-           !BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY.startsWith("pk_")){
-            notice("Clerk ещё не включён в эту тестовую APK-сборку. " +
+           !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)){
+            notice("Для входа Clerk нужен настоящий публичный ключ проекта. " +
                 "Оплата в приложении недоступна.")
             return
         }
