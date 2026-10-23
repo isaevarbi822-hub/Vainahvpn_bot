@@ -10,6 +10,7 @@ const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
+const { safeServerLabel } = require('../shared/server-label.cjs');
 const { readCheckoutStatus } = require('../shared/checkout-status.cjs');
 
 let mainWindow;
@@ -59,6 +60,28 @@ function openWebsiteInsideApp(url) {
 }
 let chosenDirectProfile = null;
 let subscriptionProfiles = [];
+let subscriptionUrl = null;
+let subscriptionGeneration = 0;
+let subscriptionRefreshBusy = false;
+async function refreshSubscribedServers() {
+  if(subscriptionRefreshBusy || !subscriptionUrl ||
+     engineSession.status.state!=='stopped')return;
+  subscriptionRefreshBusy=true;
+  const url=subscriptionUrl, generation=subscriptionGeneration;
+  try{
+    const latest=await fetchSubscription(url);
+    if(subscriptionGeneration!==generation || subscriptionUrl!==url ||
+       engineSession.status.state!=='stopped')return;
+    const previous=chosenDirectProfile&&JSON.stringify(chosenDirectProfile);
+    subscriptionProfiles=latest.profiles;
+    chosenDirectProfile=previous
+      ?latest.profiles.find(p=>JSON.stringify(p)===previous)||null
+      :null;
+    chosenFile=null;
+  }catch{
+    // Preserve last-known-good servers on provider or network failures.
+  }finally{subscriptionRefreshBusy=false}
+}
 function enginePath() {
   return app.isPackaged
     ? path.join(process.resourcesPath,'engines','sing-box','sing-box.exe')
@@ -145,6 +168,8 @@ app.whenReady().then(()=>{
       const profile=vlessUriToXray(link);
       const checked=await validateWithSingBox(enginePath(),profile);
       if(!checked.ok)return {ok:false,message:'Ключ прочитан, но проверка sing-box не прошла'};
+      subscriptionGeneration++;
+      subscriptionUrl=null;
       subscriptionProfiles=[profile];
       chosenDirectProfile=profile;
       chosenFile=null;
@@ -155,7 +180,11 @@ app.whenReady().then(()=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
     try{
+      const generation=++subscriptionGeneration;
       const result=await fetchSubscription(link);
+      if(generation!==subscriptionGeneration || engineSession.status.state!=='stopped')
+        return {ok:false,message:'Подписка изменилась, повтори обновление'};
+      subscriptionUrl=link;
       subscriptionProfiles=result.profiles;
       chosenDirectProfile=result.profiles[0];
       chosenFile=null;
@@ -169,7 +198,7 @@ app.whenReady().then(()=>{
     if(!authorizedSender(event))return {ok:false,servers:[]};
     return {ok:true,servers:subscriptionProfiles.map((profile,index)=>({
       index,
-      label:'Сервер '+(index+1)+' · '+String(profile.outbounds?.[0]?.settings?.vnext?.[0]?.address||'VLESS').slice(0,80),
+      label:safeServerLabel(profile,index),
       selected:chosenDirectProfile===profile
     }))};
   });
@@ -282,6 +311,8 @@ app.whenReady().then(()=>{
     try{return {ok:openWebsiteInsideApp(url)};}
     catch{return {ok:false}}
   });
+  const subscriptionTimer=setInterval(()=>{void refreshSubscribedServers()},5*60*1000);
+  subscriptionTimer.unref?.();
   // Electron must wait for the engine to stop before quitting; otherwise its
   // child process can survive with system routes still active.
   let quitCleanupPending=false;
