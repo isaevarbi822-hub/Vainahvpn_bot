@@ -36,7 +36,7 @@ export function verifySigned(token,secret,purpose,now=Date.now()){
   }catch{return null}
 }
 export function identityHash(provider,identifier,secret){
-  if(!['phone','email','yandex'].includes(provider)||!identifier||
+  if(!['phone','email','yandex','telegram'].includes(provider)||!identifier||
     !secret||secret.length<32)throw Error('INVALID_IDENTITY');
   return mac(secret,provider+':'+identifier);
 }
