@@ -71,6 +71,21 @@ class VlessRealityConfigTest {
             tls.getJSONObject("reality").getString("public_key"))
     }
 
+    /**
+     * GitHub Actions passes a build-directory destination. The resulting file
+     * contains ONLY the invented node above; never use a real subscription
+     * fixture for executable-core validation or upload it as an artifact.
+     */
+    @Test fun exportInventedConfigForNativeSingBoxCheck() {
+        val path = System.getenv("VAINAH_SYNTHETIC_CONFIG_OUTPUT")
+            ?.takeIf { it.isNotBlank() } ?: return
+        val target = java.nio.file.Paths.get(path)
+        java.nio.file.Files.createDirectories(target.parent)
+        java.nio.file.Files.writeString(
+            target, VlessRealityConfig.profile(safeNode, "192.0.2.25")
+        )
+    }
+
     @Test fun missingRealityParametersCannotStartTunnel() {
         for (bad in listOf(
             "vless://00000000-0000-4000-8000-000000000001@example.org:443",

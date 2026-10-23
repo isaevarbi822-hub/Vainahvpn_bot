@@ -1,13 +1,8 @@
 package app.vainah.vpn
 
 /**
- * Support report with an intentionally tiny, credential-free schema.
- * No subscription URL, UUID, host, token, username or config JSON may cross
- * the clipboard. Only safe internal codes and the Android API level.
- */
-/**
- * Captures sanitized Android link facts for troubleshooting. Null means
- * unobservable, never that a route is definitely broken or missing.
+ * Sanitized Android link facts for troubleshooting. Null means unobservable,
+ * never that a VPN route is conclusively broken.
  */
 data class VpnNetworkFacts(
     val visible: Boolean? = null,
@@ -16,6 +11,10 @@ data class VpnNetworkFacts(
     val dnsConfigured: Boolean? = null
 )
 
+/**
+ * Support report with a credential-free schema. Never export subscription
+ * URLs, node UUIDs, hostnames, tokens or raw IP addresses to the clipboard.
+ */
 object VpnDiagnosticReport {
     private val safeCode = Regex("^[a-z][a-z0-9_]{0,63}$")
     private val phases = setOf("off", "starting", "tun_ready", "online", "failed")
