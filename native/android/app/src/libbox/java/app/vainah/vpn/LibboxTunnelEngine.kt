@@ -62,6 +62,14 @@ class LibboxTunnelEngine : TunnelEngine {
             stage(service, "loading_libbox_service")
             server.startOrReloadService(singBoxConfigJson, OverrideOptions())
             stage(service, "verifying_android_tun")
+            // libbox may establish the TUN on its own native callback thread
+            // just after startOrReloadService returns. Avoid a false startup
+            // failure while still failing closed if no TUN appears.
+            val tunDeadline = android.os.SystemClock.elapsedRealtime() + 6000L
+            while (!bridge.hasTun() &&
+                android.os.SystemClock.elapsedRealtime() < tunDeadline) {
+                Thread.sleep(60L)
+            }
             // TUN establishment does not prove internet access.
             check(bridge.hasTun()) { "libbox did not request Android TUN" }
         }.onFailure {
