@@ -14,7 +14,7 @@ test('Android standalone checkout remains off unless explicitly built in',()=>{
  assert.match(main,/BuildConfig\.VAINAH_DIRECT_CHECKOUT_ENABLED/);
  assert.match(main,/NativeCheckout\.fetchAvailability/);
  assert.match(main,/CustomTabsIntent\.Builder/);
- assert.match(main,/\.launchUrl\(this,Uri\.parse\(invoice\.payUrl\)\)/);
+ assert.match(main,/\.launchUrl\(this,Uri\.parse\(it\.payUrl\)\)/);
  const target=main.slice(main.indexOf('private fun attemptCheckout'),main.indexOf('private fun account('));
  assert.doesNotMatch(target,/startActivity\(Intent\(Intent\.ACTION_VIEW/);
  assert.doesNotMatch(target,/WebView|ROLLYPAY_API_KEY|PANEL_API_TOKEN/);
