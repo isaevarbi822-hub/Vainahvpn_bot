@@ -102,6 +102,13 @@ class SingBoxSession {
         if(this.child===child)await this.stop();
         return {ok:false,reason:this.lastError||'Движок остановился сразу после запуска.',protected:false};
       }
+      // A fatal engine diagnostic during the startup grace period is a failed
+      // start, even when the process has not exited yet. Never report started.
+      if(this.lastError){
+        const reason=this.lastError;
+        await this.stop();
+        return {ok:false,reason,protected:false};
+      }
       this.state='running-unverified';
       return {ok:true,started:true,protected:false};
     } catch {
