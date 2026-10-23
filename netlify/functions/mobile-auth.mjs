@@ -44,7 +44,8 @@ export default async function handler(request) {
     const subject=owner?.subject||identityHash(method,contact,secret);
     const provider=owner?.provider||method;
     const email=linking?contact:method==='email'?contact:null;
-    const token=makeMobileSession({provider,subject,email},secret);
+    const token=makeMobileSession({provider,subject,email,
+      telegramId:owner?.telegramId||null},secret);
     return json({authenticated:true,token,provider,emailVerified:!!email});
   }catch(e){
     console.warn('Native login provider:',e?.name||'Error');
