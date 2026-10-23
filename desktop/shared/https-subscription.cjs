@@ -52,7 +52,13 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
  const pinned=(resolved.find(x=>net.isIP(x.address)===4)||resolved[0]).address;
  const data=await new Promise((resolve,reject)=>{
   const req=request(url,{timeout:8000,maxRedirects:0,lookup:(_host,_opts,cb)=>cb(null,pinned,net.isIP(pinned))},res=>{
-   if(res.statusCode!==200){res.resume();return reject(Error('Subscription server rejected request'))}
+   if(res.statusCode!==200){
+     res.resume();
+     // Keep the URL and any bearer token out of errors and logs.
+     const error=Error('Subscription HTTP response');
+     error.statusCode=Number(res.statusCode)||0;
+     return reject(error);
+   }
    const chunks=[];let total=0;
    res.on('data',chunk=>{total+=chunk.length;if(total>256*1024){req.destroy(Error('Subscription too large'));return}chunks.push(chunk)});
    res.on('end',()=>resolve(Buffer.concat(chunks).toString('utf8')));
