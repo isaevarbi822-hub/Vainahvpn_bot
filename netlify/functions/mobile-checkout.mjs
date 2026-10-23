@@ -8,7 +8,7 @@ export default async function handler(request){
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
   if(request.headers.get('origin') && request.headers.get('origin')!==process.env.PUBLIC_SITE_ORIGIN)
     return json({error:'Invalid origin'},403);
-  const user=mobileSession(request);
+  const user=await mobileSession(request);
   if(!user)return json({error:'Войди в аккаунт внутри Vainah VPN'},401);
   if(!user.email)return json({error:'Подтверди почту для получения VPN-подписки'},403);
   if(!nativeCommerceReady())return json({error:'Платежи в приложении ещё не включены'},503);
