@@ -70,7 +70,9 @@ export function validateNativePayment(order,data){
      !validPaymentId(order.payment_id)||data.payment_id!==order.payment_id||
      data.order_id!==String(order.id)||data.payment_currency!=='RUB' ||
      !['created','processing','paid','expired','canceled','refunded','chargeback'].includes(data.status)||
-     data.test===true || data.environment==='sandbox')throw Error('NATIVE_PAYMENT_MISMATCH');
+     (data.test!==undefined && data.test!==false) ||
+     (data.environment!==undefined && data.environment!=='production'))
+    throw Error('NATIVE_PAYMENT_MISMATCH');
   const amount=String(data.amount||'');
   if(!/^[1-9][0-9]{0,6}(?:\.[0-9]{1,2})?$/.test(amount)||
     Math.round(Number(amount)*100)!==Number(order.amount_kopeks))
@@ -125,7 +127,7 @@ export async function readNativeVpnAccess(order){
   if(order.status!=='paid'||order.delivery_state!=='delivered')return null;
   const data=await panel('/clients/'+encodeURIComponent(order.client_name));
   const client=data?.client;
-  if(!client||Number(client.expires_at)*1000<=Date.now())return null;
+  if(!client||client.name!==order.client_name||Number(client.expires_at)*1000<=Date.now())return null;
   return secureSubscriptionUrl(client.subscription_url||client.sub_url);
 }
 async function fulfillH1(orderId){
@@ -167,7 +169,7 @@ async function fulfillH1(orderId){
         await panel('/clients/'+encodeURIComponent(order.client_name),'PATCH',{expires_at,device_limit:limit});
       }
       const current=(await panel('/clients/'+encodeURIComponent(order.client_name)))?.client;
-      if(!current||Number(current.expires_at)<expires_at||Number(current.device_limit)<Number(order.device_limit))
+      if(!current||current.name!==order.client_name||Number(current.expires_at)<expires_at||Number(current.device_limit)<Number(order.device_limit))
         throw Error('PANEL_NOT_CONFIRMED');
       secureSubscriptionUrl(current.subscription_url||current.sub_url);
       await db.query(`UPDATE vpn_native_orders SET delivery_state='delivered',
