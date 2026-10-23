@@ -296,3 +296,43 @@ test('diagnostics during disconnect cannot turn intentional stop into an error',
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+
+test('refused termination keeps engine owned and allows a clean retry',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-refused-stop-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ let attempts=0,configPath;
+ child.kill=()=>{
+   attempts++;
+   if(attempts===1)return false;
+   queueMicrotask(()=>child.emit('exit',0));
+   return true;
+ };
+ const session=new SingBoxSession({platform:'win32',runner:(_exe,args)=>{
+   configPath=args[2];
+   queueMicrotask(()=>child.emit('spawn'));
+   return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   assert.equal((await session.start(binary,sample)).ok,true);
+   assert.equal((await session.stop()).ok,false);
+   assert.equal(session.status.state,'stop-failed');
+   assert.equal((await fs.stat(configPath)).isFile(),true);
+   assert.equal((await session.stop()).ok,true);
+   assert.equal(session.status.state,'stopped');
+   await assert.rejects(fs.stat(configPath),{code:'ENOENT'});
+ }finally{
+   if(session.child)child.emit('exit',0);
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
