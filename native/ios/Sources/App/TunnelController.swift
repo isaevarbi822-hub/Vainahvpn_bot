@@ -19,6 +19,48 @@ enum VLESSCore {
 final class TunnelController: ObservableObject {
     @Published private(set) var state: TunnelState = .disconnected
     @Published private(set) var explanation = "Трафик пока НЕ защищён Vainah VPN."
+    private var statusObserver: NSObjectProtocol?
+    private var managedConnection: NETunnelProviderSession?
+
+    init() {
+        statusObserver = NotificationCenter.default.addObserver(
+            forName: .NEVPNStatusDidChange, object: nil, queue: .main
+        ) { [weak self] notification in
+            // Notification may refer to *another app's* VPN: never update
+            // our screen from an unrelated NEVPNConnection instance.
+            Task { @MainActor [weak self] in
+                guard let self,
+                      let connection = notification.object as? NEVPNConnection,
+                      self.managedConnection === connection else { return }
+                self.updateStatus(connection.status)
+            }
+        }
+    }
+
+    private func updateStatus(_ status: NEVPNStatus) {
+        switch status {
+        case .connected:
+            // This is an OS connection state, not proof of real browser
+            // egress or absence of DNS/IPv6 leaks.
+            state = .connected
+            explanation = "Система сообщает о туннеле. Проверь IP, DNS и IPv6 в браузере."
+        case .connecting, .reasserting:
+            state = .preparing
+            explanation = "VPN подключается или восстанавливает сеть…"
+        case .disconnecting:
+            state = .preparing
+            explanation = "Отключение VPN…"
+        case .disconnected:
+            state = .disconnected
+            explanation = "VPN отключён. Трафик не защищён."
+        case .invalid:
+            state = .error
+            explanation = "Системный VPN-профиль недействителен."
+        @unknown default:
+            state = .error
+            explanation = "Неизвестное состояние системного VPN."
+        }
+    }
 
     // Pre-flight checks occur in the UI process. The profile URI is a bearer
     // credential; never put it in logs, error messages or NE configuration.
@@ -79,10 +121,10 @@ final class TunnelController: ObservableObject {
             manager.isEnabled = true
             try await manager.saveToPreferences()
             try await manager.loadFromPreferences()
+            managedConnection = manager.connection
             try manager.connection.startVPNTunnel()
-            // Waiting for NEVPNStatus connected is mandatory before claiming success.
-            state = .preparing
-            explanation = "Ожидаем подтверждения системного VPN…"
+            // Do not publish CONNECTED before NetworkExtension reports it.
+            updateStatus(manager.connection.status)
         } catch {
             state = .error
             explanation = "Не удалось создать системное подключение. Проверь разрешения NetworkExtension."
@@ -97,6 +139,7 @@ final class TunnelController: ObservableObject {
             else { continue }
             manager.connection.stopVPNTunnel()
         }
+        managedConnection = nil
         state = .disconnected
         explanation = "Подключение остановлено."
     }
