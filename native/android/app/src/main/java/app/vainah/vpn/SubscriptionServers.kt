@@ -1,6 +1,5 @@
 package app.vainah.vpn
 
-import android.util.Base64
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
@@ -36,7 +35,7 @@ object SubscriptionServers {
         connection.connectTimeout=8000
         connection.readTimeout=8000
         connection.instanceFollowRedirects=false
-        connection.setRequestProperty("Accept","text/plain")
+        connection.setRequestProperty("Accept","text/plain, application/json")
         try {
             if(connection.responseCode!=200)throw IllegalStateException("Сервер подписки не ответил успешно")
             val bytes=connection.inputStream.use { input ->
@@ -50,31 +49,7 @@ object SubscriptionServers {
                 }
                 output.toByteArray()
             }
-            val source=bytes.toString(Charsets.UTF_8).trim()
-            val decoded=if(source.startsWith("vless://") || source.contains("\\nvless://")) source else runCatching {
-                String(Base64.decode(source.filterNot { it.isWhitespace() },Base64.DEFAULT),Charsets.UTF_8)
-            }.getOrDefault(source)
-            val lines=decoded.lines().map { it.trim() }.filter { it.isNotEmpty() }
-            if(lines.size>50)throw IllegalStateException("Слишком много серверов")
-            val supported=lines.filter { line ->
-                if(!line.startsWith("vless://"))false else runCatching {
-                    val uri=java.net.URI(line)
-                    val params=uri.rawQuery.orEmpty().split('&').mapNotNull {
-                        val parts=it.split('=',limit=2)
-                        if(parts.size==2) parts[0] to parts[1] else null
-                    }.toMap()
-                    val id=uri.rawUserInfo.orEmpty()
-                    uri.scheme=="vless" && uri.host!=null && uri.port in 1..65535 &&
-                    runCatching { java.util.UUID.fromString(id) }.isSuccess &&
-                    params["security"]=="reality" &&
-                    (params["type"]==null || params["type"]=="tcp" || params["type"]=="raw") &&
-                    !params["pbk"].isNullOrBlank() && !params["sni"].isNullOrBlank()
-                }.getOrDefault(false)
-            }
-            if(supported.isEmpty())throw IllegalStateException("Нет поддерживаемых VLESS REALITY серверов")
-            return ServerListReconciler.unique(supported.mapIndexed { index, uri ->
-                VainahNode(displayName(uri, index + 1), uri)
-            })
+            return SubscriptionPayloadParser.nodes(bytes.toString(Charsets.UTF_8))
         }finally{ connection.disconnect() }
     }
 }

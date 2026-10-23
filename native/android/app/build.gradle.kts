@@ -11,8 +11,8 @@ android {
         applicationId = "app.vainah.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.4.10"
+        versionCode = 8
+        versionName = "0.4.11"
     }
     buildTypes {
         getByName("release") { isMinifyEnabled = false }

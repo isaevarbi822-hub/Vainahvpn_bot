@@ -350,7 +350,7 @@ class MainActivity : Activity() {
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Серверы подписки",19f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
-            "Новые локации загружаются при открытии и каждые 5 минут, пока приложение активно."
+            "SUB и совместимый Xray JSON. Локации обновляются каждые 5 минут, пока приложение открыто."
             else "Добавь свою HTTPS-подписку в кабинете, чтобы увидеть её серверы.",
             12f,d.muted),7)
         val syncStatus = text("Список ещё не синхронизирован", 12f, d.muted)
@@ -412,7 +412,7 @@ class MainActivity : Activity() {
                     }.onFailure {
                         // Keep the last successful list and selection on
                         // temporary H1Cloud/network errors; never show secrets.
-                        syncStatus.text = "Не удалось обновить список. Ранее загруженные локации сохранены."
+                        syncStatus.text = "Ошибка SUB/Xray JSON. Ранее загруженные локации сохранены."
                     }
                 }
             }.start()
