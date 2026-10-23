@@ -560,10 +560,20 @@ class MainActivity : Activity() {
         add(start,text(if (EngineRegistry.active.ready) "VPN-движок libbox доступен. Проверяй его на устройстве." else "Это предварительная версия интерфейса. VPN пока не подключается.",11f,d.muted),11)
     }
     private fun plans(parent: LinearLayout) {
-        intro(parent,"ТАРИФЫ VAINAH",
-            "Выбери свой формат доступа.",
-            "Все тарифы с безлимитным трафиком; цены как на нашем сайте.",
-            "формат доступа.")
+        intro(parent,"ТАРИФЫ И ПОДПИСКИ",
+            "Доступ на твоих условиях.",
+            "Шесть тарифов Vainah VPN. Цены сверяются с официальным сервером перед оформлением.",
+            "условиях.")
+        val billingPanel = panel(true)
+        add(parent,billingPanel,20)
+        add(billingPanel,overline("ПЛАТЕЖИ · СТАТУС СЕРВЕРА"))
+        val billingLabel = text("Проверяем доступность оформления…",13f,d.muted)
+        checkoutStatusView = billingLabel
+        add(billingPanel,billingLabel,11)
+        add(billingPanel,text(
+            "Счёт создаёт только наш сервер после входа через Telegram. " +
+                "Приложение не принимает номера карт и не подтверждает оплату самостоятельно.",
+            11f,d.muted),8)
         val filter=panel()
         add(parent,filter,20)
         add(filter,overline("ФИЛЬТР ПО КОЛИЧЕСТВУ УСТРОЙСТВ"))
@@ -580,24 +590,86 @@ class MainActivity : Activity() {
         add(parent,text(filtered.size.toString()+" тарифов · безлимитный трафик",
             12f,d.muted),14)
         for(plan in filtered) {
-            val tile=panel(plan.deviceLimit==6)
+            val tile=panel(plan.days==180 || plan.deviceLimit==6)
             add(parent,tile,13)
-            add(tile,overline(plan.badge))
-            add(tile,text(plan.title,22f,d.ink,true),12)
-            add(tile,text((if(plan.priceRub==1000) "1 000" else plan.priceRub.toString())+" ₽",34f,d.ink,true),4)
-            add(tile,text(plan.days.toString()+" дней · "+(if(plan.deviceLimit==6) "6 устройств" else "3 устройства")+
-                " · Безлимитный трафик",12f,d.muted),4)
-            val more=action("Подробнее на сайте   ↗",true)
-            add(tile,more,18)
-            more.setOnClickListener{openSite("plans.html")}
+            add(tile,overline(if(plan.days==180) "✦ ПОПУЛЯРНЫЙ ВЫБОР" else plan.badge))
+            val heading=row()
+            heading.addView(text(plan.title,23f,d.ink,true),
+                LinearLayout.LayoutParams(0,-2,1f))
+            heading.addView(text(if(plan.deviceLimit==6) "6 устройств" else "3 устройства",
+                11f,d.green,true))
+            add(tile,heading,12)
+            add(tile,text((if(plan.priceRub==1000) "1 000" else plan.priceRub.toString())+" ₽",
+                36f,d.ink,true),6)
+            val months = when(plan.days) {30->1;60->2;90->3;180->6;else->12}
+            add(tile,text("≈ ${plan.priceRub / months} ₽/мес · ${plan.days} дней",
+                12f,d.purple,true),4)
+            add(tile,text("✓ Безлимитный трафик   ✓ VLESS REALITY",
+                12f,d.muted),11)
+            add(tile,text("✓ ${plan.deviceLimit} устройства   ✓ Синхронизация серверов",
+                12f,d.muted),5)
+            val buy=action("Проверяем возможность оплаты…",true)
+            buy.isEnabled=false
+            checkoutButtons.add(plan to buy)
+            add(tile,buy,18)
+            buy.setOnClickListener{ attemptCheckout(plan) }
         }
-        val note=panel(true)
+        val note=panel()
         add(parent,note,19)
-        add(note,overline("ПРОЗРАЧНЫЕ УСЛОВИЯ"))
-        add(note,text("Оплата в приложении пока отключена. Просмотр тарифов ничего не списывает.",
+        add(note,overline("УСЛОВИЯ ПОДПИСКИ"))
+        add(note,text(
+            "Оплата не списывается при просмотре тарифов. Доступ выдаёт сервер " +
+                "только после подтверждённого платежа. Период, устройства и цена проверяются до оформления.",
             12f,d.muted),8)
-        val compare=action("Сравнить все тарифы ↗")
+        val compare=action("Сравнить тарифы и условия ↗")
         add(note,compare,13);compare.setOnClickListener{openSite("compare.html")}
+        refreshBillingAvailability()
+    }
+
+    private fun refreshBillingAvailability() {
+        val generation = checkoutGeneration
+        checkoutStatusView?.text = "Проверяем состояние сервера оплаты…"
+        Thread({
+            val result = NativeCheckout.fetchAvailability()
+            runOnUiThread {
+                if (isFinishing || isDestroyed || tab != Tab.PLANS ||
+                    checkoutGeneration != generation) return@runOnUiThread
+                checkoutStatus = result
+                val ready = BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED && result.permitted
+                val explanation = when {
+                    !result.pricesMatch -> "Сервер оплаты недоступен или данные тарифов не совпадают. Оформление заблокировано."
+                    !result.serverReady -> "RollyPay на сервере пока отключён. Заказы не создаются и деньги не списываются."
+                    !BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ->
+                        "Оплата в этой сборке отключена. Для версии Google Play нужен разрешённый платёжный сценарий."
+                    else -> "Сервер оплаты готов. Подтверди вход через Telegram на защищённой странице оформления."
+                }
+                checkoutStatusView?.text = explanation
+                checkoutButtons.forEach { (_, button) ->
+                    button.isEnabled = ready
+                    button.text = if(ready) "Продолжить оформление ↗"
+                        else "Оплата временно недоступна"
+                }
+            }
+        }, "vainah-checkout-status").start()
+    }
+
+    private fun attemptCheckout(plan: VainahPlan) {
+        if (!BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ||
+            checkoutStatus?.permitted != true) {
+            notice("Платёжный сервер не подтвердил готовность. Заказ не создаётся.")
+            return
+        }
+        val url = NativeCheckout.checkoutUrl(plan.id) ?: return
+        AlertDialog.Builder(this)
+            .setTitle("Оформление: ${plan.title}")
+            .setMessage("${plan.priceRub} ₽ за ${plan.days} дней. " +
+                "Откроется защищённая страница Vainah VPN в браузере. " +
+                "Потребуется вход в Telegram. " +
+                "Подписка выдаётся только после проверки платежа сервером.")
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Открыть оформление"){_,_->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            }.show()
     }
     private fun account(parent: LinearLayout) {
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
@@ -783,18 +855,31 @@ private class VainahMark(activity:Activity):View(activity){
 
 private class VainahPower(activity:Activity):View(activity){
     private val p=Paint(Paint.ANTI_ALIAS_FLAG)
+    private var connected = false
+    fun setActive(isActive: Boolean) {
+        if (connected != isActive) {
+            connected = isActive
+            contentDescription = if (connected) "Туннель открыт. Нажми для отключения VPN"
+                else "Нажми, чтобы подключиться к VPN"
+            invalidate()
+        }
+    }
     override fun onDraw(c:Canvas){
         super.onDraw(c)
         val cx=width/2f;val cy=height/2f
         val radius=Math.min(width,height)*.45f
         p.shader=RadialGradient(cx,cy,radius,
-            intArrayOf(Color.rgb(75,54,130),Color.rgb(38,28,74),Color.TRANSPARENT),
+            if (connected)
+                intArrayOf(Color.rgb(22,99,83),Color.rgb(21,49,55),Color.TRANSPARENT)
+            else intArrayOf(Color.rgb(75,54,130),Color.rgb(38,28,74),Color.TRANSPARENT),
             floatArrayOf(0f,.57f,1f),Shader.TileMode.CLAMP)
         c.drawCircle(cx,cy,radius,p)
         p.shader=null;p.style=Paint.Style.STROKE
-        p.color=Color.rgb(169,139,255);p.strokeWidth=width*.009f
+        p.color=if(connected)Color.rgb(112,229,177) else Color.rgb(169,139,255)
+        p.strokeWidth=width*.009f
         c.drawCircle(cx,cy,radius*.64f,p)
-        p.color=Color.rgb(204,182,255);p.strokeWidth=width*.035f
+        p.color=if(connected)Color.rgb(172,255,220) else Color.rgb(204,182,255)
+        p.strokeWidth=width*.035f
         p.strokeCap=Paint.Cap.ROUND
         val r=radius*.32f
         c.drawArc(RectF(cx-r,cy-r,cx+r,cy+r),-47f,274f,false,p)
