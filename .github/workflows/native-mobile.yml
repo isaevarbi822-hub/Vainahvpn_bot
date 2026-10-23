@@ -64,9 +64,7 @@ jobs:
             "https://github.com/SagerNet/sing-box/releases/download/v1.14.0/sing-box-1.14.0-linux-amd64.tar.gz" \
             -o "$tmp/sing-box.tar.gz"
           # SHA-256 from upstream GitHub release asset metadata (not a mutable tag).
-          printf '%s  %s\\n' \
-            '2375de6999f4f56ab46b4fc5ddf26a6aba1d3e61a0f4e7ddec2f4690457d5f63' \
-            "$tmp/sing-box.tar.gz" | sha256sum -c -
+          echo "2375de6999f4f56ab46b4fc5ddf26a6aba1d3e61a0f4e7ddec2f4690457d5f63  $tmp/sing-box.tar.gz" | sha256sum -c -
           tar -xzf "$tmp/sing-box.tar.gz" -C "$tmp"
           cli="$(find "$tmp" -type f -name sing-box -print -quit)"
           test -n "$cli"
