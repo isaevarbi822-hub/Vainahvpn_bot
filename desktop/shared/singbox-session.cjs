@@ -40,6 +40,9 @@ class SingBoxSession {
       // Inspect only known failure categories. Never store/log raw engine output,
       // because diagnostics can contain server addresses or credentials.
       if(child.stderr?.on)child.stderr.on('data',chunk=>{
+        // Ignore buffered diagnostics from a terminated or replaced process.
+        // Otherwise stale stderr can overwrite the next session's reason.
+        if(this.child!==child || this.state==='stopped')return;
         const line=String(chunk).slice(0,2048).toLowerCase();
         if(/access is denied|permission denied|requires administrator|administrator privilege/.test(line))
           this.lastError='Недостаточно системных прав для запуска TUN.';
