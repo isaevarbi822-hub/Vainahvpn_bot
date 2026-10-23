@@ -3,6 +3,15 @@
 function subscriptionErrorMessage(error){
  const cause=String(error?.message||'');
  const code=String(error?.code||error?.cause?.code||'');
+ if(cause==='Subscription HTTP response'){
+  const status=error?.statusCode;
+  if(status===401||status===403)return 'Доступ к подписке запрещён (HTTP '+status+'). Проверь срок и правильность ссылки.';
+  if(status===404||status===410)return 'Подписка не найдена или больше не существует (HTTP '+status+').';
+  if(status===429)return 'Сервер ограничил число запросов (HTTP 429). Попробуй позже.';
+  if(Number.isInteger(status)&&status>=500&&status<=599)return 'Сервер подписки временно недоступен (HTTP 5xx).';
+  if(Number.isInteger(status)&&status>=300&&status<=399)return 'Сервер перенаправляет подписку (HTTP 3xx). Автоматические переходы отключены для защиты ключа.';
+  return 'Сервер отклонил запрос подписки по HTTPS.';
+ }
  if(cause==='Invalid subscription URL'||cause==='HTTPS hostname required')
   return 'Неверная HTTPS-ссылка подписки или порт сервера.';
  if(cause==='Subscription target unavailable')
