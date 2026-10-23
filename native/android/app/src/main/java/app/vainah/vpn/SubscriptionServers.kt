@@ -72,7 +72,9 @@ object SubscriptionServers {
                 }.getOrDefault(false)
             }
             if(supported.isEmpty())throw IllegalStateException("Нет поддерживаемых VLESS REALITY серверов")
-            return supported.mapIndexed { index, uri -> VainahNode(displayName(uri, index + 1), uri) }
+            return ServerListReconciler.unique(supported.mapIndexed { index, uri ->
+                VainahNode(displayName(uri, index + 1), uri)
+            })
         }finally{ connection.disconnect() }
     }
 }

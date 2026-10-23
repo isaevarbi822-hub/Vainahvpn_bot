@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -43,6 +44,13 @@ class MainActivity : Activity() {
     private var deviceFilter = 0
     private var chosenServer = -1
     private var selectedNode: VainahNode? = null
+    // Refresh only while the HOME screen is visible. A token also prevents
+    // an old HTTP reply from rewriting a newer subscription's server list.
+    private var serverRefreshButton: Button? = null
+    private var serverRefreshInFlight = false
+    private var serverRefreshGeneration = 0
+    private var lastServerRefreshAttemptMs = 0L
+    private val serverRefreshIntervalMs = 5 * 60 * 1000L
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -55,6 +63,7 @@ class MainActivity : Activity() {
     private val refreshTask = object : Runnable {
         override fun run() {
             refreshConnectionStatus()
+            maybeRefreshServerList()
             refresher.postDelayed(this, 1400)
         }
     }
@@ -68,6 +77,22 @@ class MainActivity : Activity() {
     override fun onPause() {
         refresher.removeCallbacks(refreshTask)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        serverRefreshGeneration++
+        serverRefreshButton = null
+        super.onDestroy()
+    }
+
+    private fun maybeRefreshServerList() {
+        if (tab != Tab.HOME || serverRefreshInFlight) return
+        val button = serverRefreshButton ?: return
+        if (!button.isEnabled) return
+        val elapsed = SystemClock.elapsedRealtime() - lastServerRefreshAttemptMs
+        if (elapsed >= serverRefreshIntervalMs && vault.load() != null) {
+            button.performClick()
+        }
     }
 
     private fun refreshConnectionStatus() {
@@ -194,6 +219,10 @@ class MainActivity : Activity() {
     }
 
     private fun renderPage() {
+        // Invalidate previous UI/network callbacks whenever changing pages.
+        serverRefreshGeneration++
+        serverRefreshButton = null
+        serverRefreshInFlight = false
         val root = column().apply { setBackgroundColor(d.background) }
         val scroll = ScrollView(this).apply {
             isFillViewport = true; isVerticalScrollBarEnabled = false
@@ -321,43 +350,79 @@ class MainActivity : Activity() {
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Серверы подписки",19f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
-            "Синхронизируем серверы из подписки. Новые локации появятся автоматически."
-            else "Добавь одну HTTPS-подписку в кабинете. Все её серверы появятся здесь после подключения синхронизации.",
+            "Новые локации загружаются при открытии и каждые 5 минут, пока приложение активно."
+            else "Добавь свою HTTPS-подписку в кабинете, чтобы увидеть её серверы.",
             12f,d.muted),7)
+        val syncStatus = text("Список ещё не синхронизирован", 12f, d.muted)
+        add(servers, syncStatus, 7)
         val serverResults=column()
         add(servers,serverResults,8)
         val loadServers=action("Обновить серверы")
+        serverRefreshButton = loadServers
         add(servers,loadServers,10)
         loadServers.setOnClickListener {
+            if (serverRefreshInFlight) return@setOnClickListener
             val link=vault.load()
             if(link==null){notice("Сначала добавь HTTPS-подписку.");return@setOnClickListener}
+            val generation = serverRefreshGeneration
+            serverRefreshInFlight = true
+            lastServerRefreshAttemptMs = SystemClock.elapsedRealtime()
             loadServers.isEnabled=false
+            syncStatus.text = "Обновляем список локаций…"
             Thread {
                 val result=runCatching { SubscriptionServers.loadNodes(link) }
                 runOnUiThread {
-                    loadServers.isEnabled=true
-                    serverResults.removeAllViews()
-                    result.onSuccess { names ->
-                        chosenServer = -1
-                        selectedNode = null
+                    // Never display a response from a previous screen or
+                    // subscription, even if its network request finished last.
+                    if (isFinishing || isDestroyed || tab != Tab.HOME ||
+                        generation != serverRefreshGeneration ||
+                        serverRefreshButton !== loadServers) return@runOnUiThread
+                    serverRefreshInFlight = false
+                    loadServers.isEnabled = true
+                    if (vault.load() != link) {
+                        syncStatus.text = "Подписка изменилась — обнови список ещё раз"
+                        return@runOnUiThread
+                    }
+                    result.onSuccess { incoming ->
+                        val names = ServerListReconciler.unique(incoming)
+                        val previous = selectedNode
+                        val restored = ServerListReconciler.preserve(previous, names)
+                        selectedNode = restored
+                        chosenServer = if (restored == null) -1 else names.indexOf(restored)
+                        serverResults.removeAllViews()
                         names.forEachIndexed { index, node ->
-                            val choice=action(node.label)
+                            val choice=action(if (node == restored) "✓ ${node.label}" else node.label)
                             add(serverResults,choice,7)
                             choice.setOnClickListener {
                                 chosenServer=index
                                 selectedNode=node
+                                // Mark the selection without exposing the raw
+                                // VLESS URL, UUID, host or subscriber token.
+                                for (child in 0 until serverResults.childCount) {
+                                    val other = serverResults.getChildAt(child) as? Button ?: continue
+                                    val current = names[child]
+                                    other.text = if (current == node) "✓ ${current.label}" else current.label
+                                }
                                 notice(if (EngineRegistry.active.ready) "Выбран: ${node.label}. Экспериментальный VPN-движок доступен для теста; реальная защита ещё не проверена." else "Выбран: ${node.label}. VPN-туннель Android пока не подключён.")
                             }
                         }
+                        syncStatus.text = if (previous != null && restored == null)
+                            "Обновлено: ${names.size} локаций. Старый сервер удалён или изменён — выбери другой."
+                            else "Обновлено: ${names.size} локаций. Выбор ${if (restored != null) "сохранён" else "доступен"}."
                     }.onFailure {
-                        add(serverResults,text("Не удалось загрузить VLESS REALITY серверы. Проверь ссылку.",12f,d.muted),7)
+                        // Keep the last successful list and selection on
+                        // temporary H1Cloud/network errors; never show secrets.
+                        syncStatus.text = "Не удалось обновить список. Ранее загруженные локации сохранены."
                     }
                 }
             }.start()
         }
-        // Refresh the current subscription whenever the server screen opens.
-        // New nodes appear without adding another URL or reinstalling the app.
-        if (vault.load()!=null) loadServers.post { loadServers.performClick() }
+        // Fetch when the screen is first opened, without reinstalling the app.
+        if (vault.load()!=null) loadServers.post {
+            if (serverRefreshButton === loadServers && tab == Tab.HOME) {
+                loadServers.performClick()
+            }
+        }
         val goProfile=action("Добавить или изменить подписку")
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
