@@ -7,14 +7,14 @@ import Security
 enum SharedTunnelProfile {
     private static let service = "app.vainah.vpn.packet-tunnel-profile"
     private static let account = "selected-vless-reality-v1"
-    private static let accessGroup = "app.vainah.vpn.tunnel"
+    // Xcode entitlements give both targets exactly the same default Keychain
+    // access group with the signing Team ID prefix. Do not hardcode a prefix.
 
     private static func query() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecAttrAccessGroup as String: accessGroup
+            kSecAttrAccount as String: account
         ]
     }
 
