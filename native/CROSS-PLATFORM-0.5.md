@@ -11,7 +11,7 @@ Platform-specific tunnel implementations are intentionally different.
 | iPhone | SwiftUI + NEPacketTunnelProvider | **Not implemented** (extension refuses to start) | Simulator compiles; no signed IPA |
 | iPad | Same iOS target, responsive max width | **Not implemented** | No signed IPA |
 | Windows | Electron + sing-box/TUN engineering session | Runs only experimental native binary; **egress unverified** | Unsigned NSIS test installer |
-| macOS | Electron universal interface | **No macOS Packet Tunnel** | Unsigned/unnotarized DMG preview |
+| macOS | Electron preview + new native SwiftUI/NetworkExtension source | Native Packet Tunnel compiles, but no VLESS packet core yet | Unsigned Electron preview; native Xcode project only |
 | Apple Watch | SwiftUI/WCSession companion source | Watch never runs VPN itself | Source only, no watch app target |
 | Galaxy Watch | Kotlin Wear companion contract | Watch never runs VPN itself | Source only, no Wear APK |
 
@@ -31,8 +31,9 @@ IPs, keys, purchase history or merchant credentials into companion messages.
 - **Windows:** integrate and verify installed Wintun, route precedence,
   DNS, IPv6, administrator privileges and crash cleanup. Until browser
   egress is verified, the current native session stays "running-unverified".
-- **macOS:** implement a properly signed/notarized NetworkExtension Packet
-  Tunnel + VLESS engine, and distribute with required OS entitlements.
+- **macOS:** native SwiftUI and NEPacketTunnelProvider now compile using shared
+  Keychain profiles. Integrate a properly audited Apple libbox packet forwarder,
+  then sign/notarize and verify it on a real Mac before distribution.
 - **Watches:** wire authenticated WatchConnectivity/Wear Data Layer to an
   existing signed phone app; support only safe status and disconnect.
 

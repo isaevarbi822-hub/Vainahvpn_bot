@@ -78,6 +78,15 @@ final class TunnelController: ObservableObject {
     }
 
     func prepare(_ server: SubscriptionServer) {
+        // Replacing a profile during a running NE session risks reconnecting
+        // with stale credentials. Disconnect first.
+        guard state != .connected && state != .preparing else {
+            explanation = "Сначала отключи VPN перед сменой сервера."
+            return
+        }
+        // A rejected server must never leave the previous VLESS credential
+        // available for a later extension restart.
+        SharedTunnelProfile.clear()
         currentProfileId = nil
         currentProfileURI = nil
         profilePrepared = VlessRealityConfig.validate(server.uri)

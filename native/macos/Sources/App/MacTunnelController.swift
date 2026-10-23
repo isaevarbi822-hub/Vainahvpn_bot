@@ -38,8 +38,14 @@ final class MacTunnelController: ObservableObject {
     /// Only a validated profile is stored, in the same Keychain access group
     /// as this app's own Packet Tunnel extension. Never log the supplied URL.
     func prepare(_ raw: String) -> Bool {
+        guard state != .connecting && state != .tunnelUnverified else {
+            message = "Отключите VPN перед заменой профиля."
+            return false
+        }
+        // Never let the previous node be reused after a rejected import.
         guard VlessRealityConfig.validate(raw),
               SharedTunnelProfile.save(raw) else {
+            SharedTunnelProfile.clear()
             serverReady = false
             state = .error
             message = "Профиль не поддерживается или защищённое хранилище недоступно."
