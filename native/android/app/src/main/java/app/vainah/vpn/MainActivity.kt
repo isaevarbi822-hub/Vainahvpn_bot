@@ -795,13 +795,18 @@ class MainActivity : Activity() {
     }
 
     private fun checkNativeOrder() {
-        val id=mobileIdentity.lastOrder()
-        if(id==null){notice("Пока нет сохранённого заказа.");return}
         Thread {
             val token=clerkToken()
+            // The latest Clerk-owned purchase is recovered server-side even
+            // after reinstall. Do not trust a previous account's local order.
             val result=if(token==null)Result.failure(
                 IllegalStateException("Clerk session missing"))
-                else runCatching { NativeIdentity.readOrder(token,id) }
+                else runCatching {
+                    val id=NativeIdentity.latestOrder(token)
+                        ?: throw IllegalStateException("No purchases in this Clerk account")
+                    mobileIdentity.saveOrder(id)
+                    NativeIdentity.readOrder(token,id)
+                }
             runOnUiThread {
                 if(isFinishing||isDestroyed)return@runOnUiThread
                 result.onSuccess { order ->
@@ -815,7 +820,7 @@ class MainActivity : Activity() {
                     }else {
                         notice("Оплата: ${order.status}. Выдача VPN: ${order.delivery}.")
                     }
-                }.onFailure{notice("Проверь вход Clerk или повтори проверку позже.")}
+                }.onFailure{notice("Не удалось найти покупку в этом Clerk-аккаунте или проверить её статус.")}
             }
         }.start()
     }
