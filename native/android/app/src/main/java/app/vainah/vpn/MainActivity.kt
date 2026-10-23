@@ -732,7 +732,7 @@ class MainActivity : Activity() {
             .setPositiveButton("Продолжить"){_,_->
                 try {
                     // Custom Tabs provide a browser-isolated checkout surface,
-                    // not a WebView that can inspect payment or authentication data.
+                    // the app cannot inspect payment or authentication data.
                     val tab = CustomTabsIntent.Builder()
                         .setShowTitle(true)
                         .setToolbarColor(d.background)
