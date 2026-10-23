@@ -1,77 +1,89 @@
-# Vainah VPN — native accounts, mobile purchases and verified email
+# Vainah VPN — Clerk authentication for native payments
 
-This is an **unreleased implementation**. The existing VPN transport is intentionally unchanged.
-No real money can be taken until all server gates and external providers are reviewed.
+**Provider correction (23 October 2026): Clerk is the existing Vainah VPN
+authentication service. Twilio Verify is NOT part of native payments.**
+This branch remains a DRAFT and is NOT enabled for production charges.
 
-## User journeys
+## Existing Clerk work
 
-| Choice | Identity verification | Where user sees it | Purchase access |
-| --- | --- | --- | --- |
-| Email | Twilio Verify email OTP | Native Android / iOS | Requires a verified email and enabled RollyPay |
-| Phone | Twilio Verify SMS OTP | Native Android / iOS | User separately confirms email using OTP before checkout |
-| Telegram | Official Telegram Login Widget on secure website | External browser / Telegram app approval | Native one-time pairing with separate verified email for delivery |
-| Yandex ID | Yandex OAuth with PKCE | External Yandex website | Native one-time pairing with separate verified email for delivery |
+The owner's prior website integration is in branch
+`feature/clerk-js-netlify-auth`, including ClerkJS, a public configuration
+endpoint and a server-side Clerk session bridge. Integrate that separately
+after reviewing the diff. The existing Telegram Login Widget and Yandex OAuth
+are independent from Clerk and must not be silently treated as the same user.
 
-**Do not treat opening a social-login URL as authentication.** The browser must establish its verified session; a separate one-use pairing code, stored as a hash in PostgreSQL, is then exchanged by the original app only. The browser never sees the native polling secret.
+Clerk backend verification for **mobile purchases** now:
+- Verifies a bearer **Clerk session JWT** using `@clerk/backend` and
+  `authenticateRequest()`, including authorized parties.
+- Retrieves the same user from the Clerk Backend API and uses a stable,
+  derived identity keyed by the verified Clerk User ID.
+- Accepts delivery email **only from Clerk's verified primary email address**.
+  If the user signed in by phone or a social method without a verified email,
+  checkout is blocked until the address is added and verified in Clerk.
+- Keeps provider-specific secrets on the server only, never in the application.
+- Verifies RollyPay order ID, payment ID, RUB amount and live mode independently
+  before issuing a VPN subscription in H1Cloud or dispatching email through
+  the server-side mail provider.
 
-## Native payment flow (when enabled for an eligible standalone Android build)
+The old `mobile-auth` Twilio send/check API is explicitly disabled, so no
+fake codes are sent and no two incompatible identity systems can issue VPNs.
 
-1. Customer signs in natively via verified OTP. Android encrypts the signed
-   session using Android Keystore AES-GCM; iOS uses Keychain. Phone users
-   also confirm a delivery email before starting a purchase.
-2. Android submits the selected canonical plan to `mobile-checkout` with
-   the signed bearer token. The server alone decides prices and keeps
-   merchant secrets; it creates a distinct native account and invoice.
-3. The hosted payment page opens in an Android Custom Tab. The bank may
-   briefly open an external app for SBP authorization.
-4. The server checks RollyPay's signed callback **and independently queries
-   RollyPay** for status, exact amount and invoice identity. There are
-   separate native-account tables, never fabricated Telegram IDs.
-5. Only verified paid orders are provisioned in H1Cloud. Retries reuse the
-   reserved absolute expiry, rather than granting extra paid days.
-6. Android `Проверить оплату` securely queries the owner-bound order status.
-   Delivered access is saved into the existing Android encrypted VPN vault.
-7. A server-side Resend integration emails the HTTPS VPN subscription
-   to the **Twilio-verified email address**, not an unverified free-text field.
-   Email delivery has a retry state and a stable idempotency key.
+## Mobile SDK still to finish before public rollout
 
-For App Store iOS, native OTP sign-in is implemented but **third-party digital
-purchase checkout stays unavailable until the distribution-specific Apple
-review/entitlement rules are met.**
+Use **Clerk Android SDK** (`clerk-android-ui`, AuthView, Jetpack Compose)
+for an in-app email/SMS OTP and social-sign-in UI. Use the **Clerk iOS SDK**
+(`ClerkKit`, `ClerkKitUI`, AuthView) on supported iOS versions.
+These SDKs manage their own sessions. Obtain a fresh signed session JWT
+using their documented token API for every authenticated order request;
+do not reuse or mint the removed 7-day app session or store a Clerk secret key.
+The current Android/iOS draft screens still contain outdated OTP presentation
+logic; they must be migrated to these SDKs before accepting real payments.
 
-## Server-side requirements
+For Telegram and Yandex: the existing independent browser sign-ins **do not
+automatically create Clerk users** or Clerk mobile sessions. A server-reviewed
+Clerk-compatible social connection or secure account-linking/migration flow
+is required; simply opening a Telegram/Yandex URL is not authentication.
 
-- Database backup, then apply `database/subscriptions.sql`,
-  `database/migrations/002-native-identities.sql` and
-  `database/migrations/003-native-external-login.sql` in that order.
-- Twilio Verify configured for SMS **and email** in one service; Verify email
-  must be connected to a supported email provider in the Twilio console.
-- Configure Resend, including a verified sending domain:
-  `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (e.g. `vpn@example.com`).
-- Configure H1Cloud, PostgreSQL, Telegram site credentials where applicable,
-  RollyPay webhook and merchant secrets in Netlify **private environment only**.
-- Double-check webhook uses `rollypay-live-webhook` and no real customer
-  receives an unpaid key.
-- The payment kill-switch needs ALL THREE reviewed operator settings:
-  `VAINAH_LIVE_CHECKOUT=enabled-after-review`,
-  `VAINAH_PAYMENT_INTEGRATION_VERIFIED=verified-on-production`,
-  `VAINAH_NATIVE_CHECKOUT=approved-after-test`. Leave all **disabled** until
-  the full paid/failed/refund/idempotency/email-delivery cases pass.
+**Compatibility note:** current Clerk iOS SDK requires iOS 17+ and Swift 6.2+
+according to its official repository. The VPN project currently targets
+iOS 16 and Swift 5.9. Review supported-device impact and update the
+Xcode project/toolchain together rather than silently dropping older devices.
 
-Never commit keys in GitHub or mobile code. Merchant activation may
-require an eligible adult account holder and compliance with local law,
-provider terms and distribution rules; do not bypass account restrictions.
+## Required configuration (never place secret keys in GitHub)
 
-## Known limitations to resolve before release
+In Netlify only:
+`CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`,
+`PUBLIC_SITE_ORIGIN`, `CLERK_AUTHORIZED_PARTIES`, `SESSION_SIGNING_KEY`.
 
-- Browser/native pairing for Telegram and Yandex must be exercised with real configured OAuth credentials; linking native social accounts to legacy Telegram website purchases is a separate migration and is not claimed.
-- Production Twilio/Resend merchants, SMS/email deliverability, payment webhook,
-  real H1Cloud provisioning and mobile handoff must be tested with actual
-  configured accounts (no live charges during initial QA).
-- User-facing payment-history UI and ability to recover old orders on a
-  new device require additional server endpoints.
-- Persisting and using a mobile bearer token securely is not a replacement
-  for server-side session revocation, fraud controls and OTP rate limiting.
-  Add session revocation, abuse prevention and audit logging before public rollout.
-- Retrying provider verification of stale native orders needs bounded scheduled
-  backoff to avoid repeated provider calls. Review concurrency and timeouts.
+The publishable key can also be included in a native app's build
+configuration; secret keys cannot. Enable Clerk Native API for registered
+Android/iOS apps in the dashboard. Verify the phone and email-code sign-in
+methods and outbound deliverability on the Clerk account.
+
+Apply reviewed database migrations with a backup:
+`002-native-identities.sql`, `003-native-external-login.sql`,
+`004-clerk-native-customers.sql`.
+These are draft migrations and require a full transaction/security review.
+
+For **actual payments**, the code still additionally requires reviewed live
+RollyPay/H1Cloud/Resend configuration plus operator approval flags. All must
+stay off during initial testing. An eligible merchant account holder must
+comply with the provider's identity, age and contractual requirements.
+
+## Work needed before merging this PR
+
+1. Replace Android and iOS OTP components with official Clerk native SDKs,
+   including signup, session refresh and account recovery.
+2. Verify Clerk JWT authorized-party policy with real signed test tokens on
+   both native platforms, and confirm the same Clerk ID owns all order APIs.
+3. Test verified email addition in Clerk for a phone-only account. Test that
+   a different address or an unverified email cannot receive a key.
+4. Validate full payment webhook, refund/error retries, H1Cloud idempotency
+   and mail delivery using sandbox/test environments.
+5. Resolve existing legacy Telegram/Yandex subscriptions only through an
+   explicit verified ownership migration (not matching by username/email).
+
+References:
+- https://clerk.com/docs/android/getting-started/quickstart
+- https://clerk.com/docs/ios/getting-started/quickstart
+- https://clerk.com/docs/reference/backend/authenticate-request
