@@ -80,17 +80,26 @@ object VpnConnectivity {
                 .getOrNull()?.sortedBy { if (it is java.net.Inet4Address) 0 else 1 }
                 ?: continue
             for (ip in addresses) {
-                val success = runCatching {
-                    physical.socketFactory.createSocket().use { socket ->
-                        require(service.protect(socket)) { "Cannot protect upstream socket" }
-                        val begin = SystemClock.elapsedRealtime()
-                        socket.connect(InetSocketAddress(ip, node.port), 3500)
-                        val latency = (SystemClock.elapsedRealtime() - begin)
-                            .coerceIn(0, 60000).toInt()
-                        UpstreamProbe(ip.hostAddress.substringBefore('%'), latency)
-                    }
-                }.getOrNull()
-                if (success != null) return success
+                // Real TCP connect measurements, not ICMP ping or a synthetic
+                // timer. Use the median to reduce one-off cellular jitter.
+                val measurements = ArrayList<Int>(3)
+                repeat(3) {
+                    val latency = runCatching {
+                        physical.socketFactory.createSocket().use { socket ->
+                            require(service.protect(socket)) {
+                                "Cannot protect upstream socket"
+                            }
+                            val begin = SystemClock.elapsedRealtime()
+                            socket.connect(InetSocketAddress(ip, node.port), 2500)
+                            (SystemClock.elapsedRealtime() - begin)
+                                .coerceIn(0, 60_000).toInt()
+                        }
+                    }.getOrNull()
+                    if (latency != null) measurements.add(latency)
+                }
+                val median = TcpLatency.median(measurements)
+                if (median != null) return UpstreamProbe(
+                    ip.hostAddress.substringBefore('%'), median)
             }
         }
         // No network, server address, UUID or credential in error diagnostics.

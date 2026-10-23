@@ -139,7 +139,7 @@ class MainActivity : Activity() {
             if (snapshot.server.isNotBlank() && snapshot.phase != VpnConnectionState.OFF) {
                 "Сервер: ${snapshot.server}" +
                     if (snapshot.tcpLatencyMs >= 0)
-                        " · TCP ${snapshot.tcpLatencyMs} мс" else " · задержка неизвестна"
+                        " · TCP медиана ${snapshot.tcpLatencyMs} мс" else " · задержка неизвестна"
             } else "Выбери сервер из подписки"
         ipCheckButton?.visibility = if (snapshot.canDisconnect) View.VISIBLE else View.GONE
         connectionButton?.text = if (snapshot.canDisconnect)
@@ -327,6 +327,33 @@ class MainActivity : Activity() {
         ipButton.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW,
                 Uri.parse("https://www.cloudflare.com/cdn-cgi/trace")))
+        }
+        val externalCheck = text(
+            "Проверки ниже открываются во внешнем браузере. Сайты видят твой IP. " +
+                "Результат не отправляется в Vainah VPN. Тесты не доказывают отсутствие всех утечек.",
+            11f,d.muted)
+        add(preview, externalCheck, 9)
+        val dnsTest = action("Проверить DNS-утечки ↗")
+        add(preview,dnsTest,8)
+        dnsTest.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.dnsleaktest.com/")))
+        }
+        val ipv6Test = action("Проверить IPv6 ↗")
+        add(preview,ipv6Test,8)
+        ipv6Test.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://test-ipv6.com/")))
+        }
+        val killSwitch = action("Защита при сбоях · настройки Android ↗")
+        add(preview,killSwitch,8)
+        killSwitch.setOnClickListener {
+            notice("В настройках Android VPN можно включить «Постоянный VPN» " +
+                "и «Блокировать подключения без VPN» для Vainah VPN, если эти " +
+                "пункты доступны. Это может отключать интернет, пока VPN не работает.")
+            runCatching {
+                startActivity(Intent(android.provider.Settings.ACTION_VPN_SETTINGS))
+            }
         }
         refreshConnectionStatus()
         val vpnDiagnostics = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE)

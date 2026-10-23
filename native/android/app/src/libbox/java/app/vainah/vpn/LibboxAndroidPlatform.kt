@@ -154,6 +154,10 @@ internal class LibboxAndroidPlatform(
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) { updateDefault(listener) }
             override fun onLost(network: Network) { updateDefault(listener) }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                // React when mobile data validates before the old Wi-Fi drops.
+                updateDefault(listener)
+            }
             override fun onLinkPropertiesChanged(network: Network, props: android.net.LinkProperties) {
                 updateDefault(listener)
             }
@@ -163,6 +167,7 @@ internal class LibboxAndroidPlatform(
         updateDefault(listener)
     }
 
+    @Synchronized
     private fun updateDefault(listener: InterfaceUpdateListener) {
         // A VPN network must never become its own upstream.
         val candidates = connectivity.allNetworks.filter { network ->
@@ -183,6 +188,14 @@ internal class LibboxAndroidPlatform(
             connectivity.getNetworkCapabilities(it)?.hasCapability(
                 NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
         } ?: false
+        // Notify libbox and Android of the new physical underlay. The app
+        // never binds its own upstream to Android's VPN tunnel (tun0).
+        if (hasTun()) {
+            runCatching {
+                service.setUnderlyingNetworks(if (network == null) emptyArray()
+                    else arrayOf(network))
+            }
+        }
         listener.updateDefaultInterface(name.orEmpty(), index, metered, false)
     }
 

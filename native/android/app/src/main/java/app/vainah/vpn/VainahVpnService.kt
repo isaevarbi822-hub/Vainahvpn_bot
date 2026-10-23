@@ -176,7 +176,7 @@ class VainahVpnService : VpnService() {
     private fun notification(): Notification {
         val state = VpnConnectionState.read(this)
         val latency = if (state.tcpLatencyMs >= 0)
-            " · TCP ${state.tcpLatencyMs} мс" else ""
+            " · TCP медиана ${state.tcpLatencyMs} мс" else ""
         val detail = when (state.phase) {
             VpnConnectionState.ONLINE -> "HTTPS-проба прошла · IP/DNS не проверены"
             VpnConnectionState.TUN_READY -> "Туннель активен · интернет не подтверждён"
