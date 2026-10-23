@@ -121,6 +121,9 @@ class VainahVpnService : VpnService() {
                         VpnConnectionState.verified(this)
                         showNotification()
                     } catch (error: Throwable) {
+                        // A cancelled connection must NEVER overwrite the user's
+                        // deliberate OFF state, or shut down a newer generation.
+                        if (generation != connectionGeneration) return@Thread
                         failure("VPN startup / internet verification", error)
                         VpnConnectionState.failed(this, "Ошибка запуска VPN-движка")
                         disconnect(userRequested = false)
@@ -201,6 +204,9 @@ class VainahVpnService : VpnService() {
     override fun onDestroy() {
         connectionGeneration++
         runningInProcess = false
+        if (VpnConnectionState.read(this).canDisconnect) {
+            VpnConnectionState.failed(this, "VPN-служба остановлена; защита не подтверждена")
+        }
         if (started) {
             started = false
             runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
