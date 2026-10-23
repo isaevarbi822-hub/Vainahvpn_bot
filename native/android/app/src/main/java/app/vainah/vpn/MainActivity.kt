@@ -24,6 +24,8 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.text.InputType
 import android.text.SpannableString
 import android.text.Spanned
@@ -445,8 +447,45 @@ class MainActivity : Activity() {
             12f,d.muted),7)
         val syncStatus = text("Список ещё не синхронизирован", 12f, d.muted)
         add(servers, syncStatus, 7)
+        val search = EditText(this).apply {
+            hint = "Поиск страны или локации..."
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT
+            textSize = 14f
+            setTextColor(d.ink)
+            setHintTextColor(d.muted)
+            background = shape(d.surface2, d.surface2, 14f)
+            setPadding(dp(15),dp(13),dp(15),dp(13))
+            contentDescription = "Поиск среди доступных VPN локаций"
+        }
+        add(servers,search,13)
+        val selectedLocation = text("Выбери сервер для подключения",12f,d.sky)
+        add(servers,selectedLocation,9)
         val serverResults=column()
         add(servers,serverResults,8)
+        val visibleNodes = mutableListOf<VainahNode>()
+        val emptySearch = text("По запросу ничего не найдено",12f,d.muted).apply {
+            visibility = View.GONE
+        }
+        add(servers,emptySearch,9)
+        val applySearch = {
+            val term = search.text.toString().trim().lowercase()
+            var matched = 0
+            for (i in visibleNodes.indices) {
+                val visible = term.isBlank() ||
+                    visibleNodes[i].label.lowercase().contains(term)
+                serverResults.getChildAt(i)?.visibility =
+                    if (visible) View.VISIBLE else View.GONE
+                if (visible) matched++
+            }
+            emptySearch.visibility = if (visibleNodes.isNotEmpty() && matched == 0)
+                View.VISIBLE else View.GONE
+        }
+        search.addTextChangedListener(object: TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: Editable?) { applySearch() }
+        })
         val loadServers=action("Обновить серверы")
         serverRefreshButton = loadServers
         add(servers,loadServers,10)
@@ -475,10 +514,15 @@ class MainActivity : Activity() {
                     }
                     result.onSuccess { incoming ->
                         val names = ServerListReconciler.unique(incoming)
+                        visibleNodes.clear()
+                        visibleNodes.addAll(names)
                         val previous = selectedNode
                         val restored = ServerListReconciler.preserve(previous, names)
                         selectedNode = restored
                         chosenServer = if (restored == null) -1 else names.indexOf(restored)
+                        selectedLocation.text = if (restored == null)
+                            "Выбери сервер для подключения"
+                        else "✓ Выбрано: ${restored.label}"
                         serverResults.removeAllViews()
                         names.forEachIndexed { index, node ->
                             val choice=action(if (node == restored) "✓ ${node.label}" else node.label)
@@ -486,6 +530,7 @@ class MainActivity : Activity() {
                             choice.setOnClickListener {
                                 chosenServer=index
                                 selectedNode=node
+                                selectedLocation.text = "✓ Выбрано: ${node.label}"
                                 // Mark the selection without exposing the raw
                                 // VLESS URL, UUID, host or subscriber token.
                                 for (child in 0 until serverResults.childCount) {
@@ -493,9 +538,9 @@ class MainActivity : Activity() {
                                     val current = names[child]
                                     other.text = if (current == node) "✓ ${current.label}" else current.label
                                 }
-                                notice(if (EngineRegistry.active.ready) "Выбран: ${node.label}. Экспериментальный VPN-движок доступен для теста; реальная защита ещё не проверена." else "Выбран: ${node.label}. VPN-туннель Android пока не подключён.")
                             }
                         }
+                        applySearch()
                         syncStatus.text = if (previous != null && restored == null)
                             "Обновлено: ${names.size} локаций. Старый сервер удалён или изменён — выбери другой."
                             else "Обновлено: ${names.size} локаций. Выбор ${if (restored != null) "сохранён" else "доступен"}."
@@ -517,7 +562,7 @@ class MainActivity : Activity() {
         add(servers,goProfile,12)
         goProfile.setOnClickListener{switch(Tab.ACCOUNT)}
         val stats=row().apply{background=shape(d.surface2,d.surface,18f)}
-        for ((head,sub) in listOf("3 страны" to "в тесте",
+        for ((head,sub) in listOf("Локации" to "автообновл.",
                                  "VLESS" to "REALITY",
                                  "DNS/IPv6" to "проверка")) {
             val box=column().apply{gravity=Gravity.CENTER}
