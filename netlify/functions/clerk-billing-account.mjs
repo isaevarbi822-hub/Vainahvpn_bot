@@ -1,14 +1,25 @@
 import {json} from './lib/security.mjs';
 import {clerkIdentityFromRequest} from './lib/clerk-identity.mjs';
 import {getPool} from './lib/subscription-db.mjs';
+import {findOrCreateOwner} from './lib/customer-owner-db.mjs';
 
 /** Read-only billing identity lookup; never expose secrets or create invoices. */
 export default async function handler(request){
- if(request.method!=='GET')return json({error:'Method not allowed'},405);
+ if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
+ if(request.method==='POST'){
+  const origin=request.headers.get('origin');
+  const expected=process.env.PUBLIC_SITE_ORIGIN;
+  if(!origin||!expected||origin!==expected)return json({error:'Invalid origin'},403);
+ }
  const identity=clerkIdentityFromRequest(request);
  if(!identity)return json({error:'Требуется действующая сессия Clerk'},401);
  try{
   const db=await getPool();
+  if(request.method==='POST'){
+   // Explicit one-time registration; no invoice, subscription or access created.
+   await findOrCreateOwner(identity,db);
+   return json({authenticated:true,accountLinked:true,billingReady:false});
+  }
   const found=await db.query(
    'SELECT owner_id FROM vpn_account_identities WHERE provider=$1 AND subject=$2',
    ['clerk',identity.subject]
