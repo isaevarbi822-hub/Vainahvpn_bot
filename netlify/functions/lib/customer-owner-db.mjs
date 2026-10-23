@@ -7,10 +7,11 @@ import {getPool} from './subscription-db.mjs';
  * Never call this with a user-supplied, unverified provider identity.
  */
 export async function findOrCreateOwner(identity,dbPool=null){
-  if(!identity || !['email','telegram'].includes(identity.provider))throw Error('INVALID_IDENTITY');
+  if(!identity || !['email','telegram','clerk'].includes(identity.provider))throw Error('INVALID_IDENTITY');
   const {provider,subject}=identity;
   if(!(provider==='telegram' && /^[1-9][0-9]{0,17}$/.test(subject)) &&
-     !(provider==='email' && /^[a-f0-9]{64}$/.test(subject)))throw Error('INVALID_SUBJECT');
+     !(provider==='email' && /^[a-f0-9]{64}$/.test(subject)) &&
+     !(provider==='clerk' && /^user_[A-Za-z0-9]{8,128}$/.test(subject)))throw Error('INVALID_SUBJECT');
   const pool=dbPool||await getPool();
   const db=await pool.connect();
   try{
