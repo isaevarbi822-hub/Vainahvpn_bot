@@ -297,7 +297,11 @@ app.whenReady().then(()=>{
         : {ok:false,reason:'Windows check only'};
       json=null;
       chosenFile=engineCheck.ok ? file : null;
-      if(chosenFile)chosenDirectProfile=null;
+      if(chosenFile){
+        subscriptionGeneration++;
+        subscriptionUrl=null;
+        chosenDirectProfile=null;
+      }
       return {ok:true,profiles,engineCheck};
     } catch {
       // Never expose file paths, secrets, or raw parser/OS errors.

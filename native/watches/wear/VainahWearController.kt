@@ -30,7 +30,7 @@ data class WatchVpnStatus(
             val verified = payload["verified_browser_egress"] == true && phase == "online"
             val raw = payload["server"] as? String ?: ""
             val label = raw.takeIf {
-                it.length <= 80 && it.none(Char::isISOControl) &&
+                it.length <= 80 && it.none { ch -> java.lang.Character.isISOControl(ch) } &&
                     !it.contains("://") && !it.contains('@') &&
                     !it.contains('?') && !it.contains('#')
             }.orEmpty()
