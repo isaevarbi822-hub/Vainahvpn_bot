@@ -694,7 +694,7 @@ struct ContentView: View {
         Task {
             do {
                 let url = try await nativeAccount.beginExternal(method)
-                UIApplication.shared.open(url)
+                await UIApplication.shared.open(url)
                 nativeMessage = "После входа вернись в Vainah VPN и нажми «Завершить внешний вход»."
             } catch { nativeMessage = error.localizedDescription }
         }
