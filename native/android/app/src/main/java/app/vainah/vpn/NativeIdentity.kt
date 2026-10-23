@@ -59,6 +59,7 @@ class NativeIdentity(private val context: Context) {
     data class Invoice(val orderId:String,val payUrl:String)
     data class Order(val status:String,val delivery:String,val subscriptionUrl:String?,
                      val emailState:String)
+    data class BrowserLink(val flowId:String,val pollSecret:String,val browserUrl:String)
 
     companion object{
         private const val ORIGIN="https://vainahvpnbot0.netlify.app"
@@ -108,6 +109,31 @@ class NativeIdentity(private val context: Context) {
             if(!response.optBoolean("authenticated"))throw IllegalStateException("Проверка не пройдена")
             return LoginResult(response.getString("token"),response.optBoolean("emailVerified"))
         }
+        fun beginExternal(provider:String):BrowserLink {
+            if(provider !in setOf("telegram","yandex"))throw IllegalArgumentException("Invalid provider")
+            val result=exchange("mobile-link",JSONObject()
+                .put("action","start").put("provider",provider))
+            val flow=result.getString("flowId")
+            val secret=result.getString("pollSecret")
+            val raw=result.getString("browserUrl")
+            val url=URL(raw)
+            if(!Regex("^[a-f0-9-]{36}$",RegexOption.IGNORE_CASE).matches(flow) ||
+               !Regex("^[a-f0-9]{64}$").matches(secret) ||
+               url.protocol!="https"||url.host!="vainahvpnbot0.netlify.app" ||
+               url.port!=-1||url.path!="/mobile-link.html"||url.userInfo!=null||
+               url.ref!=null)
+                throw IllegalStateException("Unexpected external login URL")
+            return BrowserLink(flow,secret,raw)
+        }
+        fun finishExternal(link:BrowserLink):LoginResult? {
+            val result=exchange("mobile-link",JSONObject()
+                .put("action","poll").put("flowId",link.flowId)
+                .put("pollSecret",link.pollSecret))
+            if(result.optBoolean("pending"))return null
+            if(!result.optBoolean("authenticated"))throw IllegalStateException("Login not confirmed")
+            return LoginResult(result.getString("token"),result.optBoolean("emailVerified"))
+        }
+
         fun createInvoice(token:String,planId:String):Invoice {
             if(VainahPlans.all.none{it.id==planId})throw IllegalArgumentException("Invalid tariff")
             val result=exchange("mobile-checkout",JSONObject().put("plan",planId),token)
