@@ -127,6 +127,14 @@ class SingBoxSession {
   }
   async stop() {
     if(this.state==='stopped'&&!this.temp)return {ok:true,protected:false};
+    // Concurrent disconnect requests share the existing shutdown, rather than
+    // signalling the same subprocess again. A failed shutdown remains retryable.
+    if(this.state==='stopping'){
+      await Promise.race([this.exitPromise||Promise.resolve(),new Promise(resolve=>setTimeout(resolve,2000))]);
+      return this.child
+        ? {ok:false,reason:'Engine process did not exit',protected:false}
+        : {ok:true,protected:false};
+    }
     this.state='stopping';
     const child=this.child;
     if(child){
