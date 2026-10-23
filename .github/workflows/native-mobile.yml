@@ -244,10 +244,10 @@ jobs:
             :app:assembleDebug :app:testDebugUnitTest \
             --no-daemon --stacktrace
           test -s native/android/app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload single combined Vainah VPN 0.5.3 Preview APK
+      - name: Upload combined Vainah VPN 0.5.4 with email/phone registration
         uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-0.5.3-Android-VPN-libbox-Clerk-preview
+          name: VainahVPN-0.5.4-Android-libbox-Clerk-email-phone-preview
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
