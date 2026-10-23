@@ -126,8 +126,11 @@ test('Both mobile clients select real subscription rows without claiming protect
  for(const code of [android,iosApp]){
    assert.match(code,/Обновить серверы/);
    assert.match(code,/chosenServer/);
-   assert.match(code,/VPN-туннель/);
  }
+ assert.match(android,/VPN-туннель/);
+ assert.match(iosApp,/iOS нужен отдельный VLESS Packet Tunnel движок/);
+ assert.match(iosApp,/SubscriptionServers\.loadProfiles/);
+ assert.match(iosApp,/selectedServerId/);
  assert.match(android,/names\.forEachIndexed/);
  assert.match(iosApp,/ForEach\(serverNames\.indices/);
 });
@@ -145,9 +148,12 @@ test('Mobile subscriptions validate REALITY nodes and refuse iOS redirects',()=>
  assert.match(config,/params\["sni"\]/);
  assert.match(ios,/NoSubscriptionRedirect/);
  assert.match(ios,/completionHandler\(nil\)/);
- assert.match(ios,/UUID\(uuidString:user\)/);
+ assert.match(ios,/UUID\(uuidString: user\)/);
+ assert.match(ios,/JSONSerialization\.jsonObject/);
+ assert.match(ios,/NoSubscriptionRedirect/);
  assert.match(ios,/options\["pbk"\]/);
  assert.match(ios,/options\["sni"\]/);
+ assert.match(ios,/unsupportedTransport/);
 });
 
 test('Experimental Android libbox boots with setup, typed callbacks and retained TUN fd',()=>{
