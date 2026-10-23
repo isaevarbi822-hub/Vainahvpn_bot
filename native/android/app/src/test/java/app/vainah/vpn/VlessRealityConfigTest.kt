@@ -81,8 +81,9 @@ class VlessRealityConfigTest {
             ?.takeIf { it.isNotBlank() } ?: return
         val target = java.nio.file.Paths.get(path)
         java.nio.file.Files.createDirectories(target.parent)
-        java.nio.file.Files.writeString(
+        java.nio.file.Files.write(
             target, VlessRealityConfig.profile(safeNode, "192.0.2.25")
+                .toByteArray(Charsets.UTF_8)
         )
     }
 
