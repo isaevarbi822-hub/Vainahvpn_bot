@@ -52,7 +52,9 @@ internal class LibboxTrafficMonitor(private val service: VpnService) : CommandCl
 
     override fun connected() = Unit
     override fun disconnected(message: String?) {
-        if (enabled) VpnTrafficStore.clear(service)
+        synchronized(lock) {
+            if (enabled) VpnTrafficStore.clear(service)
+        }
     }
     override fun setDefaultLogLevel(level: Int) = Unit
     override fun clearLogs() = Unit
@@ -64,12 +66,16 @@ internal class LibboxTrafficMonitor(private val service: VpnService) : CommandCl
     override fun writeConnectionEvents(events: ConnectionEvents?) = Unit
 
     override fun writeStatus(message: StatusMessage) {
-        if (!enabled) return
-        VpnTrafficStore.publish(service, VpnTrafficStore.Sample(
-            uplink = message.uplink,
-            downlink = message.downlink,
-            uplinkTotal = message.uplinkTotal,
-            downlinkTotal = message.downlinkTotal
-        ), message.trafficAvailable)
+        // Serialize with stop(): old status callbacks must not repopulate
+        // cleared counters after a disconnect or a new VPN session.
+        synchronized(lock) {
+            if (!enabled) return
+            VpnTrafficStore.publish(service, VpnTrafficStore.Sample(
+                uplink = message.uplink,
+                downlink = message.downlink,
+                uplinkTotal = message.uplinkTotal,
+                downlinkTotal = message.downlinkTotal
+            ), message.trafficAvailable)
+        }
     }
 }

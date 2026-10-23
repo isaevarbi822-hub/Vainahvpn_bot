@@ -168,6 +168,14 @@ test('Experimental Android libbox boots with setup, typed callbacks and retained
   assert.match(platform,/override fun autoDetectInterfaceControl\(fd: Int\)/);
   assert.match(platform,/service\.protect\(fd\)/);
   assert.match(platform,/return fd\.fd/);
+  assert.match(platform,/onCapabilitiesChanged\(network: Network, caps: NetworkCapabilities\)/);
+  assert.match(platform,/service\.setUnderlyingNetworks/);
+  assert.match(platform,/interfaceListener\?\.let \{ updateDefault\(it\) \}/);
+  const traffic=read(base+'LibboxTrafficMonitor.kt');
+  assert.match(traffic,/CommandClientOptions/);
+  assert.match(traffic,/Libbox\.CommandStatus/);
+  assert.match(traffic,/message\.trafficAvailable/);
+  assert.match(traffic,/synchronized\(lock\)/);
   assert.doesNotMatch(platform,/detachFd\(/);
   assert.match(xml,/ACCESS_NETWORK_STATE/);
 });

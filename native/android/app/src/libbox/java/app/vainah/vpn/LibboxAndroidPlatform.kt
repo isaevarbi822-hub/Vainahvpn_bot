@@ -22,6 +22,7 @@ internal class LibboxAndroidPlatform(
     private val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     @Volatile private var tun: ParcelFileDescriptor? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var interfaceListener: InterfaceUpdateListener? = null
 
     override fun localDNSTransport(): LocalDNSTransport? = null
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
@@ -141,12 +142,17 @@ internal class LibboxAndroidPlatform(
 
         val fd = builder.establish() ?: error("Android denied TUN")
         tun = fd
+        // The default-interface monitor may already have started. Attach the
+        // current physical underlay immediately, not only after the next
+        // Wi-Fi/cellular callback arrives.
+        interfaceListener?.let { updateDefault(it) }
         onStage("android_tun_established")
         // libbox duplicates this descriptor and we retain our copy to close on stop.
         return fd.fd
     }
 
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        interfaceListener = listener
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
@@ -200,6 +206,7 @@ internal class LibboxAndroidPlatform(
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        if (interfaceListener === listener) interfaceListener = null
         callback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         callback = null
     }
@@ -283,6 +290,7 @@ internal class LibboxAndroidPlatform(
     fun hasTun(): Boolean = tun != null
 
     fun close() {
+        interfaceListener = null
         callback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         callback = null
         runCatching { tun?.close() }
