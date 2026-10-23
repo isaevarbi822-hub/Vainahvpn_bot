@@ -1,5 +1,6 @@
 package app.vainah.vpn
 
+import androidx.browser.customtabs.CustomTabsIntent
 import android.app.Activity
 import android.app.AlertDialog
 import android.Manifest
@@ -701,12 +702,12 @@ class MainActivity : Activity() {
                     !result.serverReady -> "RollyPay на сервере пока отключён. Заказы не создаются и деньги не списываются."
                     !BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ->
                         "Оплата в этой сборке отключена. Для версии Google Play нужен разрешённый платёжный сценарий."
-                    else -> "Сервер оплаты готов. Подтверди вход через Telegram на защищённой странице оформления."
+                    else -> "Сервер оплаты готов. Покупка откроется внутри Vainah VPN в защищённой вкладке."
                 }
                 checkoutStatusView?.text = explanation
                 checkoutButtons.forEach { (_, button) ->
                     button.isEnabled = ready
-                    button.text = if(ready) "Продолжить оформление ↗"
+                    button.text = if(ready) "Оформить в Vainah VPN"
                         else "Оплата временно недоступна"
                 }
             }
@@ -723,12 +724,24 @@ class MainActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("Оформление: ${plan.title}")
             .setMessage("${plan.priceRub} ₽ за ${plan.days} дней. " +
-                "Откроется защищённая страница Vainah VPN в браузере. " +
-                "Потребуется вход в Telegram. " +
-                "Подписка выдаётся только после проверки платежа сервером.")
+                "Оформление откроется во вкладке внутри Vainah VPN, " +
+                "затем платёжная форма RollyPay. Понадобится подтверждённый вход. " +
+                "СБП может открыть банковское приложение. VPN выдаётся " +
+                "только после серверной проверки оплаты.")
             .setNegativeButton("Отмена",null)
-            .setPositiveButton("Открыть оформление"){_,_->
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            .setPositiveButton("Продолжить"){_,_->
+                try {
+                    // Custom Tabs provide a browser-isolated checkout surface,
+                    // not a WebView that can inspect payment or authentication data.
+                    val tab = CustomTabsIntent.Builder()
+                        .setShowTitle(true)
+                        .setToolbarColor(d.background)
+                        .build()
+                    tab.launchUrl(this, Uri.parse(url))
+                } catch (_: Exception) {
+                    notice("Не удалось открыть защищённую платёжную вкладку. " +
+                        "Оплата не запускалась. Попробуй позже.")
+                }
             }.show()
     }
     private fun account(parent: LinearLayout) {
