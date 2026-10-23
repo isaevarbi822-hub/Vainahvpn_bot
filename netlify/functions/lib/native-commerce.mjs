@@ -135,6 +135,17 @@ export async function readNativeVpnAccess(order){
   if(!client||client.name!==order.client_name||Number(client.expires_at)*1000<=Date.now())return null;
   return secureSubscriptionUrl(client.subscription_url||client.sub_url);
 }
+/** Pure arithmetic for one paid renewal; no invoice state can be altered by the client. */
+export function nativeRenewalTarget({nowMs,storedExpiryMs=0,panelExpiryMs=0,days}){
+  if(![nowMs,storedExpiryMs,panelExpiryMs].every(
+       value=>Number.isFinite(value)&&value>=0) ||
+     !Number.isInteger(days)||days<1||days>365)
+    throw Error('INVALID_RENEWAL_VALUES');
+  const expiry=Math.max(nowMs,storedExpiryMs,panelExpiryMs)+days*86400000;
+  if(!Number.isSafeInteger(expiry))throw Error('INVALID_RENEWAL_TARGET');
+  return new Date(expiry);
+}
+
 /**
  * DURABLY reserve paid days before any H1Cloud creation/PATCH.
  * A later database/HTTP failure must never mint the same days again on retry.
@@ -156,9 +167,11 @@ export async function reserveNativeExpiry(orderId){
       [order.customer_id]);
     const savedMs=current.rows[0]?.expires_at?new Date(current.rows[0].expires_at).getTime():0;
     const panelMs=Number(existing?.expires_at||0)*1000;
-    const base=Math.max(Date.now(),savedMs,Number.isFinite(panelMs)?panelMs:0);
-    const target=new Date(base+Number(order.plan_days)*86400000);
-    if(!Number.isFinite(target.getTime()))throw Error('INVALID_RESERVED_EXPIRY');
+    const target=nativeRenewalTarget({
+      nowMs:Date.now(),storedExpiryMs:savedMs,
+      panelExpiryMs:Number.isFinite(panelMs)?panelMs:0,
+      days:Number(order.plan_days)
+    });
     await db.query(`INSERT INTO vpn_native_entitlements(customer_id,expires_at)
       VALUES($1,$2) ON CONFLICT(customer_id) DO UPDATE
       SET expires_at=GREATEST(vpn_native_entitlements.expires_at,EXCLUDED.expires_at),
