@@ -3,9 +3,13 @@ import {getPool,transaction} from './subscription-db.mjs';
 import {checkoutReady} from './plan-catalog.mjs';
 import {validPaymentId} from './rollypay-identifiers.mjs';
 import {fetchPayment} from './rollypay-client.mjs';
+import {clerkMobileConfigured} from './mobile-auth.mjs';
 
 export function nativeCommerceReady(env=process.env){
-  return checkoutReady(env) && env.VAINAH_NATIVE_CHECKOUT==='approved-after-test' &&
+  return checkoutReady(env) && clerkMobileConfigured(env) &&
+    env.CLERK_PUBLISHABLE_KEY.startsWith('pk_live_') &&
+    env.CLERK_SECRET_KEY.startsWith('sk_live_') &&
+    env.VAINAH_NATIVE_CHECKOUT==='approved-after-test' &&
     !!env.RESEND_API_KEY && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.RESEND_FROM_EMAIL||'');
 }
 export async function accountForIdentity(user,db=null){
