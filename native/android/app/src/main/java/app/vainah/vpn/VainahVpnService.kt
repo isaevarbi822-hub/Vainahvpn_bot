@@ -135,7 +135,10 @@ class VainahVpnService : VpnService() {
                         }
                         if (!isCurrentAttempt(generation)) return@Thread
                         completeStartup(probe.reason)
-                        VpnConnectionState.verified(this)
+                        // An HTTPS request from the VPN app's own UID can
+                        // bypass the tunnel. Do not report ONLINE until
+                        // another app's traffic and exit IP are verified.
+                        VpnConnectionState.tunnelAwaitingBrowserValidation(this)
                         showNotification()
                     } catch (error: Throwable) {
                         // A cancelled connection must NEVER overwrite the user's

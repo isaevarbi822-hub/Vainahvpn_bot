@@ -106,13 +106,7 @@ object VpnConnectivity {
             }
             if (result.getOrNull() == 204) return TunnelProbe(true, "https_204")
             lastReason = result.exceptionOrNull()?.let {
-                when (it) {
-                    is java.net.UnknownHostException -> "dns_resolution_failed"
-                    is java.net.SocketTimeoutException -> "https_timeout"
-                    is javax.net.ssl.SSLException -> "tls_handshake_failed"
-                    is java.net.ConnectException -> "https_connect_failed"
-                    else -> "https_probe_exception"
-                }
+                HttpsProbeFailure.classify(it)
             } ?: "https_unexpected_status"
         }
         return TunnelProbe(false, lastReason)

@@ -58,8 +58,15 @@ object VpnConnectionState {
     fun tunnelCreated(context: Context) =
         save(context, TUN_READY, "VPN-туннель открыт, проверяем интернет")
 
-    fun verified(context: Context) =
-        save(context, ONLINE, "HTTPS-проба успешна; интернет браузера, внешний IP и DNS не подтверждены")
+    // HTTPS probes made by our own VpnService process are not proof that
+    // another app (Chrome) can reach the VPN exit. Keep the UI unverified.
+    fun tunnelAwaitingBrowserValidation(context: Context) =
+        save(context, TUN_READY,
+            "VPN-туннель запущен; HTTPS-проба приложения прошла, " +
+                "но интернет в браузере, внешний IP и DNS не подтверждены")
+
+    @Deprecated("App-owned HTTPS does not verify browser egress")
+    fun verified(context: Context) = tunnelAwaitingBrowserValidation(context)
 
     fun tunnelUnverified(context: Context) =
         save(context, TUN_READY,

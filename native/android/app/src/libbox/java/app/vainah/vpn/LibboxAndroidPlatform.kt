@@ -40,7 +40,10 @@ internal class LibboxAndroidPlatform(
         check(VpnService.prepare(service) == null) { "Android VPN consent revoked" }
         val mtu = options.mtu.takeIf { it in 1280..9000 } ?: 1500
         val builder = service.Builder().setSession("Vainah VPN")
-            .setMtu(mtu).setBlocking(true)
+            .setMtu(mtu)
+        // Official sing-box Android (SFA) keeps Android's default
+        // non-blocking VPN file descriptor. Forcing blocking I/O can stall
+        // the native TUN packet pump despite Android reporting a VPN profile.
         if (android.os.Build.VERSION.SDK_INT >= 29) builder.setMetered(false)
 
         // Never invent Android tunnel addresses: use the actual libbox inbound.
