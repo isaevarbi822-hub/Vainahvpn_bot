@@ -35,6 +35,13 @@ android {
         compose = clerkEnabled
         buildConfig = true
     }
+    // Clerk's HTTP stack and jspecify both package the same Java 9 OSGi
+    // metadata. It is not used by Android and must appear only once in APK.
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
     buildTypes {
         getByName("release") { isMinifyEnabled = false }
     }
