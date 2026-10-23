@@ -31,3 +31,13 @@ test('identifies unsupported empty subscription and nested network codes safely'
  assert.match(timeout,/Тайм-аут/);
  assert.doesNotMatch(timeout,/PRIVATE_VALUE/);
 });
+
+
+test('H1Cloud HTTP errors are actionable without revealing subscription tokens',()=>{
+ const secret='https://private.example/sub?token=TOP_SECRET';
+ for(const [status,expected] of [[401,/401/],[403,/403/],[404,/404/],[429,/429/],[502,/5xx/],[302,/3xx/]]){
+  const message=subscriptionErrorMessage({message:'Subscription HTTP response',statusCode:status,url:secret});
+  assert.match(message,expected);
+  assert.doesNotMatch(message,/TOP_SECRET|private\.example/);
+ }
+});
