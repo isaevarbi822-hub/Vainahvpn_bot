@@ -20,8 +20,9 @@ class VainahVpnService : VpnService() {
         const val EXTRA_SELECTED_VLESS = "app.vainah.vpn.SELECTED_VLESS"
         const val EXTRA_SELECTED_LABEL = "app.vainah.vpn.SELECTED_LABEL"
         const val ACTION_DISCONNECT = "app.vainah.vpn.DISCONNECT"
-        @Volatile var runningInProcess: Boolean = false
-            private set
+        private val foregroundLease = ForegroundServiceLease()
+        val runningInProcess: Boolean
+            get() = foregroundLease.hasCurrent()
         private const val CHANNEL = "vainah_connection"
         private const val ID = 2103
     }
@@ -169,7 +170,7 @@ class VainahVpnService : VpnService() {
     }
 
     private fun showNotification() {
-        if (started) getSystemService(NotificationManager::class.java)
+        if (started && foregroundLease.isCurrent(this)) getSystemService(NotificationManager::class.java)
             .notify(ID, notification())
     }
 
@@ -184,13 +185,13 @@ class VainahVpnService : VpnService() {
             startForeground(ID, notice, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
         } else startForeground(ID, notice)
         started = true
-        runningInProcess = true
+        foregroundLease.claim(this)
     }
 
     private fun disconnect(userRequested: Boolean) {
         connectionGeneration++
-        runningInProcess = false
-        if (userRequested) VpnConnectionState.disconnected(this)
+        val wasCurrentService = foregroundLease.release(this)
+        if (userRequested && wasCurrentService) VpnConnectionState.disconnected(this)
         if (started) {
             started = false
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -209,8 +210,9 @@ class VainahVpnService : VpnService() {
 
     override fun onDestroy() {
         connectionGeneration++
-        runningInProcess = false
-        if (VpnConnectionState.read(this).canDisconnect) {
+        val wasCurrentService = foregroundLease.release(this)
+        // A superseded service must not mark the new service as failed.
+        if (wasCurrentService && VpnConnectionState.read(this).canDisconnect) {
             VpnConnectionState.failed(this, "VPN-служба остановлена; защита не подтверждена")
         }
         if (started) {
