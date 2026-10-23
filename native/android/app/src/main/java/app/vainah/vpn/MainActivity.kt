@@ -61,6 +61,7 @@ class MainActivity : Activity() {
     private var lastServerRefreshAttemptMs = 0L
     private val serverRefreshIntervalMs = 5 * 60 * 1000L
     private lateinit var mobileIdentity: NativeIdentity
+    private var externalLogin: NativeIdentity.BrowserLink? = null
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -846,6 +847,55 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    private fun startExternalLogin(provider:String) {
+        Thread {
+            val result=runCatching { NativeIdentity.beginExternal(provider) }
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { flow ->
+                    externalLogin=flow
+                    try {
+                        CustomTabsIntent.Builder().setShowTitle(true)
+                            .setToolbarColor(d.background).build()
+                            .launchUrl(this,Uri.parse(flow.browserUrl))
+                    }catch(_:Exception){
+                        externalLogin=null
+                        notice("Не удалось открыть защищённый вход.")
+                    }
+                }.onFailure{
+                    notice("Этот способ входа сейчас недоступен. " +
+                        "Проверь конфигурацию сервера авторизации.")
+                }
+            }
+        }.start()
+    }
+
+    private fun finishExternalLogin() {
+        val flow=externalLogin?:run {
+            notice("Сначала выбери Telegram или Яндекс.");return
+        }
+        Thread {
+            val result=runCatching { NativeIdentity.finishExternal(flow) }
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { login ->
+                    if(login==null){
+                        notice("Сначала подтверди вход в открытой странице, " +
+                            "затем снова нажми «Завершить вход».")
+                    }else{
+                        runCatching { mobileIdentity.save(login.token) }
+                            .onSuccess{
+                                externalLogin=null
+                                renderPage()
+                                notice("Вход подтверждён. " +
+                                    "Теперь добавь проверенную почту, чтобы получать VPN после оплаты.")
+                            }.onFailure{notice("Не удалось безопасно сохранить вход.")}
+                    }
+                }.onFailure{notice("Вход пока не подтверждён или время истекло. Начни заново.")}
+            }
+        }.start()
+    }
+
     private fun account(parent: LinearLayout) {
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
             "Моя подписка.",
@@ -926,22 +976,16 @@ class MainActivity : Activity() {
             add(providers,logout,8)
             logout.setOnClickListener{mobileIdentity.clear();renderPage()}
         }
-        val telegram=action("Telegram ↗")
+        val telegram=action("Войти через Telegram ↗")
         add(providers,telegram,8)
-        telegram.setOnClickListener{
-            notice("Вход через Telegram откроется во внешнем приложении. " +
-                "Связь этой сессии с мобильными покупками пока не подтверждена.")
-            runCatching { startActivity(Intent(Intent.ACTION_VIEW,
-                Uri.parse("tg://resolve?domain=Vainahvpn_bot"))) }
-                .onFailure{openSite("account.html")}
-        }
-        val yandex=action("Яндекс ID ↗")
+        telegram.setOnClickListener{startExternalLogin("telegram")}
+        val yandex=action("Войти через Яндекс ID ↗")
         add(providers,yandex,8)
-        yandex.setOnClickListener{
-            notice("Авторизация Яндекс откроется в защищённой вкладке. " +
-                "В данный момент она создаёт сессию сайта, а не мобильного API.")
-            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(
-                this,Uri.parse("https://vainahvpnbot0.netlify.app/.netlify/functions/yandex-start"))
+        yandex.setOnClickListener{startExternalLogin("yandex")}
+        if(externalLogin!=null){
+            val finish=action("Завершить внешний вход",true)
+            add(providers,finish,10)
+            finish.setOnClickListener{finishExternalLogin()}
         }
         val orderStatus=action("Проверить оплату и получить VPN")
         add(providers,orderStatus,12)
