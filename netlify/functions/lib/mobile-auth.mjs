@@ -1,62 +1,62 @@
-import {identityHash,normalizeContact,issueSigned,verifySigned,twilioConfigured} from './alternate-auth.mjs';
+import {createHmac} from 'node:crypto';
 
-const MAX_BODY=1024;
-export function mobileSession(request,secret=process.env.SESSION_SIGNING_KEY) {
-  const header=request.headers.get('authorization')||'';
-  if(!/^Bearer [A-Za-z0-9._-]{10,2100}$/.test(header))return null;
-  const session=verifySigned(header.slice(7),secret,'mobile-session');
-  if(!session || !['email','phone','telegram','yandex'].includes(session.provider) ||
-     !/^[a-f0-9]{64}$/.test(session.sub||''))return null;
-  if(session.email!==undefined && normalizeContact('email',session.email)!==session.email)return null;
-  const telegramId=session.telegramId||null;
-  if(session.provider==='telegram' &&
-    (!/^[1-9][0-9]{0,17}$/.test(telegramId||'')||
-     identityHash('telegram',telegramId,secret)!==session.sub))return null;
-  return {provider:session.provider,subject:session.sub,email:session.email||null,
-    ...(telegramId?{telegramId}:{})};
+// Clerk is the ONLY account authority for mobile purchases. No local OTP,
+// fabricated SMS/email code, unsigned identity or Telegram fallback.
+export function clerkMobileConfigured(env=process.env){
+  const pk=String(env.CLERK_PUBLISHABLE_KEY||'');
+  const sk=String(env.CLERK_SECRET_KEY||'');
+  const match=/^pk_(test|live)_[A-Za-z0-9_-]{18,}$/.exec(pk);
+  if(!match||!new RegExp('^sk_'+match[1]+'_[A-Za-z0-9_-]{18,}$').test(sk))return false;
+  if(!env.SESSION_SIGNING_KEY||env.SESSION_SIGNING_KEY.length<32)return false;
+  try{
+    const site=new URL(env.PUBLIC_SITE_ORIGIN);
+    return site.protocol==='https:' && site.origin===env.PUBLIC_SITE_ORIGIN;
+  }catch{return false}
 }
-export function makeMobileSession({provider,subject,email=null,telegramId=null},secret,now=Date.now()) {
-  if(!['email','phone','telegram','yandex'].includes(provider)||!/^[a-f0-9]{64}$/.test(subject||''))throw Error('INVALID_SUBJECT');
-  if(email!==null && normalizeContact('email',email)!==email)throw Error('INVALID_EMAIL');
-  if(telegramId!==null &&
-    (provider!=='telegram'||!/^[1-9][0-9]{0,17}$/.test(telegramId)||
-     identityHash('telegram',telegramId,secret)!==subject))throw Error('INVALID_TELEGRAM_LINK');
-  return issueSigned({purpose:'mobile-session',provider,sub:subject,
-    ...(email?{email}:{}),...(telegramId?{telegramId}:{}),
-    exp:Math.floor(now/1000)+7*86400},secret);
+export function clerkIdentitySubject(userId,secret){
+  if(typeof userId!=='string'||!/^(user_)[a-zA-Z0-9]{10,120}$/.test(userId)||
+    typeof secret!=='string'||secret.length<32)throw Error('INVALID_CLERK_USER');
+  return createHmac('sha256',secret).update('clerk:'+userId,'utf8').digest('hex');
 }
-export function nativeChallenge(method,contact,secret,{linkTo=null,now=Date.now()}={}) {
-  const normalized=normalizeContact(method,contact);
-  if(!normalized)throw Error('INVALID_CONTACT');
-  return issueSigned({purpose:'mobile-otp',method,
-    sub:identityHash(method,normalized,secret),
-    ...(linkTo?{linkTo}:{}),
-    exp:Math.floor(now/1000)+600},secret);
+export function verifiedPrimaryEmail(user){
+  const primary=(user?.emailAddresses||[]).find(x=>
+    x.id===user.primaryEmailAddressId && x.verification?.status==='verified');
+  const email=String(primary?.emailAddress||'').trim().toLowerCase();
+  return email.length<=254 && /^[^\s@<>]{1,64}@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(email)
+    ? email : null;
 }
-export function checkChallenge(token,method,contact,secret,linkTo=null) {
-  const normalized=normalizeContact(method,contact);
-  const data=verifySigned(token,secret,'mobile-otp');
-  if(!normalized||!data||data.method!==method||
-     data.sub!==identityHash(method,normalized,secret)||
-     (data.linkTo||null)!==(linkTo||null))return false;
-  return true;
+/**
+ * Verifies Clerk session JWT and retrieves its OWN user from Clerk backend.
+ * A client cannot claim an email by sending it in the request body.
+ * Pass a configured @clerk/backend client in tests only.
+ */
+export async function mobileSession(request,env=process.env,clientOverride=null){
+  if(!clerkMobileConfigured(env))return null;
+  const authorization=request.headers.get('authorization')||'';
+  if(!/^Bearer [A-Za-z0-9._-]{40,8192}$/.test(authorization))return null;
+  try{
+    const {createClerkClient}=clientOverride?{}:await import('@clerk/backend');
+    const client=clientOverride||createClerkClient({
+      secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY
+    });
+    const origins=String(env.CLERK_AUTHORIZED_PARTIES||env.PUBLIC_SITE_ORIGIN)
+      .split(',').map(x=>x.trim()).filter(Boolean);
+    if(!origins.length)return null;
+    const verified=await client.authenticateRequest(request,{
+      authorizedParties:origins,acceptsToken:'session_token'
+    });
+    if(!verified.isAuthenticated)return null;
+    const userId=verified.toAuth()?.userId;
+    const subject=clerkIdentitySubject(userId,env.SESSION_SIGNING_KEY);
+    const profile=await client.users.getUser(userId);
+    if(!profile||profile.id!==userId||profile.banned===true||profile.locked===true)return null;
+    return {provider:'clerk',subject,email:verifiedPrimaryEmail(profile)};
+  }catch{return null}
 }
-export async function twilioVerify({start,method,contact,code},env=process.env,fetcher=fetch) {
-  if(!twilioConfigured(env))throw Error('AUTH_PROVIDER_NOT_CONFIGURED');
-  const path=start?'Verifications':'VerificationCheck';
-  const endpoint='https://verify.twilio.com/v2/Services/'+env.TWILIO_VERIFY_SERVICE_SID+'/'+path;
-  const body=new URLSearchParams({To:contact});
-  if(start)body.set('Channel',method==='phone'?'sms':'email');
-  else body.set('Code',code);
-  const reply=await fetcher(endpoint,{method:'POST',headers:{
-    Authorization:'Basic '+Buffer.from(env.TWILIO_ACCOUNT_SID+':'+env.TWILIO_AUTH_TOKEN).toString('base64'),
-    'Content-Type':'application/x-www-form-urlencoded'
-  },body:body.toString(),signal:AbortSignal.timeout(10000)});
-  return {ok:reply.ok,status:reply.status,data:await reply.json().catch(()=>({}))};
-}
-export async function limitedJson(request) {
-  if(Number(request.headers.get('content-length')||0)>MAX_BODY)return null;
+export async function limitedJson(request){
+  if(Number(request.headers.get('content-length')||0)>1024)return null;
   const raw=await request.text();
-  if(Buffer.byteLength(raw,'utf8')>MAX_BODY)return null;
-  try{const data=JSON.parse(raw);return data&&!Array.isArray(data)&&typeof data==='object'?data:null}catch{return null}
+  if(Buffer.byteLength(raw,'utf8')>1024)return null;
+  try{const data=JSON.parse(raw);return data&&!Array.isArray(data)&&typeof data==='object'?data:null}
+  catch{return null}
 }
