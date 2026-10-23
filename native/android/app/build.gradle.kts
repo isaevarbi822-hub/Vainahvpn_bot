@@ -35,4 +35,6 @@ dependencies {
         implementation("com.github.singbox-android:libbox:1.14.0")
     }
     testImplementation("junit:junit:4.13.2")
+    // Real org.json implementation for JVM-only configuration contract tests.
+    testImplementation("org.json:json:20250517")
 }
