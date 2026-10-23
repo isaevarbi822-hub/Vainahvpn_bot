@@ -13,7 +13,7 @@ class NativeCheckoutTest {
                 .put("deviceLimit", plan.deviceLimit)
                 .put("priceRub", "%.2f".format(java.util.Locale.ROOT, plan.priceRub.toDouble())))
         }
-        return JSONObject().put("checkoutReady", ready).put("plans", items).toString()
+        return JSONObject().put("nativeCheckoutReady", ready).put("plans", items).toString()
     }
 
     @Test fun onlyServerCanConfirmRealBillingReady() {
