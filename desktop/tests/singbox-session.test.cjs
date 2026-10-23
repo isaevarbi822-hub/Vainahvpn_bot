@@ -193,3 +193,39 @@ test('fatal TUN diagnostic during startup rejects session and removes credential
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+
+test('fatal diagnostic after startup terminates engine and clears private config',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-runtime-failure-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ child.stderr=new EventEmitter();
+ let kills=0,configPath;
+ child.kill=()=>{kills++;queueMicrotask(()=>child.emit('exit',1));return true};
+ const session=new SingBoxSession({platform:'win32',runner:(_exe,args)=>{
+   configPath=args[2];
+   queueMicrotask(()=>child.emit('spawn'));
+   return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   assert.equal((await session.start(binary,sample)).ok,true);
+   child.stderr.emit('data',Buffer.from('DNS lookup failed: hidden server credential'));
+   await session.exitPromise;
+   assert.equal(kills,1);
+   assert.equal(session.status.state,'stopped');
+   assert.equal(session.status.protected,false);
+   assert.equal(session.status.reason,'Ошибка DNS при обращении к серверу.');
+   await assert.rejects(fs.stat(configPath),{code:'ENOENT'});
+ }finally{
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
