@@ -101,7 +101,8 @@ enum SubscriptionServers {
             .replacingOccurrences(of: "_", with: "/")
         let padded = normalized + String(repeating: "=", count: (4 - normalized.count % 4) % 4)
         let decoded = Data(base64Encoded: padded)
-        return decoded?.count ?? 0 <= 262_144 ? decoded : nil
+        guard let result = decoded, result.count <= 262_144 else { return nil }
+        return result
     }
 
     private static func jsonLinks(_ input: Any) -> [String] {
