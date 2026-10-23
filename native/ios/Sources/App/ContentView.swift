@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 private enum SiteTab: Hashable {
     case home, plans, account, help
@@ -657,21 +658,45 @@ struct ContentView: View {
                     Text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не открывает заказы другого аккаунта.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
-                    Text("Почта и телефон подтверждаются прямо в Vainah VPN. Telegram и Яндекс используют внешние приложения. Их веб-сессии пока не связаны с мобильными покупками.")
+                    Text("Почта и телефон подтверждаются здесь. Telegram и Яндекс открываются в защищённом браузере; затем вход связывается с приложением одноразовым кодом.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
-                    Link("Открыть Telegram ↗", destination: URL(string: "https://t.me/Vainahvpn_bot")!)
+                    Button("Войти через Telegram ↗") { launchExternal("telegram") }
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(VainahDesign.purple)
-                    Link("Войти через Яндекс ↗", destination: URL(string: "https://vainahvpnbot0.netlify.app/.netlify/functions/yandex-start")!)
+                    Button("Войти через Яндекс ID ↗") { launchExternal("yandex") }
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(VainahDesign.purple)
+                    if nativeAccount.externalPending {
+                        Button("Завершить внешний вход") {
+                            Task {
+                                do {
+                                    let completed = try await nativeAccount.finishExternal()
+                                    nativeMessage = completed
+                                      ? "Вход подтверждён. Добавь проверенную почту для доставки VPN."
+                                      : "Подтверди вход в браузере и нажми здесь ещё раз."
+                                } catch { nativeMessage = error.localizedDescription }
+                            }
+                        }
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(VainahDesign.green)
+                    }
                 }
             }
             .padding(.top, 16)
 
             nativeLogin
                 .padding(.top, 16)
+        }
+    }
+
+    private func launchExternal(_ method: String) {
+        Task {
+            do {
+                let url = try await nativeAccount.beginExternal(method)
+                UIApplication.shared.open(url)
+                nativeMessage = "После входа вернись в Vainah VPN и нажми «Завершить внешний вход»."
+            } catch { nativeMessage = error.localizedDescription }
         }
     }
 
