@@ -1,0 +1,71 @@
+name: VainahMac
+options:
+  bundleIdPrefix: app.vainah.vpn
+  deploymentTarget:
+    macOS: "13.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    MARKETING_VERSION: "0.5.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+targets:
+  VainahMac:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/App
+      - path: ../ios/Sources/Shared/VlessRealityConfig.swift
+      - path: ../ios/Sources/Shared/SharedTunnelProfile.swift
+    info:
+      path: Generated/AppInfo.plist
+      properties:
+        CFBundleDisplayName: Vainah VPN
+        LSMinimumSystemVersion: "13.0"
+        NSHighResolutionCapable: true
+    entitlements:
+      path: Generated/App.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+        com.apple.security.application-groups:
+          - group.app.vainah.vpn.mac
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.mac.tunnel"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.mac
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: VainahMacPacketTunnel
+        embed: true
+
+  VainahMacPacketTunnel:
+    type: app-extension
+    platform: macOS
+    sources:
+      - Sources/TunnelExtension
+      - path: ../ios/Sources/Shared/VlessRealityConfig.swift
+      - path: ../ios/Sources/Shared/SharedTunnelProfile.swift
+    info:
+      path: Generated/PacketTunnelInfo.plist
+      properties:
+        CFBundleDisplayName: Vainah VPN Mac Tunnel
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
+    entitlements:
+      path: Generated/PacketTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+        com.apple.security.application-groups:
+          - group.app.vainah.vpn.mac
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.mac.tunnel"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.mac.PacketTunnel
+        GENERATE_INFOPLIST_FILE: NO

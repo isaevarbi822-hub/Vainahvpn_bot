@@ -1,0 +1,48 @@
+name: Vainah VPN macOS native packet-tunnel foundation
+
+on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - "native/macos/**"
+      - "native/ios/Sources/Shared/VlessRealityConfig.swift"
+      - "native/ios/Sources/Shared/SharedTunnelProfile.swift"
+      - "tests/native-macos-foundation.test.mjs"
+      - ".github/workflows/macos-native.yml"
+  pull_request:
+    paths:
+      - "native/macos/**"
+      - "native/ios/Sources/Shared/VlessRealityConfig.swift"
+      - "native/ios/Sources/Shared/SharedTunnelProfile.swift"
+      - "tests/native-macos-foundation.test.mjs"
+      - ".github/workflows/macos-native.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-native:
+    name: Unsigned macOS app and NetworkExtension compile
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify fail-closed native extension
+        run: node --test tests/native-macos-foundation.test.mjs
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate native macOS Xcode project
+        working-directory: native/macos
+        run: xcodegen generate
+      - name: Compile native macOS app and Packet Tunnel extension
+        run: >
+          xcodebuild
+          -project native/macos/VainahMac.xcodeproj
+          -scheme VainahMac
+          -configuration Debug
+          -sdk macosx
+          -destination 'generic/platform=macOS'
+          CODE_SIGNING_ALLOWED=NO
+          build
