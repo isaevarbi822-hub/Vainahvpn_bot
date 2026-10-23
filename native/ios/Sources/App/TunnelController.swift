@@ -20,7 +20,7 @@ final class TunnelController: ObservableObject {
     @Published private(set) var state: TunnelState = .disconnected
     @Published private(set) var explanation = "Трафик пока НЕ защищён Vainah VPN."
     private var statusObserver: NSObjectProtocol?
-    private var managedConnection: NETunnelProviderSession?
+    private var managedConnection: NEVPNConnection?
 
     init() {
         statusObserver = NotificationCenter.default.addObserver(
