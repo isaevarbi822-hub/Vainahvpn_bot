@@ -6,10 +6,15 @@ import {insertCheckout,attachPayment,markOrderFailed} from './lib/subscription-d
 import {createInvoice} from './lib/rollypay-client.mjs';
 import {checkoutOwner} from './lib/checkout-owner.mjs';
 import {findOrCreateOwner} from './lib/customer-owner-db.mjs';
+import {clerkIdentityFromRequest} from './lib/clerk-identity.mjs';
 
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
   if(!sameOrigin(request))return json({error:'Invalid origin'},403);
+  const clerk=clerkIdentityFromRequest(request);
+  // Clerk identities need an audited H1Cloud delivery migration; refuse
+  // to charge rather than allocating access to an unrelated Telegram ID.
+  if(clerk)return json({error:'Вход Clerk подтверждён. Выдача VPN для этого аккаунта ещё настраивается; оплата не запущена.'},503);
   const identity=checkoutOwner(request);
   if(!identity)return json({error:'Сначала войди через почту или Telegram'},401);
   if(identity.error)return json({error:'Выйди из второго аккаунта и повтори вход'},409);
