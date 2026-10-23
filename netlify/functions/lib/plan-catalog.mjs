@@ -20,7 +20,19 @@ export function checkoutReady(env=process.env) {
   // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
   const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
     'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
-  // Checkout is intentionally locked until the production system passes a separate review. 
-  // Do not unlock through environment variables alone.
-  return false;
+  // Two independent, explicit operator gates. Neither an API key nor a
+  // public browser flag can activate production checkout on its own.
+  if(env.VAINAH_LIVE_CHECKOUT!=='enabled-after-review' ||
+     env.VAINAH_PAYMENT_INTEGRATION_VERIFIED!=='verified-on-production')return false;
+  if(!required.every(key=>typeof env[key]==='string' && env[key].trim().length>0))return false;
+  if(env.SESSION_SIGNING_KEY.length<32 || env.ROLLYPAY_SIGNING_SECRET.length<16)return false;
+  try {
+    const site=new URL(env.PUBLIC_SITE_ORIGIN);
+    const panel=new URL(env.PANEL_BASE_URL);
+    if(site.protocol!=='https:' || site.origin!==env.PUBLIC_SITE_ORIGIN ||
+       site.username || site.password || site.search || site.hash)return false;
+    if(panel.protocol!=='https:' || panel.username || panel.password ||
+       panel.search || panel.hash || !['/','/api','/api/'].includes(panel.pathname))return false;
+  }catch{return false;}
+  return true;
 }
