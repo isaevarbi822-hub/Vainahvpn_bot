@@ -14,9 +14,13 @@ const { safeServerLabel } = require('../shared/server-label.cjs');
 const { diagnosticPage } = require('../shared/diagnostic-pages.cjs');
 const { readCheckoutStatus } = require('../shared/checkout-status.cjs');
 const { checkTunDependencies } = require('../shared/windows-tun-dependencies.cjs');
+const { fetchTrace, compareEgress } = require('../shared/egress-check.cjs');
+const crypto = require('node:crypto');
 
 let mainWindow;
 const engineSession = new SingBoxSession();
+const probeSalt = crypto.randomBytes(24).toString('hex');
+let physicalEgress = null;
 let chosenFile = null;
 let websiteWindow = null;
 const siteOrigin = new URL(safePage('home')).origin;
@@ -164,6 +168,17 @@ app.whenReady().then(()=>{
     // Read-only check. No invoice, no payment API, no secret merchant keys.
     return readCheckoutStatus();
   });
+  ipcMain.handle('vainah:test-egress',async event=>{
+    if(!authorizedSender(event))return {status:'unavailable',protected:false};
+    if(engineSession.status.state!=='running-unverified')
+      return {status:'engine_off',protected:false};
+    // The OS should route this fresh request through TUN. A changed public
+    // IP is useful evidence, not proof of leak-free packet forwarding.
+    const viaTunnel=await fetchTrace({salt:probeSalt});
+    if(engineSession.status.state!=='running-unverified')
+      return {status:'engine_off',protected:false};
+    return compareEgress(physicalEgress,viaTunnel);
+  });
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?{
     ...PREVIEW_STATUS,
     state: engineSession.status.state,
@@ -223,6 +238,9 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:start-engine',async event=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(process.platform!=='win32'||(!chosenFile&&!chosenDirectProfile))return {ok:false,message:'Сначала добавь VLESS-ключ или Xray JSON'};
+    // Capture the old public exit before TUN starts, for explicit on-demand
+    // diagnostics only. Never store the public IP or send it to renderer.
+    physicalEgress = await fetchTrace({salt:probeSalt});
     // Never attempt to modify system routes when the native TUN driver
     // is absent. No driver is downloaded at runtime.
     const prerequisites = await checkTunDependencies(enginePath());
@@ -271,6 +289,7 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:stop-engine',async event=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     const result=await engineSession.stop();
+    physicalEgress = null;
     return {ok:result.ok,state:engineSession.status.state,protected:false};
   });
   ipcMain.handle('vainah:inspect-xray-file',async event=>{

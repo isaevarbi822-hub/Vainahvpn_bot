@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('vainah',{
   getCheckoutReadiness:()=>ipcRenderer.invoke('vainah:checkout-readiness'),
   openNetworkTest:name=>ipcRenderer.invoke('vainah:open-network-test',name),
   getTunnelStatus:()=>ipcRenderer.invoke('vainah:tunnel'),
+  testEgress:()=>ipcRenderer.invoke('vainah:test-egress'),
   startEngine:()=>ipcRenderer.invoke('vainah:start-engine'),
   stopEngine:()=>ipcRenderer.invoke('vainah:stop-engine'),
   inspectXrayFile:()=>ipcRenderer.invoke('vainah:inspect-xray-file'),

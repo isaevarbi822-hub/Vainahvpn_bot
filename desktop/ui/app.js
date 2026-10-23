@@ -90,6 +90,25 @@
   });
   const dialog=document.getElementById('connection-dialog');
   const connectButton=document.getElementById('connect-button');
+  const egressButton=document.getElementById('egress-button');
+  egressButton?.addEventListener('click',async()=>{
+    if(!window.vainah?.testEgress)return;
+    egressButton.disabled=true;
+    const label=document.getElementById('egress-result');
+    label.textContent='Проверяем внешний IP после запуска TUN…';
+    try{
+      const result=await window.vainah.testEgress();
+      label.textContent= result?.status==='ip_changed_unverified'
+        ?'Внешний IP отличается от исходного. Страна: '+result.country+
+          '. Это ещё не подтверждение полной защиты DNS/IPv6.'
+        :result?.status==='ip_unchanged'
+          ?'Внешний IP не изменился. Проверь маршруты TUN и работу VPN.'
+          :result?.status==='engine_off'
+            ?'Сначала запусти VPN-движок.'
+            :'Автоматическая проверка недоступна. Проверь IP в браузере.';
+    }catch{label.textContent='Проверка недоступна.'}
+    finally{egressButton.disabled=false}
+  });
   connectButton.addEventListener('click',async()=>{
     if(!window.vainah?.getTunnelStatus)return;
     connectButton.disabled=true;
