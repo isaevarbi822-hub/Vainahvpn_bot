@@ -1,0 +1,11 @@
+*.xcodeproj
+DerivedData/
+.build/
+xcuserdata/
+*.mobileprovision
+*.p12
+*.cer
+*.xcarchive
+Generated/
+
+Sources/App/Assets.xcassets/AppIcon.appiconset/AppIcon.png

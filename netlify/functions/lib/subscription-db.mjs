@@ -17,8 +17,13 @@ export async function transaction(work) {
   }catch(error){await db.query('ROLLBACK').catch(()=>{});throw error}
   finally{db.release()}
 }
-export async function insertCheckout({id,telegramId,username,plan}) {
+export async function insertCheckout({id,telegramId,username,plan,ownerId}) {
+  if(typeof ownerId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ownerId))throw Error('OWNER_REQUIRED');
   return transaction(async db=>{
+    const linked=await db.query(
+      `SELECT 1 FROM vpn_account_identities WHERE provider='telegram' AND subject=$1 AND owner_id=$2`,
+      [telegramId,ownerId]);
+    if(linked.rowCount!==1)throw Error('OWNER_MISMATCH');
     await db.query(
       `INSERT INTO vpn_customers(telegram_id,username) VALUES($1,$2)
        ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username,updated_at=now()`,
@@ -31,9 +36,9 @@ export async function insertCheckout({id,telegramId,username,plan}) {
        AND status IN ('created','awaiting_payment')`,[telegramId]);
     if(outstanding.rows[0].count>=2) return null;
     await db.query(
-      `INSERT INTO vpn_orders(id,telegram_id,plan_days,device_limit,amount_kopeks,currency,provider,source,is_test)
-       VALUES($1,$2,$3,$4,$5,'RUB','rollypay','website',false)`,
-       [id,telegramId,plan.days,plan.deviceLimit,plan.kopeks]);
+      `INSERT INTO vpn_orders(id,telegram_id,plan_days,device_limit,amount_kopeks,currency,provider,source,is_test,owner_id)
+       VALUES($1,$2,$3,$4,$5,'RUB','rollypay','website',false,$6)`,
+       [id,telegramId,plan.days,plan.deviceLimit,plan.kopeks,ownerId]);
     return {id};
   });
 }

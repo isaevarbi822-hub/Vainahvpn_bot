@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080b15">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="description" content="Vainah VPN — понятное настольное приложение. Предпросмотр интерфейса; VPN-туннель не подключён.">
+<title>Vainah VPN · Windows и macOS</title>
+<link rel="stylesheet" href="styles.css">
+<script defer src="app.js"></script>
+</head>
+<body>
+<a class="skip" href="#content">К основному содержимому</a>
+<div class="layout">
+  <aside class="sidebar" aria-label="Навигация">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none"><path d="m6 9 10 15L26 9" stroke="#fff" stroke-width="4" stroke-linejoin="round"/><path d="m16 6 5 8-5 11" stroke="#d1f7ff" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      <div><strong>VAINAH <span>VPN</span></strong><small>ТВОИ ПРАВИЛА.</small></div>
+    </div>
+    <div class="sidebar-caption">МОЙ VPN-ЦЕНТР</div>
+    <nav id="main-navigation" class="navigation" aria-label="Разделы">
+      <button class="nav-link active" data-view="home" aria-current="page"><span aria-hidden="true">⌂</span>Главная</button>
+      <button class="nav-link" data-view="guide"><span aria-hidden="true">◎</span>С чего начать</button>
+      <button class="nav-link" data-view="plans"><span aria-hidden="true">▦</span>Тарифы</button>
+      <button class="nav-link" data-view="account"><span aria-hidden="true">◇</span>Мой кабинет</button>
+      <button class="nav-link" data-view="devices"><span aria-hidden="true">▣</span>Устройства</button>
+      <button class="nav-link" data-view="help"><span aria-hidden="true">?</span>Поддержка</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-notice"><span class="dot amber" aria-hidden="true"></span><div><b>Тестовая версия</b><p>Windows: экспериментальный запуск движка; полноценная защита ещё не подтверждена.</p></div></div>
+      <button class="button ghost full" data-link="home">Открыть наш сайт ↗</button>
+      <small class="version">Vainah VPN Desktop <span id="app-version">0.5.0</span></small>
+    </div>
+  </aside>
+
+  <div class="main-shell">
+    <header class="topbar">
+      <div><span class="breadcrumb">VAINAH VPN</span><strong id="current-page">Главная</strong></div>
+      <div class="topbar-right">
+        <span class="chip" id="platform-chip">Windows / macOS</span>
+        <span class="chip danger"><span class="dot amber" aria-hidden="true"></span> VPN не активен</span>
+      </div>
+    </header>
+
+    <main id="content" tabindex="-1">
+      <section class="view visible" id="view-home" aria-labelledby="home-title">
+        <div class="eyebrow">● МОЙ VPN · ПАНЕЛЬ УПРАВЛЕНИЯ 0.5</div>
+        <div class="home-layout">
+          <div class="hero">
+            <h1 id="home-title">Подключайся. <em>Выбирай свободу.</em></h1>
+            <p>Единый интерфейс Vainah VPN 0.5. Подписка, локации, приватность и тарифы — как на Android. Настольная защита пока не подтверждена.</p>
+            <div class="button-row">
+              <button class="button primary" data-view="guide">Начать за 3 шага <span aria-hidden="true">→</span></button>
+              <button class="button secondary" data-view="plans">Смотреть тарифы</button>
+            </div>
+            <div class="metrics" aria-label="Особенности тарифов">
+              <div><b>6</b><small>тарифов</small></div>
+              <div><b>3 / 6</b><small>устройств</small></div>
+              <div><b>Безлимит</b><small>трафик по тарифу</small></div>
+            </div>
+          </div>
+          <div class="connection-card" aria-labelledby="connection-heading">
+            <div class="card-top"><span>✦ VAINAH VPN</span><small>WINDOWS / MAC · 0.5</small></div>
+            <div class="shield-ring" aria-hidden="true"><svg viewBox="0 0 128 128" fill="none"><circle cx="64" cy="64" r="52" stroke="#c1aeff" stroke-opacity=".35" stroke-width="2"/><circle cx="64" cy="64" r="41" stroke="#a98bff" stroke-width="3"/><path d="M65 28v46" stroke="#d6c6ff" stroke-width="7" stroke-linecap="round"/><path d="M46 47a27 27 0 1 0 38 0" stroke="#d6c6ff" stroke-width="7" stroke-linecap="round"/></svg></div>
+            <h2 id="connection-heading">Не подключено</h2>
+            <p id="connection-status" aria-live="polite">VPN-движок H1Cloud/VLESS ещё не подключён. Трафик не защищён.</p>
+            <button class="button primary full" id="connect-button">⏻ Проверить подключение</button><button class="button secondary full" id="egress-button" type="button">Проверить выход через VPN ↗</button><p id="egress-result" class="hint" role="status" aria-live="polite">Статус выхода пока не проверен.</p>
+            <small class="hint">Приложение честно показывает отсутствие соединения.</small>
+          </div>
+        </div>
+        <section class="subscription-card" aria-labelledby="server-list-title"><div class="subscription-heading"><span class="eyebrow">СЕРВЕРЫ И КОНФИГУРАЦИИ</span><h2 id="server-list-title">Серверы подписки</h2><p>Добавь HTTPS-подписку в разделе «Устройства». Затем выбери сервер здесь и нажми кнопку подключения выше.</p></div><label class="search-label" for="home-server-search">Найти локацию</label><input id="home-server-search" class="server-search" type="search" autocomplete="off" placeholder="Страна или название сервера" aria-describedby="server-list-title"><div id="home-server-list" class="server-list" aria-live="polite"><p>Подписка ещё не добавлена.</p></div></section>
+        <div class="privacy-panel" aria-labelledby="privacy-title"><div class="eyebrow">ЦЕНТР ПРИВАТНОСТИ</div><h2 id="privacy-title">Проверки IP / DNS / IPv6</h2><p>Внешние сайты видят твой публичный IP. Эти тесты не гарантируют отсутствие утечек.</p><div class="privacy-actions"><button class="button secondary" data-network-test="ip">Проверить внешний IP ↗</button><button class="button secondary" data-network-test="dns">DNS-тест ↗</button><button class="button secondary" data-network-test="ipv6">IPv6-тест ↗</button></div></div>
+        <div class="section-heading"><div><span class="eyebrow">ВАШ VPN-ЦЕНТР</span><h2>Всё под рукой.</h2></div><button class="text-link" data-view="guide">Как это работает →</button></div>
+        <div class="feature-grid">
+          <article class="feature-card"><div class="feature-icon">▦</div><h3>Тарифы</h3><p>Шесть планов с ценами сайта, без скрытых списаний.</p><button class="text-link" data-view="plans">Выбрать тариф →</button></article>
+          <article class="feature-card"><div class="feature-icon">◇</div><h3>Личный кабинет</h3><p>Проверяй подписку через защищённый вход на сайте.</p><button class="text-link" data-view="account">Перейти в кабинет →</button></article>
+          <article class="feature-card"><div class="feature-icon">◎</div><h3>Помощь без сложностей</h3><p>Понятные инструкции и диагностика шаг за шагом.</p><button class="text-link" data-view="help">Открыть помощь →</button></article>
+        </div>
+      </section>
+
+      <section class="view" id="view-guide" aria-labelledby="guide-title" hidden>
+        <div class="eyebrow">● БЫСТРЫЙ СТАРТ</div>
+        <h1 id="guide-title">Начнём <em>с простого.</em></h1>
+        <p class="lead">Разберёмся без сложных настроек. Каждая кнопка ведёт только на официальные страницы Vainah VPN.</p>
+        <div class="warning" role="note"><b>Пока приложение не подключает VPN.</b> Для реального соединения используй подходящий совместимый VPN-клиент и свои действующие настройки. Мы готовим отдельный движок подключения.</div>
+        <div class="steps">
+          <article class="step"><div class="step-index">01</div><div><h2>Войди в аккаунт</h2><p>Выбери Telegram, почту, телефон или Яндекс на защищённой странице сайта. В приложении пароль вводить не нужно.</p><button class="button secondary" data-link="account">Открыть вход ↗</button></div></article>
+          <article class="step"><div class="step-index">02</div><div><h2>Проверь подписку</h2><p>Срок, тариф и историю покупок показывает твой кабинет после подтверждения аккаунта. Чужие подписки недоступны.</p><button class="button secondary" data-view="plans">Посмотреть тарифы</button></div></article>
+          <article class="step"><div class="step-index">03</div><div><h2>Подключи устройство</h2><p>Сейчас открой мастер настройки на сайте. Позже здесь появится встроенная кнопка соединения после проверки H1Cloud/VLESS.</p><button class="button secondary" data-link="devices">Мастер подключения ↗</button></div></article>
+        </div>
+      </section>
+
+      <section class="view" id="view-plans" aria-labelledby="plans-title" hidden>
+        <div class="eyebrow">● ТАРИФЫ VAINAH</div>
+        <h1 id="plans-title">Выбери свой <em>формат доступа.</em></h1>
+        <p class="lead">Шесть тарифов по ценам Android. Покупки включаются только после подтверждения готовности сервером.</p><div id="desktop-checkout-status" class="warning" role="status" aria-live="polite">Проверяем сервер оформления…</div>
+        <div class="filterbar"><strong>Сколько устройств нужно?</strong><div class="filter-buttons" role="group" aria-label="Фильтр по числу устройств">
+          <button class="filter active" data-devices="0" aria-pressed="true">Все</button>
+          <button class="filter" data-devices="3" aria-pressed="false">До 3</button>
+          <button class="filter" data-devices="6" aria-pressed="false">До 6</button>
+        </div><span class="muted" id="plan-count">6 тарифов</span></div>
+        <div class="plans-grid" id="plans-grid" aria-live="polite"></div>
+        <div class="info-panel"><div><b>Нужна помощь с выбором?</b><p>Наш сайт поможет сравнить все шесть планов.</p></div><button class="button secondary" data-link="compare">Сравнить тарифы ↗</button></div>
+      </section>
+
+      <section class="view" id="view-account" aria-labelledby="account-title" hidden>
+        <div class="eyebrow">● ЛИЧНЫЙ КАБИНЕТ</div>
+        <h1 id="account-title">Моя <em>подписка.</em></h1>
+        <p class="lead">Авторизуйся на официальном сайте Vainah VPN. Там отображаются срок действия подписки, устройства и история покупок.</p>
+        <div class="two-columns">
+          <article class="large-card highlighted">
+            <span class="eyebrow">БЕЗОПАСНЫЙ ВХОД</span><h2>Твои данные останутся твоими.</h2>
+            <p>Нажми кнопку: официальный сайт откроется в отдельном окне Vainah VPN. После входа проверь оставшиеся дни подписки в личном кабинете. Кабинет останется открытым в окне Vainah VPN. Автоматическая синхронизация срока подписки с главным экраном ещё не подключена.</p>
+            <button class="button primary" data-link="account">Войти через сайт ↗</button>
+          </article>
+          <article class="large-card"><span class="eyebrow">СПОСОБЫ ВХОДА</span>
+            <div class="signins"><span>✈ Telegram</span><span>✉ Почта</span><span>☎ Телефон</span><span>Я Яндекс</span></div>
+            <p>Наличие способов зависит от их настройки на рабочем сайте. Telegram-покупки не становятся доступны через другой аккаунт автоматически.</p>
+          </article>
+        </div>
+        <div class="info-panel"><div><b>Продлить или купить VPN</b><p>Оплата откроется на официальном сайте внутри окна Vainah VPN. Приложение не запрашивает данные банковской карты.</p></div><button class="button primary" data-link="plans">Купить подписку ↗</button></div><div class="warning" role="note"><b>Безопасность:</b> не отправляй приватную ссылку подписки посторонним. Импорт HTTPS-ссылки выполняется по защищённому соединению; секреты не выводятся в интерфейс.</div>
+      </section>
+
+      <section class="view" id="view-devices" aria-labelledby="devices-title" hidden>
+        <div class="eyebrow">● МОИ УСТРОЙСТВА</div>
+        <h1 id="devices-title">Настройка <em>без путаницы.</em></h1>
+        <p class="lead">Подберём инструкцию для твоей системы. Вручную менять системные настройки без необходимости не нужно.</p>
+        <div class="subscription-card">
+          <div class="subscription-heading"><span class="eyebrow">01 · ПОДПИСКА</span><h2>Добавить VPN</h2><p>Вставь свою HTTPS-ссылку H1Cloud или VLESS-ключ. JSON-файл не нужен.</p></div>
+          <div class="subscription-form">
+            <label for="vless-key">Ссылка подписки или ключ</label>
+            <input id="vless-key" type="text" autocomplete="off" spellcheck="false" placeholder="Вставь полную https:// ссылку подписки" aria-describedby="vless-import-status">
+            <button type="button" class="button primary" id="import-vless">Добавить подписку</button>
+            <p id="vless-import-status" role="status" aria-live="polite">Ссылка пока не добавлена.</p>
+          </div>
+          <details class="advanced-import"><summary>Дополнительно: импорт Xray JSON</summary><p>Для опытных пользователей. Данные читаются локально.</p><button class="button secondary" id="inspect-xray">Выбрать JSON-файл</button><p id="xray-inspection-status" role="status" aria-live="polite">Файл ещё не выбран.</p></details>
+        </div>
+        <div class="two-columns">
+          <article class="large-card highlighted"><span class="eyebrow">ТВОЙ КОМПЬЮТЕР</span><h2 id="detected-platform">Windows / macOS</h2><p>Пошаговые инструкции по подключению доступны на нашем сайте, пока нативный туннель разрабатывается.</p><button class="button primary" data-link="devices">Открыть мастер устройства ↗</button></article>
+          <article class="large-card"><span class="eyebrow">ЧТО БУДЕТ ДАЛЬШЕ</span><h2>Одно нажатие для VPN</h2><p>Когда появится проверенный движок, здесь будут подключение, отключение, список серверов, понятный статус и проверка ошибок. Сейчас мы не показываем вымышленные показатели скорости и безопасности.</p></article>
+        </div>
+        <div class="section-heading"><div><span class="eyebrow">ПОДДЕРЖКА УСТРОЙСТВ</span><h2>Одна экосистема.</h2></div></div>
+        <div class="device-grid">
+          <div class="device"><b>⌘ macOS</b><p>Нативный desktop-предпросмотр, без туннеля.</p></div>
+          <div class="device"><b>⊞ Windows</b><p>Нативный desktop-предпросмотр, без туннеля.</p></div>
+          <div class="device"><b>▯ Android</b><p>Тестовый APK интерфейса опубликован.</p></div>
+          <div class="device"><b>◉ iPhone</b><p>SwiftUI-проект готов для тестирования на симуляторе.</p></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-help" aria-labelledby="help-title" hidden>
+        <div class="eyebrow">● ЦЕНТР ПОДДЕРЖКИ</div>
+        <h1 id="help-title">Помощь <em>рядом.</em></h1>
+        <p class="lead">Если что-то непонятно, начни с подходящей инструкции или диагностики. Не нужно отправлять свои VPN-ключи в поддержку.</p>
+        <div class="help-grid">
+          <article class="feature-card"><div class="feature-icon">▣</div><h2>Мастер подключения</h2><p>Найди инструкции под компьютер или телефон.</p><button class="text-link" data-link="devices">Открыть →</button></article>
+          <article class="feature-card"><div class="feature-icon">◎</div><h2>Диагностика</h2><p>Понятная проверка настроек и распространённых проблем.</p><button class="text-link" data-link="diagnostics">Проверить →</button></article>
+          <article class="feature-card"><div class="feature-icon">◈</div><h2>Статус сервисов</h2><p>Актуальное состояние сервера и сайта, не выдуманные цифры.</p><button class="text-link" data-link="status">Открыть статус →</button></article>
+          <article class="feature-card"><div class="feature-icon">⛨</div><h2>Безопасность</h2><p>Как беречь доступы и не раскрывать ссылку подписки.</p><button class="text-link" data-link="security">Читать →</button></article>
+        </div>
+        <div class="section-heading"><div><span class="eyebrow">КОРОТКИЕ ОТВЕТЫ</span><h2>Частые вопросы.</h2></div></div>
+        <div class="faq">
+          <details><summary>Почему кнопка подключения пока не работает?</summary><p>Встроенный VLESS-движок ещё не реализован. Пока нет шифрованного туннеля, программа не должна показывать, что интернет защищён.</p></details>
+          <details><summary>Где посмотреть купленную подписку?</summary><p>Открой «Мой кабинет» и авторизуйся на настоящем сайте. Купленные через Telegram услуги могут быть привязаны к Telegram-аккаунту.</p></details>
+          <details><summary>Это платная установка?</summary><p>Нет. Этот предпросмотр интерфейса ничего не покупает и не списывает деньги. Реальные тарифы показаны для знакомства.</p></details>
+          <details><summary>Когда будет реальное VPN-подключение?</summary><p>После интеграции и проверки совместимого H1Cloud/VLESS-движка на Windows и macOS. До этого момента приложение предназначено для изучения интерфейса.</p></details>
+        </div>
+      </section>
+      <footer>Vainah VPN · Предпросмотр интерфейса v0.2 · Подписки и работающий сайт не затронуты.</footer>
+    </main>
+  </div>
+</div>
+
+<dialog id="connection-dialog" aria-labelledby="dialog-title" aria-describedby="dialog-description">
+  <div class="dialog-heading"><div class="feature-icon">⛨</div><button id="close-dialog" class="icon-close" aria-label="Закрыть">×</button></div>
+  <h2 id="dialog-title">VPN пока не подключается</h2>
+  <p id="dialog-description">Это демонстрация Vainah VPN. Движок H1Cloud/VLESS ещё не встроен, поэтому программа не шифрует трафик и не меняет системные VPN-настройки.</p>
+  <div class="dialog-actions"><button class="button primary" id="dialog-guide">Что делать сейчас →</button><button class="button secondary" id="dialog-ok">Понятно</button></div>
+</dialog>
+</body>
+</html>

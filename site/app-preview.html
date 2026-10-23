@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080b15">
+<meta name="description" content="Vainah VPN App — ранний предварительный просмотр нативных приложений iPhone и Android. VPN-подключение ещё не работает.">
+<title>Vainah VPN App — предварительный просмотр</title>
+<style>
+:root{color-scheme:dark;--bg:#080b15;--panel:#121626;--panel2:#181b2f;--ink:#f5f6ff;--muted:#a0a6bd;--violet:#a98bff;--line:#393550;--green:#70e5b1}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse 90% 480px at 85% 0,#654c9b44,transparent 78%),var(--bg);color:var(--ink);font:15px/1.65 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:inherit}a:focus-visible{outline:2px solid var(--violet);outline-offset:4px}.wrap{width:min(1030px,100%);padding:24px 24px 60px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:4px 0 26px;border-bottom:1px solid #ffffff19}
+.brand{display:flex;gap:11px;align-items:center;font-weight:900;text-decoration:none;letter-spacing:.045em}.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#bea8ff,#734ce2);display:grid;place-items:center;box-shadow:0 15px 40px #4c389477}.logo svg{width:30px;height:30px}.toplink{font-size:13px;color:#d5c9ff;text-decoration:underline;text-underline-offset:4px}
+main{padding-top:56px}.eyebrow{font-size:11px;color:#c5b4ff;letter-spacing:.15em;font-weight:900}.eyebrow:before{content:"●";margin-right:9px;color:var(--violet)}
+h1{font-size:clamp(42px,6.7vw,76px);line-height:1.09;letter-spacing:-.055em;margin:18px 0 20px;max-width:850px}h1 span{color:#bba5ff}
+.lead{font-size:16px;color:#b9c1d9;max-width:730px;margin:0 0 25px}
+.notice{padding:18px 20px;border:1px solid #766294;border-radius:17px;background:#342b4744;color:#e4d8f2;margin:28px 0 32px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:20px}.card{border:1px solid var(--line);border-radius:25px;background:linear-gradient(135deg,#232240,#121626);padding:27px}
+.card.featured{border-color:#866bc0;background:radial-gradient(ellipse at 85% 0,#7d58b033,transparent 60%),linear-gradient(145deg,#292446,#131b34)}
+.card h2{font-size:26px;letter-spacing:-.035em;margin:9px 0}.card p{font-size:14px;color:var(--muted);margin:0 0 24px}.tag{font-size:11px;color:#d6c8ff;font-weight:800;letter-spacing:.08em}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;text-align:center;min-height:54px;padding:12px 16px;border-radius:14px;font-weight:850;text-decoration:none;background:linear-gradient(110deg,#d4b9ff,#9171ff);color:#150e27}
+.btn.alt{background:var(--panel2);border:1px solid #65577c;color:#eee6ff}
+.small{display:block;margin:13px 0 0;color:#9da6c3;font-size:12px}.features{margin-top:44px}.features h2{font-size:29px;letter-spacing:-.04em}.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.tiles>div{background:var(--panel);padding:20px;border-radius:17px;border:1px solid var(--line);font-size:13px}.tiles b{display:block;margin-bottom:5px;color:#dccfff;font-size:15px}
+footer{color:#8892ad;font-size:12px;border-top:1px solid #ffffff1c;margin-top:50px;padding-top:26px}
+@media(max-width:680px){.wrap{padding:18px 18px 48px}header{align-items:flex-start}.toplink{max-width:110px;text-align:right}.grid,.tiles{grid-template-columns:1fr}main{padding-top:39px}.card{padding:23px}}
+</style>
+<link rel="stylesheet" href="site-shell.css">
+<script src="site-shell.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+<header>
+<a class="brand" href="index.html"><span class="logo" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="m6 9 10 15L26 9" stroke="#fff" stroke-width="4" stroke-linejoin="round"/><path d="m16 6 5 8-5 11" stroke="#d1f7ff" stroke-width="2.4" stroke-linecap="round"/></svg></span>VAINAH VPN</a>
+<a class="toplink" href="index.html">Вернуться на сайт ↗</a>
+</header>
+<main>
+<div class="eyebrow">НАТИВНОЕ ПРИЛОЖЕНИЕ · ПРЕДВАРИТЕЛЬНЫЙ ПРОСМОТР</div>
+<h1>Тот же Vainah VPN.<br><span>Теперь и на телефоне.</span></h1>
+<p class="lead">Мы создаём нативное приложение для Android, iPhone, Windows и macOS в стиле сайта: те же тарифы, логотип, цвета, личный кабинет и большая кнопка подключения.</p>
+<div class="notice" role="note"><strong>Важно:</strong> это тестовая версия интерфейса, а не готовый VPN. Туннель H1Cloud/VLESS ещё не подключён, поэтому <strong>интернет-трафик не защищается</strong>. Для реального VPN пока используй уже работающий совместимый клиент.</div>
+<section class="grid" aria-label="Версии приложения">
+<article class="card featured">
+<div class="tag">ANDROID · APK ДЛЯ ТЕСТИРОВАНИЯ</div>
+<h2>Vainah VPN для Android</h2>
+<p>Нативный интерфейс Kotlin: тарифы, главная, помощь, кабинет и защищённое хранение личной HTTPS-ссылки на устройстве.</p>
+<a class="btn" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/releases/tag/android-ui-preview-v0.2.0" rel="noopener noreferrer">Открыть тестовую версию Android ↗</a>
+<small class="small">GitHub · выпуск помечен как предварительный · без VPN-туннеля</small>
+</article>
+<article class="card">
+<div class="tag">IPHONE / IPAD · SWIFTUI</div>
+<h2>Vainah VPN для iOS</h2>
+<p>Нативное приложение SwiftUI уже собирается для симулятора. Для установки на настоящий iPhone необходима подписанная сборка через TestFlight или App Store.</p>
+<a class="btn alt" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/pull/13" rel="noopener noreferrer">Посмотреть разработку iOS ↗</a>
+<small class="small">Публичной подписанной версии для iPhone пока нет</small>
+</article>
+<article class="card featured">
+<div class="tag">WINDOWS · ТЕСТОВЫЙ УСТАНОВЩИК</div>
+<h2>Vainah VPN для Windows</h2>
+<p>Полноценное настольное приложение интерфейса: быстрый старт, шесть тарифов, кабинет, устройства и понятная помощь. Настоящий VPN-туннель ещё не встроен.</p>
+<a class="btn" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/releases/tag/desktop-ui-preview-v0.2.0" rel="noopener noreferrer">Открыть версию для Windows ↗</a>
+<small class="small">GitHub · тестовый неподписанный EXE · не обходит системные предупреждения</small>
+</article>
+<article class="card">
+<div class="tag">MACOS · INTEL И APPLE SILICON</div>
+<h2>Vainah VPN для Mac</h2>
+<p>Отдельные сборки интерфейса для Mac Intel и Apple Silicon. Пока нет Apple-подписи и нотариального заверения, система может запретить запуск.</p>
+<a class="btn alt" href="https://github.com/isaevarbi822-hub/Vainahvpn_bot/releases/tag/desktop-ui-preview-v0.2.0" rel="noopener noreferrer">Открыть версии для macOS ↗</a>
+<small class="small">GitHub · неподписанные тестовые DMG · не для рабочего VPN</small>
+</article>
+</section>
+<section class="features">
+<h2>Что уже внутри</h2>
+<div class="tiles">
+<div><b>Тот же дизайн</b>Фирменный V, фиолетовые градиенты, карточки и адаптация под телефон.</div>
+<div><b>Те же тарифы</b>Шесть тарифов с ценами сайта, без включения оплаты внутри приложения.</div>
+<div><b>Личный кабинет</b>Открывается существующий защищённый веб-кабинет; подмена чужой подписки невозможна.</div>
+</div>
+</section>
+</main>
+<footer>Vainah VPN · Предварительная версия интерфейса. Работающие VPN-подключения, покупки и данные пользователей не изменены.</footer>
+</div>
+</body>
+</html>

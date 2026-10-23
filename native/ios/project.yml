@@ -1,0 +1,84 @@
+name: VainahVPN
+options:
+  bundleIdPrefix: app.vainah
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "0.5.1"
+    CURRENT_PROJECT_VERSION: "5"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+targets:
+  VainahVPN:
+    type: application
+    platform: iOS
+    sources:
+      - Sources/App
+      - Sources/Shared
+    info:
+      path: Generated/AppInfo.plist
+      properties:
+        CFBundleDisplayName: Vainah VPN
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+    entitlements:
+      path: Generated/App.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+        com.apple.security.application-groups:
+          - group.app.vainah.vpn
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.tunnel"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - target: VainahPacketTunnel
+        embed: true
+
+  VainahPacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Sources/TunnelExtension
+      - Sources/Shared
+    info:
+      path: Generated/PacketTunnelInfo.plist
+      properties:
+        CFBundleDisplayName: Vainah VPN Tunnel
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).PacketTunnelProvider"
+    entitlements:
+      path: Generated/PacketTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension:
+          - packet-tunnel-provider
+        com.apple.security.application-groups:
+          - group.app.vainah.vpn
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.tunnel"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.PacketTunnel
+        GENERATE_INFOPLIST_FILE: NO
+
+  VainahVPNTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: VainahVPN
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.tests

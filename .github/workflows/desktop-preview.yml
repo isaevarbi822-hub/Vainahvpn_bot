@@ -1,0 +1,219 @@
+name: Vainah VPN Desktop Windows macOS preview
+
+on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - "desktop/**"
+      - "tests/native-desktop-preview.test.mjs"
+      - ".github/workflows/desktop-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vainah-desktop-ui-preview
+  cancel-in-progress: false
+
+jobs:
+  safety:
+    name: Desktop source, design and security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check desktop JS syntax
+        run: |
+          for file in desktop/src/*.cjs desktop/shared/*.cjs desktop/ui/*.js desktop/tests/*.cjs; do
+            node --check "$file"
+          done
+      - name: Run desktop and repo parity tests
+        run: |
+          node --test desktop/tests/*.test.cjs
+          node --test tests/native-desktop-preview.test.mjs tests/native-site-parity.test.mjs
+
+  windows:
+    name: Windows x64 preview installer
+    runs-on: windows-latest
+    needs: safety
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Stamp unique build version
+        shell: bash
+        run: |
+          node -e 'const fs=require("fs");const p="desktop/package.json";const j=JSON.parse(fs.readFileSync(p,"utf8"));j.version += "-preview."+process.env.GITHUB_RUN_NUMBER;fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");console.log("Building Vainah VPN "+j.version)'
+      - name: Install desktop dependencies
+        run: npm install --prefix desktop --no-audit --no-fund
+      - name: Stage verified official sing-box Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-windows-amd64.zip'
+          $expected = 'c2d8bfff918755808781dfdeeb8581b6c91eb3a243d9a7b55483cfc0c0684d32'
+          $archive = Join-Path $env:RUNNER_TEMP 'sing-box.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'sing-box-unpacked'
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'sing-box archive SHA256 mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $extract
+          $binary = Get-ChildItem -Path $extract -Filter sing-box.exe -Recurse -File | Select-Object -First 1
+          if (-not $binary) { throw 'sing-box.exe not found in official archive' }
+          New-Item -ItemType Directory -Force -Path 'desktop/vendor/sing-box/windows-x64' | Out-Null
+          Copy-Item $binary.FullName 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+      - name: Download and verify official Wintun x64 package and license
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://www.wintun.net/builds/wintun-0.14.1.zip'
+          $expected = '07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51'
+          $archive = Join-Path $env:RUNNER_TEMP 'wintun-0.14.1.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'wintun-verified'
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Official Wintun archive SHA256 mismatch' }
+          Expand-Archive -Path $archive -DestinationPath $extract
+          $dll = Join-Path $extract 'wintun/bin/amd64/wintun.dll'
+          $license = Join-Path $extract 'wintun/LICENSE.txt'
+          if (-not (Test-Path $dll) -or -not (Test-Path $license)) {
+            throw 'Official Wintun DLL or redistributable license missing'
+          }
+          $signature = Get-AuthenticodeSignature -FilePath $dll
+          if ($signature.Status -ne 'Valid') { throw 'Wintun driver DLL signature invalid' }
+          $dest = 'desktop/vendor/sing-box/windows-x64'
+          Copy-Item $dll (Join-Path $dest 'wintun.dll')
+          Copy-Item $license (Join-Path $dest 'WINTUN-LICENSE.txt')
+          Write-Host 'Verified official signed Wintun 0.14.1 and license'
+      - name: Smoke-test verified sing-box executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $engine = Join-Path (Get-Location) 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+          if (-not (Test-Path $engine)) { throw 'Bundled engine not found' }
+          & $engine version
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled sing-box executable failed smoke test' }
+          foreach ($filename in @('wintun.dll', 'WINTUN-LICENSE.txt')) {
+            if (-not (Test-Path (Join-Path (Split-Path $engine) $filename))) {
+              throw "Missing required Wintun component: $filename"
+            }
+          }
+      - name: Check generated TUN configuration
+        shell: pwsh
+        run: |
+          $engine = Join-Path (Get-Location) 'desktop/vendor/sing-box/windows-x64/sing-box.exe'
+          node desktop/scripts/check-engine-config.cjs $engine
+      - name: Build Windows NSIS installer
+        run: npm run --prefix desktop dist:win
+      - name: Verify installer signature status and calculate Windows checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem -Path 'desktop/dist' -Filter '*.exe' -File)
+          if ($files.Count -lt 1) { throw 'Missing Windows installer' }
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -FilePath $file.FullName
+            Write-Host ("Installer: " + $file.Name)
+            Write-Host ("Authenticode status: " + $signature.Status)
+            Write-Host ("SHA256: " + (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash)
+            if ($signature.Status -eq 'NotSigned') {
+              Write-Warning 'Unsigned developer preview: SmartScreen may block installation. Do not bypass security warnings.'
+            } elseif ($signature.Status -ne 'Valid') {
+              throw ('Installer signature has unexpected status: ' + $signature.Status)
+            }
+          }
+      - name: Upload Windows preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-windows-ui-preview
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    name: macOS Intel and Apple Silicon previews
+    runs-on: macos-latest
+    needs: safety
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Stamp unique build version
+        shell: bash
+        run: |
+          node -e 'const fs=require("fs");const p="desktop/package.json";const j=JSON.parse(fs.readFileSync(p,"utf8"));j.version += "-preview."+process.env.GITHUB_RUN_NUMBER;fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n");console.log("Building Vainah VPN "+j.version)'
+      - name: Install desktop dependencies
+        run: npm install --prefix desktop --no-audit --no-fund
+      - name: Build macOS DMG for both architectures
+        run: npm run --prefix desktop dist:mac
+      - name: Upload macOS previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-macos-ui-preview
+          path: desktop/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Windows GitHub prerelease (independent of macOS)
+    runs-on: ubuntu-latest
+    needs: [safety, windows]
+    permissions:
+      contents: write
+    # Never publish installers from untrusted forks or PRs.
+    if: github.repository == 'isaevarbi822-hub/Vainahvpn_bot' && github.ref == 'refs/heads/feature/native-ios-android-vpn-foundation'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: vainah-windows-ui-preview
+          path: preview
+          merge-multiple: true
+      - uses: actions/checkout@v4
+      - name: Check Windows installer and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(preview/*.exe)
+          [[ ${#files[@]} -ge 1 ]] || { echo "Windows installer required"; exit 1; }
+          for file in "${files[@]}"; do test -s "$file"; done
+          cd preview
+          sha256sum *.exe > SHA256SUMS.txt
+      - name: Publish explicitly labeled prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_version=$(node -p "require('./desktop/package.json').version")
+          version="${base_version}-preview.${GITHUB_RUN_NUMBER}"
+          tag="desktop-windows-preview-v${version}-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}"
+          cat > /tmp/VainahDesktopNotes.md <<'NOTES'
+          # Vainah VPN Desktop — Windows engineering preview
+
+          **ВНИМАНИЕ: ЭТА СБОРКА НЕ ПОДКЛЮЧАЕТ VPN И НЕ ЗАЩИЩАЕТ ТРАФИК.**
+          Windows x64: предварительный установщик. Поддержка sing-box и H1Cloud ещё проходит интеграцию и тестирование.
+          macOS собирается отдельным заданием GitHub Actions и не блокирует публикацию Windows.
+          Проверяйте успешность workflow, SHA256SUMS и цифровую подпись до установки.
+          **Этот установщик не подписан и предназначен для разработки, а не для массового использования.**
+          NOTES
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "This exact workflow attempt has already been published; refusing to overwrite its binaries."
+            exit 1
+          fi
+          gh release create "$tag" preview/*.exe preview/SHA256SUMS.txt \
+            -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Vainah VPN Desktop ${version} — Windows (инженерный preview, VPN не подтверждён)" \
+            --notes-file /tmp/VainahDesktopNotes.md \
+            --prerelease --latest=false

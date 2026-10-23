@@ -1,0 +1,72 @@
+name: Vainah VPN Apple libbox framework
+
+on:
+  push:
+    branches:
+      - feature/native-ios-android-vpn-foundation
+    paths:
+      - ".github/workflows/apple-libbox.yml"
+      - "native/apple-libbox/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apple-libbox:
+    name: Build pinned Apple Libbox.xcframework (unverified core)
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify framework provenance and release gating
+        run: node --test tests/native-apple-libbox.test.mjs
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.5'
+          cache: false
+      - name: Fetch auditable upstream sing-box v1.14.2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --no-checkout https://github.com/SagerNet/sing-box.git "$RUNNER_TEMP/sing-box"
+          cd "$RUNNER_TEMP/sing-box"
+          git fetch --depth=1 origin af6e64c3b69e6132ebaee0e1a3d24e93903f6709
+          git checkout --detach af6e64c3b69e6132ebaee0e1a3d24e93903f6709
+          test "$(git rev-parse HEAD)" = "af6e64c3b69e6132ebaee0e1a3d24e93903f6709"
+          test "$(head -n 1 go.mod)" = "module github.com/sagernet/sing-box"
+          echo "Upstream pinned at $(git rev-parse HEAD)"
+      - name: Install pinned gomobile toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.13
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.13
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          gomobile init
+      - name: Compile upstream iPhone Simulator and macOS framework
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/sing-box"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator,macos
+          test -d Libbox.xcframework
+          test -s Libbox.xcframework/Info.plist
+          find Libbox.xcframework -type f -name '*.a' | head -n 30
+      - name: Package framework and provenance without VPN credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p apple-libbox-artifact
+          ditto "$RUNNER_TEMP/sing-box/Libbox.xcframework" apple-libbox-artifact/Libbox.xcframework
+          cp "$RUNNER_TEMP/sing-box/LICENSE" apple-libbox-artifact/LICENSE.txt
+          printf 'Source: https://github.com/SagerNet/sing-box\nTag: v1.14.2\nCommit: af6e64c3b69e6132ebaee0e1a3d24e93903f6709\nGomobile: v0.1.13\nTargets: ios,iossimulator,macos\nNot a functional VPN by itself.\n' > apple-libbox-artifact/PROVENANCE.txt
+          shasum -a 256 apple-libbox-artifact/PROVENANCE.txt
+      - name: Upload unsigned Apple libbox framework
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainah-apple-libbox-v1.14.2-unsigned-unverified
+          path: apple-libbox-artifact/
+          retention-days: 7
+          if-no-files-found: error
