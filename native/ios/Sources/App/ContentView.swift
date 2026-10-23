@@ -229,6 +229,7 @@ struct ContentView: View {
                                          + item.element.label) {
                                 selectedServerId = item.element.id
                                 chosenServer = item.offset
+                                tunnel.prepare(item.element)
                                 notice = "Сервер выбран. Для iOS нужен отдельный VLESS Packet Tunnel движок. Android APK здесь не работает."
                             }
                         }
@@ -343,6 +344,7 @@ struct ContentView: View {
                 $0.id == selectedServerId
             }) {
                 chosenServer = index
+                tunnel.prepare(profiles[index])
             } else {
                 selectedServerId = nil
                 chosenServer = nil

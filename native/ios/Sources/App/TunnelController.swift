@@ -20,11 +20,30 @@ final class TunnelController: ObservableObject {
     @Published private(set) var state: TunnelState = .disconnected
     @Published private(set) var explanation = "Трафик пока НЕ защищён Vainah VPN."
 
+    // Pre-flight checks occur in the UI process. The profile URI is a bearer
+    // credential; never put it in logs, error messages or NE configuration.
+    @Published private(set) var profilePrepared = false
+
+    func prepare(_ server: SubscriptionServer) {
+        profilePrepared = VlessRealityConfig.validate(server.uri)
+        if !profilePrepared {
+            state = .unavailable
+            explanation = "Выбранный сервер не поддерживается. Нужен VLESS REALITY TCP."
+        } else {
+            explanation = "Параметры сервера проверены. Ожидается интеграция libbox для Apple."
+        }
+    }
+
     /// Future real core must configure a packet tunnel extension and route packets.
     func connect() async {
         guard SecureSubscription.load() != nil else {
             state = .disconnected
             explanation = "Сначала сохрани HTTPS-ссылку подписки."
+            return
+        }
+        guard profilePrepared else {
+            state = .unavailable
+            explanation = "Сначала выбери и проверь VLESS REALITY TCP сервер."
             return
         }
         guard VLESSCore.available else {
@@ -35,7 +54,13 @@ final class TunnelController: ObservableObject {
         state = .preparing
         do {
             let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-            let manager = managers.first ?? NETunnelProviderManager()
+            // Never mutate an unrelated VPN profile already installed on a
+            // user's iPhone. Scope all operations to our extension identifier.
+            let manager = managers.first(where: { manager in
+                guard let proto = manager.protocolConfiguration as? NETunnelProviderProtocol
+                else { return false }
+                return proto.providerBundleIdentifier == "app.vainah.vpn.PacketTunnel"
+            }) ?? NETunnelProviderManager()
             let configuration = NETunnelProviderProtocol()
             configuration.providerBundleIdentifier = "app.vainah.vpn.PacketTunnel"
             configuration.serverAddress = "Vainah VPN"
@@ -57,6 +82,9 @@ final class TunnelController: ObservableObject {
     func disconnect() async {
         let managers = (try? await NETunnelProviderManager.loadAllFromPreferences()) ?? []
         for manager in managers {
+            let proto = manager.protocolConfiguration as? NETunnelProviderProtocol
+            guard proto?.providerBundleIdentifier == "app.vainah.vpn.PacketTunnel"
+            else { continue }
             manager.connection.stopVPNTunnel()
         }
         state = .disconnected
