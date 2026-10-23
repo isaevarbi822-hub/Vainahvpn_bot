@@ -31,10 +31,14 @@ class VainahVpnService : VpnService() {
 
     // Synchronous checkpoints survive an abrupt native-process crash.
     private fun checkpoint(stage: String) {
-        getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
+        val editor = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
             .putString("last_stage", stage)
             .putBoolean("startup_pending", true)
-            .commit()
+        if (stage == "service_received_connect") {
+            // Old DNS/HTTPS errors must not look like results from this run.
+            editor.remove("vpn_probe_reason").remove("last_failure")
+        }
+        editor.commit()
     }
 
     private fun completeStartup() {
