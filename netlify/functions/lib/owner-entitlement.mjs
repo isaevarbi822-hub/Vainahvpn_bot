@@ -12,6 +12,7 @@ export async function reserveOwnerEntitlement(orderId,pool=null){
    await db.query('ROLLBACK');
    return null;
   }
+  await db.query('SELECT pg_advisory_xact_lock(hashtext($1), 61932)',[String(order.owner_id)]);
   if(order.target_expires_at){
    await db.query('COMMIT');
    return order.target_expires_at;
@@ -22,6 +23,7 @@ export async function reserveOwnerEntitlement(orderId,pool=null){
   const previous=current.rows[0];
   const base=Math.max(Date.now(),previous?.expires_at?new Date(previous.expires_at).getTime():0);
   const limit=Math.max(Number(previous?.device_limit)||3,Number(order.device_limit)||3);
+  if(![30,60,90,180,365].includes(Number(order.plan_days)))throw Error('INVALID_PLAN');
   const target=new Date(base+Number(order.plan_days)*86400000);
   if(!Number.isFinite(target.getTime())||![3,6].includes(limit))
    throw Error('INVALID_ENTITLEMENT');
