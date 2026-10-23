@@ -50,7 +50,7 @@ jobs:
           ls "${ANDROID_HOME}/platforms"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11.1"
       - name: Build and test Android
         run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Validate generated VPN config with pinned sing-box v1.14.0
@@ -94,7 +94,7 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11.1"
       - name: Resolve libbox Android binary and compile experimental APK
         run: >
           gradle -p native/android
@@ -140,6 +140,27 @@ jobs:
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  clerk-compat:
+    name: Android optional Clerk native SDK compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Compile Clerk auth UI with synthetic public test key
+        run: >
+          gradle -p native/android
+          -PvainahEnableClerk=true
+          -PvainahClerkPublishableKey=pk_test_synthetic_ci_only_not_a_real_instance
+          :app:assembleDebug
+          --no-daemon --stacktrace
 
   ios:
     name: iOS Simulator unsigned compile

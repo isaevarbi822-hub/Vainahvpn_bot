@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+<title>Вход в Vainah VPN</title><link rel="stylesheet" href="site-shell.css">
+<script src="site-shell.js" defer></script><script src="telegram-login-widget.js" defer></script>
+<style>body{background:#080b15;color:#f5f6ff;font:16px system-ui;margin:0}
+main{max-width:540px;margin:5vh auto;padding:32px 24px;background:#121626;border:1px solid #292d43;border-radius:22px}
+h1{color:#a98bff}p{line-height:1.55}button,.btn{font:inherit;border:0;border-radius:12px;padding:14px;background:#a98bff;color:#080b15;text-decoration:none;display:inline-block;cursor:pointer}
+section{padding-top:16px}#status{color:#bdb7d6;white-space:pre-line}</style></head><body>
+<main><h1>Вход в Vainah VPN</h1>
+<p>Этот вход запрошен в мобильном приложении. Авторизуйся через официальный Telegram или Яндекс, затем подтверди соединение с приложением.</p>
+<section id="telegram" hidden>
+  <div id="tg-widget"></div>
+  <p id="tg-info">Загружаем Telegram Login…</p>
+  <button id="tg-retry" type="button">Повторить загрузку Telegram</button>
+</section>
+<section id="yandex" hidden><a class="btn" id="yandex-start" href="#">Войти через Яндекс ID ↗</a></section>
+<section><button id="approve" type="button">Я вошёл — подтвердить вход в приложение</button></section>
+<p id="status" role="status" aria-live="polite"></p>
+<p>После подтверждения вернись в Vainah VPN и нажми «Завершить вход». Эта страница не получает платёжные данные и VPN-ключи.</p>
+</main>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+'use strict';
+const p=new URLSearchParams(location.search);
+const flow=p.get('flow'),provider=p.get('provider');
+const status=document.getElementById('status');
+if(!/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(flow||'')||
+   !['telegram','yandex'].includes(provider)){
+ status.textContent='Запрос входа недействителен.';return;
+}
+document.getElementById(provider).hidden=false;
+document.getElementById('approve').disabled=false;
+const setStatus=t=>{status.textContent=t};
+async function approve(){
+ try{
+   const res=await fetch('/.netlify/functions/mobile-link',{
+     method:'POST',credentials:'same-origin',cache:'no-store',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({action:'approve',flowId:flow})
+   });
+   const reply=await res.json().catch(()=>({}));
+   if(!res.ok||!reply.approved)throw Error(reply.error||'Вход не подтверждён');
+   setStatus('Готово! Возвращайся в Vainah VPN и нажми «Завершить вход».');
+ }catch(error){setStatus(error.message||'Вход пока не подтверждён')}
+}
+document.getElementById('approve').addEventListener('click',approve);
+if(provider==='yandex'){
+ document.getElementById('yandex-start').href=
+  '/.netlify/functions/yandex-start?mobile_flow='+encodeURIComponent(flow);
+ if(p.get('auth')==='success')setStatus('Яндекс подтвердил вход. Нажми кнопку подтверждения.');
+ if(p.get('auth')==='error')setStatus('Яндекс не подтвердил вход. Попробуй ещё раз.');
+}
+window.onMobileLinkTelegram=async function(user){
+ try{
+   const r=await fetch('/.netlify/functions/telegram-account',{
+     method:'POST',credentials:'same-origin',cache:'no-store',
+     headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({action:'login',data:user})
+   });
+   if(!r.ok)throw Error('Telegram Login не подтверждён сервером');
+   await approve();
+ }catch(error){setStatus(error.message||'Ошибка Telegram Login')}
+};
+if(provider==='telegram'&&window.VainahTelegramWidget)
+ window.VainahTelegramWidget.mount({
+   container:document.getElementById('tg-widget'),status:document.getElementById('tg-info'),
+   retry:document.getElementById('tg-retry'),callback:'onMobileLinkTelegram(user)'
+ });
+});
+</script></body></html>

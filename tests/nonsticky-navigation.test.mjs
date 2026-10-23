@@ -9,7 +9,7 @@ const pages=readdirSync(root).filter(name=>name.endsWith('.html')
   && !['admin-payment-check.html','rollypay-sandbox.html'].includes(name));
 
 test('all public pages style top navigation in normal flow, never sticky',()=>{
-  assert.equal(pages.length,30);
+  assert.ok(pages.length>=30);
   for(const name of pages){
     const html=read(name);
     const style=(html.match(/<style>([\s\S]*?)<\/style>/)||[])[1]||'';

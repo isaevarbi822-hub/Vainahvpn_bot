@@ -18,7 +18,12 @@ export default async function handler(request){
   if(!origin||!yandexConfigured(env))
     return new Response('Вход через Яндекс пока не настроен',{status:503});
   const state=randomSecret(),verifier=randomSecret();
+  // Optional one-use mobile pairing. Keep this ID in the signed OAuth flow,
+  // never accept a callback-controlled return URL.
+  const requested=new URL(request.url).searchParams.get('mobile_flow');
+  const mobileFlow=/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(requested||'')?requested:null;
   const signed=issueSigned({purpose:'yandex-flow',state,verifier,
+    ...(mobileFlow?{mobileFlow}:{}),
     exp:Math.floor(Date.now()/1000)+600},env.SESSION_SIGNING_KEY);
   const response=new Response(null,{status:302,headers:{
     Location:yandexAuthorizationUrl(env,origin,state,verifier),

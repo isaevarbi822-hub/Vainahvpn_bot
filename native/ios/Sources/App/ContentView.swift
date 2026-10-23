@@ -1,4 +1,7 @@
 import SwiftUI
+import UIKit
+import ClerkKit
+import ClerkKitUI
 
 private enum SiteTab: Hashable {
     case home, plans, account, help
@@ -11,6 +14,9 @@ private enum SiteTab: Hashable {
  */
 struct ContentView: View {
     @StateObject private var tunnel = TunnelController()
+    @Environment(Clerk.self) private var clerk
+    @State private var showClerkAuth = false
+    @State private var showClerkProfile = false
     @State private var selected: SiteTab = .home
     @State private var devices = 0
     @State private var subscription = ""
@@ -39,6 +45,19 @@ struct ContentView: View {
             screen { help }
                 .tabItem { Label("Помощь", systemImage: "questionmark.circle") }
                 .tag(SiteTab.help)
+        }
+.sheet(isPresented: $showClerkAuth) {
+            if VainahApp.clerkConfigured {
+                AuthView()
+            } else {
+                Text("Вход Clerk пока не настроен для этой сборки.")
+                    .padding()
+            }
+        }
+        .sheet(isPresented: $showClerkProfile) {
+            if VainahApp.clerkConfigured {
+                UserProfileView()
+            }
         }
         .tint(VainahDesign.purple)
         .preferredColorScheme(.dark)
@@ -633,7 +652,7 @@ struct ContentView: View {
                     Text("Тариф · срок · устройства · покупки")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(VainahDesign.ink)
-                    Text("Приложение пока не считывает личные покупки. Реальные данные после Telegram Login показывает сайт.")
+                    Text("Мобильный вход по телефону или почте доступен ниже. Доступ к покупкам на сервере появится после подтверждения оплаты.")
                         .font(.system(size: 12))
                         .foregroundStyle(VainahDesign.muted)
                     websiteButton("Войти в личный кабинет ↗", "account.html", prominent: true)
@@ -642,16 +661,38 @@ struct ContentView: View {
             }
             .padding(.top, 16)
 
-            VainahCard {
+            VainahCard(featured: true) {
                 VStack(alignment: .leading, spacing: 12) {
-                    overline("СПОСОБЫ ВХОДА")
-                    Text("Telegram · Телефон · Почта · Яндекс ID")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundStyle(VainahDesign.ink)
-                    Text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не открывает заказы другого аккаунта.")
-                        .font(.system(size: 12))
+                    overline("ВХОД С CLERK")
+                    if VainahApp.clerkConfigured {
+                        if let user = clerk.user {
+                            Text("Аккаунт подтверждён · " + user.id)
+                                .font(.system(size: 13))
+                                .foregroundStyle(VainahDesign.green)
+                            Text("Подтверди email в профиле Clerk, чтобы он мог получать VPN-ключ после покупки.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(VainahDesign.muted)
+                            Button("Управлять почтой и профилем") {
+                                showClerkProfile = true
+                            }
+                            .foregroundStyle(VainahDesign.purple)
+                        } else {
+                            Text("Clerk отправляет проверочный код по email или SMS. Вводи его прямо в окне приложения.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(VainahDesign.muted)
+                            Button("Войти / зарегистрироваться", action: {
+                                showClerkAuth = true
+                            })
+                            .foregroundStyle(VainahDesign.purple)
+                        }
+                    } else {
+                        Text("В этой сборке не задан публичный ключ Clerk. Авторизация и платежи отключены.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(VainahDesign.muted)
+                    }
+                    Text("Отдельный Telegram Login и Яндекс OAuth пока не связаны с Clerk автоматически. Для покупок нужна подтверждённая сессия Clerk.")
+                        .font(.system(size: 11))
                         .foregroundStyle(VainahDesign.muted)
-                    websiteButton("Выбрать способ входа ↗", "account.html")
                 }
             }
             .padding(.top, 16)

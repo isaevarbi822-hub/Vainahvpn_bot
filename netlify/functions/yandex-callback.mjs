@@ -1,8 +1,10 @@
 import {cookie,verifySigned,newAltSession,setCookie,
   flowCookieName,altCookieName,yandexConfigured,expectedOrigin} from './lib/alternate-auth.mjs';
 
-function redirect(origin,reason,cookies=[]){
-  const destination=origin+'/account.html?alt_login='+encodeURIComponent(reason);
+function redirect(origin,reason,cookies=[],mobileFlow=null){
+  const destination=mobileFlow&&/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i.test(mobileFlow)
+    ? origin+'/mobile-link.html?flow='+encodeURIComponent(mobileFlow)+'&provider=yandex&auth='+encodeURIComponent(reason)
+    : origin+'/account.html?alt_login='+encodeURIComponent(reason);
   const response=new Response(null,{status:303,headers:{
     Location:destination,'Cache-Control':'no-store','Referrer-Policy':'no-referrer'
   }});
@@ -41,13 +43,13 @@ export default async function handler(request){
   const code=params.get('code')||'',state=params.get('state')||'';
   if(!flow||!state||state!==flow.state||!code||code.length>1800||
     params.has('error'))
-    return redirect(origin,'error',[cleared]);
+    return redirect(origin,'error',[cleared],flow?.mobileFlow||null);
   try{
     const subject=await yandexIdentity(env,origin,code,flow.verifier);
     if(!subject)return redirect(origin,'error',[cleared]);
     return redirect(origin,'success',[
       cleared,
       setCookie(altCookieName,newAltSession('yandex',subject,env.SESSION_SIGNING_KEY))
-    ]);
+    ],flow?.mobileFlow||null);
   }catch{return redirect(origin,'error',[cleared])}
 }

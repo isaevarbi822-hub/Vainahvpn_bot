@@ -60,6 +60,7 @@ class MainActivity : Activity() {
     private var serverRefreshGeneration = 0
     private var lastServerRefreshAttemptMs = 0L
     private val serverRefreshIntervalMs = 5 * 60 * 1000L
+    private lateinit var mobileIdentity: NativeIdentity
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
@@ -182,6 +183,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vault = SecureSubscription(this)
+        mobileIdentity = NativeIdentity(this)
         tab = savedInstanceState?.getString("page")?.let {
             runCatching { Tab.valueOf(it) }.getOrNull()
         } ?: Tab.HOME
@@ -714,36 +716,110 @@ class MainActivity : Activity() {
         }, "vainah-checkout-status").start()
     }
 
-    private fun attemptCheckout(plan: VainahPlan) {
-        if (!BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ||
-            checkoutStatus?.permitted != true) {
-            notice("Платёжный сервер не подтвердил готовность. Заказ не создаётся.")
+    private fun clerkLoggedIn():Boolean {
+        if(!BuildConfig.VAINAH_CLERK_ENABLED)return false
+        return runCatching {
+            Class.forName("app.vainah.vpn.ClerkTokenProvider")
+                .getMethod("loggedIn").invoke(null) as? Boolean ?: false
+        }.getOrDefault(false)
+    }
+
+    // Must be called on a worker thread: Clerk may refresh a short-lived JWT.
+    private fun clerkToken():String? {
+        if(!BuildConfig.VAINAH_CLERK_ENABLED)return null
+        return runCatching {
+            Class.forName("app.vainah.vpn.ClerkTokenProvider")
+                .getMethod("getToken").invoke(null) as? String
+        }.getOrNull()
+    }
+
+    private fun startClerkLogin() {
+        if(!BuildConfig.VAINAH_CLERK_ENABLED ||
+           !BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY.startsWith("pk_")){
+            notice("Clerk ещё не включён в эту тестовую APK-сборку. " +
+                "Оплата в приложении недоступна.")
             return
         }
-        val url = NativeCheckout.checkoutUrl(plan.id) ?: return
-        AlertDialog.Builder(this)
-            .setTitle("Оформление: ${plan.title}")
-            .setMessage("${plan.priceRub} ₽ за ${plan.days} дней. " +
-                "Оформление откроется во вкладке внутри Vainah VPN, " +
-                "затем платёжная форма RollyPay. Понадобится подтверждённый вход. " +
-                "СБП может открыть банковское приложение. VPN выдаётся " +
-                "только после серверной проверки оплаты.")
-            .setNegativeButton("Отмена",null)
-            .setPositiveButton("Продолжить"){_,_->
-                try {
-                    // Custom Tabs provide a browser-isolated checkout surface,
-                    // the app cannot inspect payment or authentication data.
-                    val tab = CustomTabsIntent.Builder()
-                        .setShowTitle(true)
-                        .setToolbarColor(d.background)
-                        .build()
-                    tab.launchUrl(this, Uri.parse(url))
-                } catch (_: Exception) {
-                    notice("Не удалось открыть защищённую платёжную вкладку. " +
-                        "Оплата не запускалась. Попробуй позже.")
-                }
-            }.show()
+        runCatching {
+            startActivity(Intent().setClassName(this,"app.vainah.vpn.ClerkLoginActivity"))
+        }.onFailure{notice("Экран Clerk недоступен в этой сборке.")}
     }
+
+    private fun attemptCheckout(plan: VainahPlan) {
+        if(!BuildConfig.VAINAH_DIRECT_CHECKOUT_ENABLED ||
+           checkoutStatus?.permitted != true) {
+            notice("Платежи в приложении пока выключены. Деньги не списываются.")
+            return
+        }
+        // Even a recently cached JWT can be expired. Ask Clerk for a fresh one.
+        Thread {
+            val token=clerkToken()
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                if(token==null){
+                    notice("Войди через Clerk и подтверди email для получения VPN-ключа.")
+                    switch(Tab.ACCOUNT)
+                    return@runOnUiThread
+                }
+                AlertDialog.Builder(this)
+                    .setTitle("Оформление: ${plan.title}")
+                    .setMessage("К оплате ${plan.priceRub} ₽. После серверного подтверждения " +
+                        "VPN станет доступен в приложении, а ссылка придёт на " +
+                        "подтверждённую в Clerk почту. СБП может открыть банк.")
+                    .setNegativeButton("Отмена",null)
+                    .setPositiveButton("Продолжить"){_,_->
+                        Thread {
+                            // The server checks Clerk JWT again before creating an invoice.
+                            val invoice=runCatching{NativeIdentity.createInvoice(token,plan.id)}
+                            runOnUiThread{
+                                if(isFinishing||isDestroyed)return@runOnUiThread
+                                invoice.onSuccess {
+                                    mobileIdentity.saveOrder(it.orderId)
+                                    runCatching {
+                                        CustomTabsIntent.Builder().setShowTitle(true)
+                                            .setToolbarColor(d.background).build()
+                                            .launchUrl(this,Uri.parse(it.payUrl))
+                                    }.onFailure{
+                                        notice("Платёжная вкладка не открылась. " +
+                                            "Заказ можно проверить в кабинете.")
+                                    }
+                                }.onFailure{
+                                    notice("Оформление не запущено. Проверь Clerk и " +
+                                        "подтверждённый email или повтори позже.")
+                                }
+                            }
+                        }.start()
+                    }.show()
+            }
+        }.start()
+    }
+
+    private fun checkNativeOrder() {
+        val id=mobileIdentity.lastOrder()
+        if(id==null){notice("Пока нет сохранённого заказа.");return}
+        Thread {
+            val token=clerkToken()
+            val result=if(token==null)Result.failure(
+                IllegalStateException("Clerk session missing"))
+                else runCatching { NativeIdentity.readOrder(token,id) }
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { order ->
+                    if(order.status=="paid"&&order.delivery=="delivered"&&
+                       order.subscriptionUrl!=null) {
+                        if(vault.save(order.subscriptionUrl)){
+                            notice("Оплата подтверждена, VPN добавлен в приложение. " +
+                                (if(order.emailState=="sent")"Письмо также отправлено."
+                                    else "Письмо ещё доставляется."))
+                        }else notice("VPN оплачен, но сохранить ссылку не удалось.")
+                    }else {
+                        notice("Оплата: ${order.status}. Выдача VPN: ${order.delivery}.")
+                    }
+                }.onFailure{notice("Проверь вход Clerk или повтори проверку позже.")}
+            }
+        }.start()
+    }
+
     private fun account(parent: LinearLayout) {
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
             "Моя подписка.",
@@ -801,14 +877,25 @@ class MainActivity : Activity() {
 
         val providers=panel()
         add(parent,providers,16)
-        add(providers,overline("СПОСОБЫ ВХОДА"))
-        add(providers,text("Telegram · Телефон · Почта · Яндекс ID",
+        add(providers,overline("ВХОД С CLERK"))
+        add(providers,text("Email · SMS · профиль и проверенная почта",
             17f,d.ink,true),11)
-        add(providers,text("Вход подтверждается на сайте. Приложение не запрашивает чужие пароли и не выдаёт покупки другого аккаунта.",
-            12f,d.muted),8)
-        val login=action("Выбрать способ входа ↗")
-        add(providers,login,12)
-        login.setOnClickListener{openSite("account.html")}
+        add(providers,text(if(clerkLoggedIn())
+            "✓ Вход через Clerk подтверждён. Подписка будет отправлена " +
+                "только на подтверждённый email в профиле."
+            else "Clerk отправляет код по email или SMS и проверяет его " +
+                "внутри приложения. Требуется сборка с включённым Clerk SDK.",
+            12f,d.muted),9)
+        val signIn=action(if(clerkLoggedIn())"Открыть профиль Clerk"
+            else "Войти / зарегистрироваться через Clerk",true)
+        add(providers,signIn,12)
+        signIn.setOnClickListener{startClerkLogin()}
+        add(providers,text("Telegram и Яндекс пока используют независимую " +
+            "веб-авторизацию; для покупок нужна подтверждённая сессия Clerk.",
+            11f,d.muted),12)
+        val orderStatus=action("Проверить оплату и получить VPN")
+        add(providers,orderStatus,12)
+        orderStatus.setOnClickListener{checkNativeOrder()}
     }
     private fun help(parent: LinearLayout) {
         intro(parent,"ЦЕНТР ПОДДЕРЖКИ",

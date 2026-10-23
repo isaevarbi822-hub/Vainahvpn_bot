@@ -17,16 +17,18 @@ async function requestRollypay(path,options={}) {
   }
   return data;
 }
-export async function createInvoice({orderId,amountKopeks,telegramId,description}) {
+export async function createInvoice({orderId,amountKopeks,telegramId,description,customerId=null,mobile=false}) {
   const origin=process.env.PUBLIC_SITE_ORIGIN;
   if(!/^https:\/\/[a-z0-9.-]+(?::[0-9]+)?$/i.test(origin||'')) throw Error('SITE_ORIGIN_INVALID');
+  if(customerId!==null && !/^native_[a-f0-9-]{36}$/.test(customerId))
+    throw Error('INVALID_NATIVE_CUSTOMER');
   const amount=(amountKopeks/100).toFixed(2);
   const data=await requestRollypay('',{
     method:'POST',body:JSON.stringify({
       order_id:orderId,amount,payment_currency:'RUB',
-      customer_id:'tg_'+telegramId,
+      customer_id:customerId||'tg_'+telegramId,
       description,
-      success_redirect_url:origin+'/payment-result.html?order='+encodeURIComponent(orderId),
+      success_redirect_url:origin+(mobile?'/mobile-payment-result.html?order=':'/payment-result.html?order=')+encodeURIComponent(orderId),
       fail_redirect_url:origin+'/payment-result.html?order='+encodeURIComponent(orderId),
       test:false
     })

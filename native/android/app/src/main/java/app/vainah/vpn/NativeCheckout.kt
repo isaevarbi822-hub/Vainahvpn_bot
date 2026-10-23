@@ -39,7 +39,7 @@ object NativeCheckout {
                     item.optString("priceRub") != "%.2f".format(java.util.Locale.ROOT, plan.priceRub.toDouble())
                 ) return Availability(false, false)
             }
-            Availability(payload.optBoolean("checkoutReady", false), true)
+            Availability(payload.optBoolean("nativeCheckoutReady", false), true)
         } catch (_: Exception) {
             Availability(false, false)
         }

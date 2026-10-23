@@ -23,17 +23,23 @@ Sources reviewed (October 23, 2026):
 - In a **separately configured standalone build** (`-PvainahStandaloneCheckout=true`)
   the checkout button is shown only if the server validates readiness and the
   price list matches the app's canonical plans.
-- After the user confirms the amount, an Android Custom Tab opens
-  `/checkout.html?plan=...` within the app task. The browser handles Telegram
-  session authentication and then displays RollyPay's hosted `pay_url`;
-  **the app cannot inspect card credentials or API secrets**.
-- The customer may briefly switch to a banking app to approve an SBP transfer.
-  The hosted payment page is **not** a native card widget.
-- After RollyPay confirms the paid order by signed webhook, backend H1Cloud
-  fulfillment runs. Browser return alone never unlocks VPN.
-- This is an intermediate integration, **not** a fully native order-creation
-  and account/entitlement UI. That requires a verified mobile login session,
-  a narrow app-to-server API and post-payment access syncing.
+- In the experimental Clerk-enabled build, a signed-in customer selects a
+  canonical plan. The app requests a **fresh Clerk session JWT** and the
+  Netlify backend checks the Clerk user ID and verified primary email before
+  issuing a RollyPay invoice.
+- Android opens RollyPay's hosted payment URL in an isolated Custom Tab.
+  This is visually within the app task but still a secure browser payment
+  page. The customer may briefly switch to a bank app for SBP approval.
+  The app cannot intercept bank credentials or store merchant secrets.
+- RollyPay must independently confirm the correct order, paid status and
+  RUB amount before H1Cloud issues the subscription. Only the verified
+  Clerk user's order-status API can return that user's VPN link.
+- Server-side email delivery is addressed only to the Clerk-verified
+  primary email, never free-text email typed into the purchase form.
+- Legacy Telegram Login and Yandex OAuth are **not** interchangeable with
+  Clerk authentication. Link identities only after verified ownership.
+- No live charges are enabled in this draft. The merchant, database schema,
+  OTP deliverability and H1Cloud provisioning need end-to-end testing.
 
 ## iOS App Store
 
