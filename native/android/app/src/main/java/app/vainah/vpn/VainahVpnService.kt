@@ -30,6 +30,12 @@ class VainahVpnService : VpnService() {
     @Volatile private var started = false
     @Volatile private var connectionGeneration = 0
 
+    // A recreated Android service can supersede this instance even before
+    // the old onDestroy callback has been delivered. A generation check alone
+    // cannot protect global connection state from the previous instance.
+    private fun isCurrentAttempt(generation: Int): Boolean =
+        generation == connectionGeneration && foregroundLease.isCurrent(this)
+
     // Synchronous checkpoints survive an abrupt native-process crash.
     private fun checkpoint(stage: String) {
         val editor = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
@@ -93,7 +99,7 @@ class VainahVpnService : VpnService() {
                         checkpoint("resolving_h1cloud_before_vpn")
                         val upstream = VpnConnectivity.prepareUpstream(this, rawNode)
                         val latency = upstream.tcpLatencyMs
-                        if (generation != connectionGeneration) return@Thread
+                        if (!isCurrentAttempt(generation)) return@Thread
                         VpnConnectionState.latency(this, latency)
                         showNotification()
                         checkpoint("starting_libbox_native_engine")
@@ -101,9 +107,9 @@ class VainahVpnService : VpnService() {
                         // deadlock on bootstrap DNS after VPN routing starts.
                         val resolvedConfig = VlessRealityConfig.profile(rawNode, upstream.numericAddress)
                         val result = EngineRegistry.connectOwned(this, resolvedConfig) {
-                            generation == connectionGeneration
+                            isCurrentAttempt(generation)
                         }
-                        if (generation != connectionGeneration) return@Thread
+                        if (!isCurrentAttempt(generation)) return@Thread
                         result.exceptionOrNull()?.let { throw it }
                         VpnConnectionState.tunnelCreated(this)
                         showNotification()
@@ -114,7 +120,7 @@ class VainahVpnService : VpnService() {
                             // A failed self-probe is NOT proof other apps lack internet.
                             // Keep the tunnel available for a real browser check, and
                             // retain a visible Stop action. Do not claim protection.
-                            if (generation != connectionGeneration) return@Thread
+                            if (!isCurrentAttempt(generation)) return@Thread
                             getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
                                 .putString("last_stage", "vpn_https_probe_inconclusive")
                                 .putString("vpn_probe_reason", probe.reason)
@@ -123,14 +129,14 @@ class VainahVpnService : VpnService() {
                             showNotification()
                             return@Thread
                         }
-                        if (generation != connectionGeneration) return@Thread
+                        if (!isCurrentAttempt(generation)) return@Thread
                         completeStartup()
                         VpnConnectionState.verified(this)
                         showNotification()
                     } catch (error: Throwable) {
                         // A cancelled connection must NEVER overwrite the user's
                         // deliberate OFF state, or shut down a newer generation.
-                        if (generation != connectionGeneration) return@Thread
+                        if (!isCurrentAttempt(generation)) return@Thread
                         failure("VPN startup / internet verification", error)
                         VpnConnectionState.failed(this, "Ошибка запуска VPN-движка")
                         disconnect(userRequested = false)
