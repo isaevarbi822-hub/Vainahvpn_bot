@@ -158,7 +158,8 @@ jobs:
         run: >
           gradle -p native/android
           -PvainahEnableClerk=true
-          -PvainahClerkPublishableKey="${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || 'pk_test_synthetic_ci_only_not_a_real_instance' }}"
+          -PvainahIsolatedPreview=true
+          -PvainahClerkPublishableKey="${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY || 'pk_test_synthetic_ci_only_not_a_real_instance' }}"
           :app:assembleDebug
           --no-daemon --stacktrace
       # A publishable Clerk key is public and may be supplied in GitHub Actions
