@@ -11,6 +11,7 @@ final class NativeAccount: ObservableObject {
     @Published private(set) var provider = ""
     @Published private(set) var challengePending = false
     @Published private(set) var busy = false
+    @Published private(set) var externalPending = false
 
     private struct Challenge {
         let token: String
@@ -19,6 +20,11 @@ final class NativeAccount: ObservableObject {
         let previous: String?
     }
     private var pending: Challenge?
+    private struct ExternalFlow {
+        let flowId: String
+        let pollSecret: String
+    }
+    private var externalFlow: ExternalFlow?
     private let origin = URL(string: "https://vainahvpnbot0.netlify.app")!
     private let keychainService = "app.vainah.vpn.mobile-auth"
     private let keychainAccount = "verified-mobile-session"
@@ -67,6 +73,8 @@ final class NativeAccount: ObservableObject {
         provider = ""
         pending = nil
         challengePending = false
+        externalPending = false
+        externalFlow = nil
     }
     enum LoginError: LocalizedError {
         case invalid, storage, unavailable
@@ -135,6 +143,45 @@ final class NativeAccount: ObservableObject {
         self.pending = nil
         challengePending = false
     }
+    func beginExternal(_ method: String) async throws -> URL {
+        guard ["telegram","yandex"].contains(method) else { throw LoginError.invalid }
+        guard !busy else { throw LoginError.unavailable }
+        busy = true
+        defer { busy = false }
+        let data = try await exchange("mobile-link",payload: [
+            "action": "start","provider": method
+        ])
+        guard let flow = data["flowId"] as? String,
+              let poll = data["pollSecret"] as? String,
+              poll.range(of: "^[a-f0-9]{64}$",options:.regularExpression) != nil,
+              let string = data["browserUrl"] as? String,
+              let url = URL(string:string),
+              url.scheme == "https",url.host == origin.host,
+              url.path == "/mobile-link.html",url.user == nil,
+              url.password == nil,url.fragment == nil else { throw LoginError.invalid }
+        externalFlow = ExternalFlow(flowId: flow,pollSecret: poll)
+        externalPending = true
+        return url
+    }
+    func finishExternal() async throws -> Bool {
+        guard !busy else { throw LoginError.unavailable }
+        guard let flow=externalFlow else { throw LoginError.invalid }
+        busy = true
+        defer { busy = false }
+        let data = try await exchange("mobile-link",payload: [
+            "action": "poll","flowId":flow.flowId,"pollSecret":flow.pollSecret
+        ])
+        if data["pending"] as? Bool == true { return false }
+        guard data["authenticated"] as? Bool == true,
+              let token=data["token"] as? String else { throw LoginError.invalid }
+        try persist(token)
+        emailVerified = data["emailVerified"] as? Bool == true
+        provider = data["provider"] as? String ?? ""
+        externalFlow = nil
+        externalPending = false
+        return true
+    }
+
     func refresh() async {
         guard let token = loadToken() else { authenticated = false; return }
         do {
