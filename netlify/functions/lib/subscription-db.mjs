@@ -18,7 +18,7 @@ export async function transaction(work) {
   finally{db.release()}
 }
 export async function insertCheckout({id,telegramId,username,plan,ownerId}) {
-  if(typeof ownerId!=='string'||!/^[0-9a-f-]{36}$/i.test(ownerId))throw Error('OWNER_REQUIRED');
+  if(typeof ownerId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ownerId))throw Error('OWNER_REQUIRED');
   return transaction(async db=>{
     const linked=await db.query(
       `SELECT 1 FROM vpn_account_identities WHERE provider='telegram' AND subject=$1 AND owner_id=$2`,
