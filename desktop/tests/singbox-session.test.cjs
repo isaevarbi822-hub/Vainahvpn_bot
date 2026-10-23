@@ -229,3 +229,34 @@ test('fatal diagnostic after startup terminates engine and clears private config
    await fs.rm(folder,{recursive:true,force:true});
  }
 });
+
+
+test('late stderr from a terminated engine cannot overwrite final status',async()=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {EventEmitter}=require('node:events');
+ const folder=await fs.mkdtemp(path.join(os.tmpdir(),'vainah-stale-stderr-'));
+ const binary=path.join(folder,'sing-box.exe');
+ await fs.writeFile(binary,'mock');
+ const child=new EventEmitter();
+ child.stderr=new EventEmitter();
+ child.kill=()=>{queueMicrotask(()=>child.emit('exit',0));return true};
+ const session=new SingBoxSession({platform:'win32',runner:()=>{
+   queueMicrotask(()=>child.emit('spawn'));
+   return child;
+ }});
+ const sample={outbounds:[{protocol:'vless',settings:{vnext:[{
+  address:'example.invalid',port:443,users:[{id:'12345678-1234-1234-1234-123456789abc'}]
+ }]},streamSettings:{network:'tcp',security:'reality',realitySettings:{
+  serverName:'example.com',publicKey:'synthetic-public-key',shortId:'a1b2'
+ }}}]};
+ try{
+   assert.equal((await session.start(binary,sample)).ok,true);
+   assert.equal((await session.stop()).ok,true);
+   assert.equal(session.status.reason,null);
+   child.stderr.emit('data',Buffer.from('DNS lookup failed: old session secret'));
+   assert.deepEqual(session.status,{state:'stopped',protected:false,reason:null});
+ }finally{
+   await session.stop();
+   await fs.rm(folder,{recursive:true,force:true});
+ }
+});
