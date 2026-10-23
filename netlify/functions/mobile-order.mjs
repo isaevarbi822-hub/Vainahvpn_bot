@@ -4,7 +4,7 @@ import {readNativeOrder,readNativeVpnAccess,verifyNativeProvider,nativeCommerceR
 
 export default async function handler(request){
   if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
-  const user=mobileSession(request);
+  const user=await mobileSession(request);
   if(!user)return json({error:'Authentication required'},401);
   if(request.method==='POST'&&request.headers.get('origin')&&
      request.headers.get('origin')!==process.env.PUBLIC_SITE_ORIGIN)
