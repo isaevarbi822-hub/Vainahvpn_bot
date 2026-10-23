@@ -49,6 +49,12 @@ class SingBoxSession {
           this.lastError='Ошибка DNS при обращении к серверу.';
         else if(/invalid config|decode config|unknown field/.test(line))
           this.lastError='Движок отклонил конфигурацию.';
+        // A live engine that reports a fatal error must not keep running in
+        // an indeterminate state. Its exit handler cleans up the secret config.
+        if(this.lastError && this.child===child && this.state==='running-unverified'){
+          this.state='stopping';
+          try { child.kill(); } catch {}
+        }
       });
       this.exitPromise=new Promise(resolve=>{
         let settled=false;
