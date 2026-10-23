@@ -20,7 +20,7 @@ internal class LibboxAndroidPlatform(
     private val onStage: (String) -> Unit
 ) : PlatformInterface {
     private val connectivity = service.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    private var tun: ParcelFileDescriptor? = null
+    @Volatile private var tun: ParcelFileDescriptor? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
 
     override fun localDNSTransport(): LocalDNSTransport? = null
