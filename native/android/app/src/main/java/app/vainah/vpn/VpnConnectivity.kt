@@ -31,14 +31,19 @@ object VpnConnectivity {
         } ?: return@runCatching VpnNetworkFacts(visible = false)
         val link = connectivity.getLinkProperties(network)
             ?: return@runCatching VpnNetworkFacts(visible = true)
-        val ipv4Default = link.routes.any { route ->
-            route.destination?.prefixLength == 0 &&
-                route.destination?.address is java.net.Inet4Address
+        // Android can represent a full tunnel using 0/0, two /1 routes,
+        // or multiple smaller prefixes. Checking only prefixLength == 0
+        // reported a false "no route" on valid split-route VPNs.
+        // Ignore unreachable and throw routes: they do not forward packets.
+        val usableRoutes = link.routes.filter {
+            it.type == android.net.RouteInfo.RTN_UNICAST
+        }.mapNotNull { route ->
+            route.destination?.let { prefix ->
+                prefix.address.address to prefix.prefixLength
+            }
         }
-        val ipv6Default = link.routes.any { route ->
-            route.destination?.prefixLength == 0 &&
-                route.destination?.address is java.net.Inet6Address
-        }
+        val ipv4Default = RouteCoverage.coversAll(4, usableRoutes)
+        val ipv6Default = RouteCoverage.coversAll(16, usableRoutes)
         VpnNetworkFacts(
             visible = true,
             ipv4DefaultRoute = ipv4Default,

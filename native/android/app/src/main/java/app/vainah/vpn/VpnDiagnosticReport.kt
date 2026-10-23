@@ -6,6 +6,9 @@ package app.vainah.vpn
  */
 data class VpnNetworkFacts(
     val visible: Boolean? = null,
+    // True also for multiple routes whose union captures every IP, not
+    // only an explicit 0/0 or ::/0. This is routing metadata, not proof of
+    // successful packet forwarding or absence of provider-side filtering.
     val ipv4DefaultRoute: Boolean? = null,
     val ipv6DefaultRoute: Boolean? = null,
     val dnsConfigured: Boolean? = null
