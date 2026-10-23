@@ -44,6 +44,8 @@ class VlessRealityConfigTest {
         assertEquals("https", upstream.getString("type"))
         assertEquals("vainah-selected", upstream.getString("detour"))
         assertEquals("vainah-selected", profile.getJSONObject("route").getString("final"))
+        assertEquals("dns-bootstrap", profile.getJSONObject("route")
+            .getString("default_domain_resolver"))
         val rules = profile.getJSONObject("route").getJSONArray("rules")
         assertEquals(2, rules.length())
         val virtualDnsRule = rules.getJSONObject(0)

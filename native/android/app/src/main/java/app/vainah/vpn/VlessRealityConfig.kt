@@ -88,6 +88,10 @@ object VlessRealityConfig {
         put("outbounds", JSONArray().put(outbound(node, resolvedAddress))
             .put(JSONObject().put("type", "direct").put("tag", "direct")))
         put("route", JSONObject().put("final", "vainah-selected")
+            // Required in sing-box 1.14.0: every potential domain dialer,
+            // including internal direct and DNS clients, needs an explicit
+            // resolver. This is only for bootstrap; app DNS stays DoH-via-VLESS.
+            .put("default_domain_resolver", "dns-bootstrap")
             .put("auto_detect_interface", true)
             .put("rules", JSONArray()
                 // sing-box 1.14 explicitly requires hijack routing for custom
