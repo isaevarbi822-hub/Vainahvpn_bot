@@ -22,7 +22,7 @@ class ClerkLoginActivity:ComponentActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         if (!BuildConfig.VAINAH_CLERK_ENABLED ||
-            !BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY.startsWith("pk_")) {
+            !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)) {
             finish()
             return
         }
