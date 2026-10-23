@@ -59,7 +59,7 @@ object VpnConnectionState {
         save(context, TUN_READY, "VPN-туннель открыт, проверяем интернет")
 
     fun verified(context: Context) =
-        save(context, ONLINE, "HTTPS через VPN доступен; проверь также внешний IP и DNS")
+        save(context, ONLINE, "HTTPS-проба успешна; интернет браузера, внешний IP и DNS не подтверждены")
 
     fun tunnelUnverified(context: Context) =
         save(context, TUN_READY,

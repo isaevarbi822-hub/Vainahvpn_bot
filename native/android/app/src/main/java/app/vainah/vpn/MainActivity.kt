@@ -82,7 +82,7 @@ class MainActivity : Activity() {
             VpnConnectionState.STARTING -> "Подключаемся…"
             VpnConnectionState.TUN_READY -> if (snapshot.detail.startsWith("VPN-туннель запущен;"))
                 "Туннель активен · проверь браузер" else "Проверяем интернет…"
-            VpnConnectionState.ONLINE -> "VPN · интернет доступен"
+            VpnConnectionState.ONLINE -> "VPN · HTTPS-проба успешна"
             VpnConnectionState.FAILED -> "VPN не подключён"
             else -> "Не подключено"
         }
@@ -90,7 +90,7 @@ class MainActivity : Activity() {
             .getString("vpn_probe_reason", null)
         connectionDetailView?.text = when (snapshot.phase) {
             VpnConnectionState.ONLINE ->
-                "HTTPS через VPN доступен. Внешний IP и DNS ещё требуют проверки."
+                "HTTPS-проба службы успешна. Интернет в браузере, внешний IP и DNS ещё требуют отдельной проверки."
             VpnConnectionState.STARTING, VpnConnectionState.TUN_READY ->
                 snapshot.detail + if (snapshot.phase == VpnConnectionState.TUN_READY &&
                     snapshot.detail.startsWith("VPN-туннель запущен;") &&

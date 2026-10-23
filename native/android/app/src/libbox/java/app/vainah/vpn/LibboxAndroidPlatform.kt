@@ -93,15 +93,28 @@ internal class LibboxAndroidPlatform(
                     builder.excludeRoute(android.net.IpPrefix(java.net.InetAddress.getByName(prefix.address()), prefix.prefix()))
                 }
             } else {
+                // On Android 8–12, libbox exposes route *ranges*. When an
+                // auto-route family is absent, add a full-tunnel route
+                // rather than establishing a TUN that captures no traffic.
                 val routes4 = options.inet4RouteRange
+                var ipv4RouteCount = 0
                 while (routes4.hasNext()) {
                     val route = routes4.next()
                     builder.addRoute(route.address(), route.prefix())
+                    ipv4RouteCount++
+                }
+                if (TunRoutePolicy.needsDefaultRoute(options.autoRoute, hasV4, ipv4RouteCount)) {
+                    builder.addRoute("0.0.0.0", 0)
                 }
                 val routes6 = options.inet6RouteRange
+                var ipv6RouteCount = 0
                 while (routes6.hasNext()) {
                     val route = routes6.next()
                     builder.addRoute(route.address(), route.prefix())
+                    ipv6RouteCount++
+                }
+                if (TunRoutePolicy.needsDefaultRoute(options.autoRoute, hasV6, ipv6RouteCount)) {
+                    builder.addRoute("::", 0)
                 }
             }
         }
@@ -161,8 +174,13 @@ internal class LibboxAndroidPlatform(
         } ?: candidates.firstOrNull()
         val name = network?.let { connectivity.getLinkProperties(it)?.interfaceName }
         val index = name?.let { JavaNetworkInterface.getByName(it)?.index } ?: -1
-        listener.updateDefaultInterface(name.orEmpty(), index,
-            network?.let { connectivity.isActiveNetworkMetered } ?: false, false)
+        // isActiveNetworkMetered reflects the Android default (possibly the
+        // VPN), not necessarily the physical interface libbox will dial on.
+        val metered = network?.let {
+            connectivity.getNetworkCapabilities(it)?.hasCapability(
+                NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true
+        } ?: false
+        listener.updateDefaultInterface(name.orEmpty(), index, metered, false)
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {

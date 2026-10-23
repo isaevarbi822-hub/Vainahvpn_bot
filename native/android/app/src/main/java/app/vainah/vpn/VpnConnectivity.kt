@@ -30,31 +30,36 @@ object VpnConnectivity {
             caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         }
-        val physical = candidates.firstOrNull { network ->
+        if (candidates.isEmpty()) error("No underlying Android network")
+        // A phone can have Wi-Fi and mobile data simultaneously. A DNS or
+        // TCP failure on one must not prevent trying the other. Prefer
+        // Android-validated physical networks, never a VPN as its upstream.
+        val physicalNetworks = candidates.sortedByDescending { network ->
             connectivity.getNetworkCapabilities(network)?.hasCapability(
                 NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
-        } ?: candidates.firstOrNull() ?: error("No underlying Android network")
-
-        val addresses = physical.getAllByName(node.host).sortedBy {
-            if (it is java.net.Inet4Address) 0 else 1
         }
-        require(addresses.isNotEmpty()) { "No upstream address" }
-        var lastFailure: Exception? = null
-        for (ip in addresses) {
-            try {
-                physical.socketFactory.createSocket().use { socket ->
-                    // The DNS and TCP test are bound to the real underlying network.
-                    require(service.protect(socket)) { "Cannot protect upstream socket" }
-                    val begin = SystemClock.elapsedRealtime()
-                    socket.connect(InetSocketAddress(ip, node.port), 3500)
-                    val latency = (SystemClock.elapsedRealtime() - begin).coerceIn(0, 60000).toInt()
-                    return UpstreamProbe(ip.hostAddress.substringBefore('%'), latency)
-                }
-            } catch (e: Exception) {
-                lastFailure = e
+        for (physical in physicalNetworks) {
+            // The lookup belongs to this specific physical network, not to
+            // Android's current default VPN network.
+            val addresses = runCatching { physical.getAllByName(node.host) }
+                .getOrNull()?.sortedBy { if (it is java.net.Inet4Address) 0 else 1 }
+                ?: continue
+            for (ip in addresses) {
+                val success = runCatching {
+                    physical.socketFactory.createSocket().use { socket ->
+                        require(service.protect(socket)) { "Cannot protect upstream socket" }
+                        val begin = SystemClock.elapsedRealtime()
+                        socket.connect(InetSocketAddress(ip, node.port), 3500)
+                        val latency = (SystemClock.elapsedRealtime() - begin)
+                            .coerceIn(0, 60000).toInt()
+                        UpstreamProbe(ip.hostAddress.substringBefore('%'), latency)
+                    }
+                }.getOrNull()
+                if (success != null) return success
             }
         }
-        throw IllegalStateException("H1Cloud node TCP port unreachable", lastFailure)
+        // No network, server address, UUID or credential in error diagnostics.
+        throw IllegalStateException("H1Cloud TCP endpoint unreachable on physical networks")
     }
 
     /**

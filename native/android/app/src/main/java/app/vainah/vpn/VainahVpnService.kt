@@ -152,7 +152,7 @@ class VainahVpnService : VpnService() {
         val latency = if (state.tcpLatencyMs >= 0)
             " · TCP ${state.tcpLatencyMs} мс" else ""
         val detail = when (state.phase) {
-            VpnConnectionState.ONLINE -> "Интернет через VPN проверен"
+            VpnConnectionState.ONLINE -> "HTTPS-проба прошла · IP/DNS не проверены"
             VpnConnectionState.TUN_READY -> "Туннель активен · интернет не подтверждён"
             else -> "Устанавливаем соединение"
         }
