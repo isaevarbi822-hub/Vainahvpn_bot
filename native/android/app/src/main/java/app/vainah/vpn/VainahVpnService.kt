@@ -99,7 +99,9 @@ class VainahVpnService : VpnService() {
                         // libbox dials a numeric IP so the REALITY endpoint cannot
                         // deadlock on bootstrap DNS after VPN routing starts.
                         val resolvedConfig = VlessRealityConfig.profile(rawNode, upstream.numericAddress)
-                        val result = EngineRegistry.active.connect(this, resolvedConfig)
+                        val result = EngineRegistry.connectOwned(this, resolvedConfig) {
+                            generation == connectionGeneration
+                        }
                         if (generation != connectionGeneration) return@Thread
                         result.exceptionOrNull()?.let { throw it }
                         VpnConnectionState.tunnelCreated(this)
@@ -194,7 +196,7 @@ class VainahVpnService : VpnService() {
             stopForeground(STOP_FOREGROUND_REMOVE)
         }
         Thread({
-            runCatching { EngineRegistry.active.disconnect() }
+            runCatching { EngineRegistry.disconnectOwned(this) }
                 .onFailure { failure("engine shutdown", it) }
         }, "vainah-vpn-shutdown").start()
         stopSelf()
@@ -214,7 +216,7 @@ class VainahVpnService : VpnService() {
         if (started) {
             started = false
             runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
-            Thread({ runCatching { EngineRegistry.active.disconnect() } },
+            Thread({ runCatching { EngineRegistry.disconnectOwned(this) } },
                 "vainah-vpn-destroy").start()
         }
         super.onDestroy()
