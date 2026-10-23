@@ -47,11 +47,11 @@
 
     <main id="content" tabindex="-1">
       <section class="view visible" id="view-home" aria-labelledby="home-title">
-        <div class="eyebrow">● VAINAH VPN · ТВОЙ СЕРВИС ПОДПИСКИ</div>
+        <div class="eyebrow">● МОЙ VPN · ПАНЕЛЬ УПРАВЛЕНИЯ 0.5</div>
         <div class="home-layout">
           <div class="hero">
-            <h1 id="home-title">Интернет под твоим <em>контролем.</em></h1>
-            <p>Удобный центр управления подпиской, устройствами и поддержкой. Всё знакомо по нашему сайту — теперь на компьютере.</p>
+            <h1 id="home-title">Подключайся. <em>Выбирай свободу.</em></h1>
+            <p>Единый интерфейс Vainah VPN 0.5. Подписка, локации, приватность и тарифы — как на Android. Настольная защита пока не подтверждена.</p>
             <div class="button-row">
               <button class="button primary" data-view="guide">Начать за 3 шага <span aria-hidden="true">→</span></button>
               <button class="button secondary" data-view="plans">Смотреть тарифы</button>
@@ -63,7 +63,7 @@
             </div>
           </div>
           <div class="connection-card" aria-labelledby="connection-heading">
-            <div class="card-top"><span>✦ VAINAH VPN</span><small>DESKTOP PREVIEW</small></div>
+            <div class="card-top"><span>✦ VAINAH VPN</span><small>WINDOWS / MAC · 0.5</small></div>
             <div class="shield-ring" aria-hidden="true"><svg viewBox="0 0 128 128" fill="none"><circle cx="64" cy="64" r="52" stroke="#c1aeff" stroke-opacity=".35" stroke-width="2"/><circle cx="64" cy="64" r="41" stroke="#a98bff" stroke-width="3"/><path d="M65 28v46" stroke="#d6c6ff" stroke-width="7" stroke-linecap="round"/><path d="M46 47a27 27 0 1 0 38 0" stroke="#d6c6ff" stroke-width="7" stroke-linecap="round"/></svg></div>
             <h2 id="connection-heading">Не подключено</h2>
             <p id="connection-status" aria-live="polite">VPN-движок H1Cloud/VLESS ещё не подключён. Трафик не защищён.</p>
@@ -71,7 +71,8 @@
             <small class="hint">Приложение честно показывает отсутствие соединения.</small>
           </div>
         </div>
-        <section class="subscription-card" aria-labelledby="server-list-title"><div class="subscription-heading"><span class="eyebrow">СЕРВЕРЫ И КОНФИГУРАЦИИ</span><h2 id="server-list-title">Серверы подписки</h2><p>Добавь HTTPS-подписку в разделе «Устройства». Затем выбери сервер здесь и нажми кнопку подключения выше.</p></div><div id="home-server-list" class="server-list" aria-live="polite"><p>Подписка ещё не добавлена.</p></div></section>
+        <section class="subscription-card" aria-labelledby="server-list-title"><div class="subscription-heading"><span class="eyebrow">СЕРВЕРЫ И КОНФИГУРАЦИИ</span><h2 id="server-list-title">Серверы подписки</h2><p>Добавь HTTPS-подписку в разделе «Устройства». Затем выбери сервер здесь и нажми кнопку подключения выше.</p></div><label class="search-label" for="home-server-search">Найти локацию</label><input id="home-server-search" class="server-search" type="search" autocomplete="off" placeholder="Страна или название сервера" aria-describedby="server-list-title"><div id="home-server-list" class="server-list" aria-live="polite"><p>Подписка ещё не добавлена.</p></div></section>
+        <div class="privacy-panel" aria-labelledby="privacy-title"><div class="eyebrow">ЦЕНТР ПРИВАТНОСТИ</div><h2 id="privacy-title">Проверки IP / DNS / IPv6</h2><p>Внешние сайты видят твой публичный IP. Эти тесты не гарантируют отсутствие утечек.</p><div class="privacy-actions"><button class="button secondary" data-link="diagnostics">Инструкция по проверке ↗</button><button class="button secondary" data-link="security">Безопасность ↗</button></div></div>
         <div class="section-heading"><div><span class="eyebrow">ВАШ VPN-ЦЕНТР</span><h2>Всё под рукой.</h2></div><button class="text-link" data-view="guide">Как это работает →</button></div>
         <div class="feature-grid">
           <article class="feature-card"><div class="feature-icon">▦</div><h3>Тарифы</h3><p>Шесть планов с ценами сайта, без скрытых списаний.</p><button class="text-link" data-view="plans">Выбрать тариф →</button></article>
@@ -95,7 +96,7 @@
       <section class="view" id="view-plans" aria-labelledby="plans-title" hidden>
         <div class="eyebrow">● ТАРИФЫ VAINAH</div>
         <h1 id="plans-title">Выбери свой <em>формат доступа.</em></h1>
-        <p class="lead">Выбери тариф и переходи на официальный сайт для покупки. Оплата внутри этого окна приложения пока не реализована.</p>
+        <p class="lead">Шесть тарифов по ценам Android. Покупки включаются только после подтверждения готовности сервером.</p><div id="desktop-checkout-status" class="warning" role="status" aria-live="polite">Проверяем сервер оформления…</div>
         <div class="filterbar"><strong>Сколько устройств нужно?</strong><div class="filter-buttons" role="group" aria-label="Фильтр по числу устройств">
           <button class="filter active" data-devices="0" aria-pressed="true">Все</button>
           <button class="filter" data-devices="3" aria-pressed="false">До 3</button>

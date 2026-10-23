@@ -10,6 +10,7 @@ const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
+const { readCheckoutStatus } = require('../shared/checkout-status.cjs');
 
 let mainWindow;
 const engineSession = new SingBoxSession();
@@ -124,6 +125,11 @@ app.whenReady().then(()=>{
     preview:true
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
+  ipcMain.handle('vainah:checkout-readiness',async event=>{
+    if(!authorizedSender(event))return {ready:false,catalogMatches:false};
+    // Read-only check. No invoice, no payment API, no secret merchant keys.
+    return readCheckoutStatus();
+  });
   ipcMain.handle('vainah:tunnel',event=>authorizedSender(event)?{
     ...PREVIEW_STATUS,
     state: engineSession.status.state,

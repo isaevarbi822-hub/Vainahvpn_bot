@@ -4,6 +4,7 @@ const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('vainah',{
   getInfo:()=>ipcRenderer.invoke('vainah:info'),
   getPlans:()=>ipcRenderer.invoke('vainah:plans'),
+  getCheckoutReadiness:()=>ipcRenderer.invoke('vainah:checkout-readiness'),
   getTunnelStatus:()=>ipcRenderer.invoke('vainah:tunnel'),
   startEngine:()=>ipcRenderer.invoke('vainah:start-engine'),
   stopEngine:()=>ipcRenderer.invoke('vainah:stop-engine'),

@@ -7,6 +7,7 @@
   const pageNames={home:'Главная',guide:'С чего начать',plans:'Тарифы',account:'Мой кабинет',devices:'Устройства',help:'Поддержка'};
   let plans=[];
   let deviceFilter=0;
+  let visibleServers=[];
 
   function showPage(name) {
     if(!Object.hasOwn(pageNames,name)) return;
@@ -38,7 +39,9 @@
     tile.append(element('span','plan-badge',family?'СЕМЕЙНЫЙ':'ПОДПИСКА НА '+plan.days+' ДНЕЙ'));
     tile.append(element('h2','',plan.title));
     tile.append(element('div','plan-price',new Intl.NumberFormat('ru-RU').format(plan.priceRub)+' ₽'));
-    tile.append(element('p','',plan.days+' дней · '+plan.deviceLimit+' устройств · Безлимитный трафик'));
+    const months=plan.days===365?12:Math.max(1,Math.round(plan.days/30));
+    tile.append(element('p','', '≈ '+Math.floor(plan.priceRub/months)+' ₽/мес · '+plan.days+' дней · '+plan.deviceLimit+' устройств · Безлимит'));
+    tile.append(element('p','', '✓ VLESS REALITY · ✓ Обновление серверов'));
     const button=element('button','button primary','Подробнее на сайте ↗');
     button.addEventListener('click',()=>openOfficial('plans'));
     tile.append(button);
@@ -108,9 +111,13 @@
     const list=document.getElementById('home-server-list');
     const result=await window.vainah?.getSubscriptionServers?.();
     if(!list||!result?.ok)return;
+    visibleServers=result.servers;
     list.replaceChildren();
     if(!result.servers.length){list.append(element('p','', 'Подписка ещё не добавлена.'));return;}
-    for(const server of result.servers){
+    const query=document.getElementById('home-server-search')?.value.trim().toLocaleLowerCase('ru-RU')||'';
+    const matches=result.servers.filter(server=>server.label.toLocaleLowerCase('ru-RU').includes(query));
+    if(!matches.length){list.append(element('p','', 'По запросу локаций не найдено.'));return;}
+    for(const server of matches){
       const button=element('button','button secondary server-choice'+(server.selected?' active':''),server.label);
       button.type='button';
       button.setAttribute('aria-pressed',String(server.selected));
@@ -122,6 +129,17 @@
       list.append(button);
     }
   }
+  document.getElementById('home-server-search')?.addEventListener('input',()=>{
+    const list=document.getElementById('home-server-list');
+    const query=document.getElementById('home-server-search').value.trim().toLocaleLowerCase('ru-RU');
+    // Preserve the active selected server and never re-import secrets just
+    // because the user typed a search query.
+    for(const button of list.querySelectorAll('button.server-choice')){
+      button.hidden = !button.textContent.toLocaleLowerCase('ru-RU').includes(query);
+    }
+    const resultCount=[...list.querySelectorAll('button.server-choice')].filter(b=>!b.hidden).length;
+    if(!resultCount && visibleServers.length) void refreshServers();
+  });
   // Reflect unexpected native engine exits without claiming verified VPN protection.
   async function refreshEngineStatus(){
     if(connectButton.disabled||!window.vainah?.getTunnelStatus)return;
@@ -213,6 +231,15 @@
       plans=catalog.filter(p=>p&&typeof p.title==='string'&&Number.isInteger(p.priceRub)&&
         Number.isInteger(p.days)&&[3,6].includes(p.deviceLimit));
       renderPlans();
+    }
+    const billing=document.getElementById('desktop-checkout-status');
+    if(billing){
+      const reply=await window.vainah.getCheckoutReadiness().catch(()=>null);
+      billing.textContent=!reply?.catalogMatches
+        ?'Сервер оплаты недоступен или тарифы не совпадают. Покупки заблокированы.'
+        :reply.ready
+          ?'Сервер сообщил о готовности оплаты. Заказы оформляются только в проверенном кабинете, не в этом приложении.'
+          :'Оплата на сервере пока отключена: ничего не списывается.';
     }
     void refreshServers();
     if(status){
