@@ -39,6 +39,8 @@ android {
 }
 
 dependencies {
+    // Keep a checkout on screen within our app without collecting card details.
+    implementation("androidx.browser:browser:1.8.0")
     // Experimental binary dependency. NOT enabled in public APK previews.
     // Review binary provenance/license and Android VpnService PlatformInterface
     // before enabling runtime connections.
