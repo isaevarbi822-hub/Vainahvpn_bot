@@ -14,7 +14,8 @@ test('only matching provider payment can confirm production subscription',()=>{
  for(const bad of [
    {...payment,amount:'1.00'}, {...payment,order_id:'different'},
    {...payment,payment_id:'pay_different'}, {...payment,payment_currency:'USD'},
-   {...payment,test:true}, {...payment,environment:'sandbox'},
+   {...payment,test:true}, {...payment,test:'true'},
+   {...payment,environment:'sandbox'}, {...payment,environment:'unknown'},
    {...payment,status:'unknown'}
  ])assert.throws(()=>validateProductionPayment(order,bad),/VERIFICATION_MISMATCH/);
  assert.throws(()=>validateProductionPayment({...order,is_test:true},payment),/VERIFICATION_MISMATCH/);
