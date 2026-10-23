@@ -50,7 +50,7 @@ jobs:
           ls "${ANDROID_HOME}/platforms"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11.1"
       - name: Build and test Android
         run: gradle -p native/android :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
       - name: Validate generated VPN config with pinned sing-box v1.14.0
@@ -94,7 +94,7 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11.1"
       - name: Resolve libbox Android binary and compile experimental APK
         run: >
           gradle -p native/android
@@ -153,7 +153,7 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.11.1"
       - name: Compile Clerk auth UI with synthetic public test key
         run: >
           gradle -p native/android
