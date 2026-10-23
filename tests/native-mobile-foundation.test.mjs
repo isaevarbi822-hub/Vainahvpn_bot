@@ -159,6 +159,10 @@ test('Experimental Android libbox boots with setup, typed callbacks and retained
   assert.match(api,/Libbox\.setup\(SetupOptions\(\)/);
   assert.match(api,/context\.filesDir/);
   assert.match(engine,/LibboxNativeApi\.setup\(service\)/);
+  // Native serviceStop must inform its original Android service, not close
+  // the process-wide core outside OwnedTunnelGate.
+  assert.match(engine,/owner\.onNativeEngineStopped\(ownerGeneration\)/);
+  assert.doesNotMatch(engine,/Thread\(\{ disconnect\(\) \}/);
   assert.match(platform,/PlatformInterface/);
   assert.match(platform,/override fun localDNSTransport\(\): LocalDNSTransport\? = null/);
   assert.match(platform,/override fun autoDetectInterfaceControl\(fd: Int\)/);

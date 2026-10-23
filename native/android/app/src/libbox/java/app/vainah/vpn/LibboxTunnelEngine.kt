@@ -29,9 +29,18 @@ class LibboxTunnelEngine : TunnelEngine {
             LibboxNativeApi.setup(service)
 
             stage(service, "creating_command_handler")
+            // libbox's callback belongs to the session that created it.
+            // Never call disconnect() directly here: that bypasses the
+            // process-wide OwnedTunnelGate and leaves UI state stale.
+            val owner = service as? VainahVpnService
+            val ownerGeneration = owner?.nativeSessionGeneration()
             val handler = object : CommandServerHandler {
                 override fun serviceStop() {
-                    Thread({ disconnect() }, "vainah-libbox-shutdown").start()
+                    if (owner != null && ownerGeneration != null) {
+                        Thread({
+                            owner.onNativeEngineStopped(ownerGeneration)
+                        }, "vainah-libbox-native-stop").start()
+                    }
                 }
                 override fun serviceReload() = Unit
                 override fun getSystemProxyStatus() = SystemProxyStatus().apply {

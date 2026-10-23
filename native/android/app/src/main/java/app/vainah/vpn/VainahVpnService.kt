@@ -36,6 +36,24 @@ class VainahVpnService : VpnService() {
     private fun isCurrentAttempt(generation: Int): Boolean =
         generation == connectionGeneration && foregroundLease.isCurrent(this)
 
+    /**
+     * libbox calls serviceStop when the native command server stops.
+     * Capture the generation BEFORE entering the native engine: a delayed
+     * callback from an old session must not stop a replacement session.
+     */
+    internal fun nativeSessionGeneration(): Int = connectionGeneration
+
+    internal fun onNativeEngineStopped(expectedGeneration: Int) {
+        if (!NativeStopFence.shouldHandle(
+                expectedGeneration, connectionGeneration, started,
+                foregroundLease.isCurrent(this)
+            )) return
+        failure("native_engine_stopped", IllegalStateException("Native service stopped"))
+        VpnConnectionState.failed(this,
+            "VPN-движок неожиданно остановился. Соединение не защищено.")
+        disconnect(userRequested = false)
+    }
+
     // Synchronous checkpoints survive an abrupt native-process crash.
     private fun checkpoint(stage: String) {
         val editor = getSharedPreferences("vpn_diagnostics", MODE_PRIVATE).edit()
