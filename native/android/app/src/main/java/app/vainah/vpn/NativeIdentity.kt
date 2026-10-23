@@ -24,7 +24,7 @@ class NativeIdentity(context:Context) {
 
     companion object {
         private const val ORIGIN="https://vainahvpnbot0.netlify.app"
-        private fun exchange(endpoint:String,body:JSONObject,clerkJwt:String):JSONObject {
+        private fun exchange(endpoint:String,body:JSONObject?,clerkJwt:String):JSONObject {
             if(!Regex("^[A-Za-z0-9._-]{40,8192}$").matches(clerkJwt))
                 throw IllegalArgumentException("Invalid session")
             val conn=URL(ORIGIN+"/.netlify/functions/"+endpoint)
@@ -32,11 +32,14 @@ class NativeIdentity(context:Context) {
             try{
                 conn.connectTimeout=7000;conn.readTimeout=12000
                 conn.instanceFollowRedirects=false;conn.useCaches=false
-                conn.requestMethod="POST";conn.doOutput=true
+                conn.requestMethod=if(body==null)"GET" else "POST"
+                conn.doOutput=body!=null
                 conn.setRequestProperty("Accept","application/json")
                 conn.setRequestProperty("Authorization","Bearer "+clerkJwt)
-                conn.setRequestProperty("Content-Type","application/json")
-                conn.outputStream.use{it.write(body.toString().toByteArray(Charsets.UTF_8))}
+                if(body!=null){
+                    conn.setRequestProperty("Content-Type","application/json")
+                    conn.outputStream.use{it.write(body.toString().toByteArray(Charsets.UTF_8))}
+                }
                 if(conn.responseCode !in 200..299)
                     throw IllegalStateException("Сервер отклонил запрос (HTTP "+conn.responseCode+").")
                 if(conn.contentLengthLong>20_000)
@@ -63,6 +66,15 @@ class NativeIdentity(context:Context) {
                 !Regex("^/pay/[A-Za-z0-9][A-Za-z0-9_-]{5,255}/?$").matches(target.path))
                 throw IllegalStateException("Unsafe payment address")
             return Invoice(data.getString("orderId"),url)
+        }
+        fun latestOrder(jwt:String):String? {
+            val data=exchange("mobile-orders",null,jwt)
+            val list=data.optJSONArray("orders")?:return null
+            if(list.length()==0)return null
+            val orderId=list.getJSONObject(0).optString("orderId")
+            if(!Regex("^[a-f0-9-]{36}$",RegexOption.IGNORE_CASE).matches(orderId))
+                throw IllegalStateException("Invalid server order identifier")
+            return orderId
         }
         fun readOrder(jwt:String,id:String):Order {
             if(!Regex("^[a-f0-9-]{36}$",RegexOption.IGNORE_CASE).matches(id))

@@ -35,3 +35,47 @@ The site already defines six server-owned RUB plans, a session-bound invoice end
 Reference official current store policies before publishing:
 - https://support.google.com/googleplay/android-developer/answer/9858738
 - https://developer.apple.com/app-store/review/guidelines/
+
+
+## Clerk + RollyPay native payment integration (October 23, 2026)
+
+The **prepared** Android standalone flow is now:
+
+1. Clerk SDK signs in the customer. The native client requests a fresh session JWT.
+2. Server `mobile-checkout` authenticates the JWT with Clerk Backend SDK, resolves
+   the same Clerk user, and requires a **Clerk-verified primary email**.
+3. Only server-owned fixed plan IDs/prices can create RollyPay invoices. The
+   provider's HTTPS hosted payment page opens in an Android Custom Tab, not
+   on the Vainah website. A bank app may be launched to approve an SBP transfer.
+4. A signed webhook is cross-checked with the RollyPay API and database order
+   identity, amount, currency and environment. Browser return is **not**
+   confirmation of payment.
+5. The paid expiry is first **committed durably in PostgreSQL** before H1Cloud
+   create/PATCH. Retries use the same target expiry; a timeout or a database
+   failure cannot independently grant extra days.
+6. On delivery, the verified primary Clerk email captured **when the order
+   was created** is used for the Resend notification. A new email on a future
+   purchase does not silently change previous recipients.
+7. `mobile-orders` lets a logged-in Clerk account recover its history and
+   most recent purchase after app reinstall; `mobile-order` returns the
+   subscription HTTPS URL only to the verified owner of a paid and
+   successfully delivered order. Android stores it in the existing vault.
+
+To prepare the schema, apply the new
+`database/migrations/005-native-order-email-snapshot.sql` **after**
+002, 003 and 004. Verify backup, schema permissions, and production
+test cases before enabling any live payments. Secrets stay in the
+Netlify environment; do **not** put them into GitHub or mobile builds.
+
+Do not activate
+`VAINAH_LIVE_CHECKOUT`,
+`VAINAH_PAYMENT_INTEGRATION_VERIFIED`, or
+`VAINAH_NATIVE_CHECKOUT` just to remove a disabled message. The
+Clerk live instance, provider credentials, actual H1 provisioning,
+webhook retries, Resend delivery, merchant contractual eligibility
+and app-distribution rules must all be verified by an eligible
+account holder first.
+
+iOS third-party checkout remains unavailable unless the specific
+App Store storefront and distribution mode allow it. Existing
+VPN tunnel code remains unchanged.

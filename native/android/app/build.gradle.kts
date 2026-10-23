@@ -12,6 +12,7 @@ val clerkPublishableKey = providers.gradleProperty("vainahClerkPublishableKey").
 if (clerkEnabled) {
     apply(plugin = "org.jetbrains.kotlin.plugin.compose")
 }
+val isolatedPreview = providers.gradleProperty("vainahIsolatedPreview").orNull == "true"
 val standaloneCheckout = providers.gradleProperty("vainahStandaloneCheckout")
     .orNull == "true"
 
@@ -23,8 +24,8 @@ android {
         applicationId = "app.vainah.vpn"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.5.1"
+        versionCode = 18
+        versionName = "0.5.2"
         buildConfigField("boolean", "VAINAH_CLERK_ENABLED", if (clerkEnabled) "true" else "false")
         buildConfigField("String", "VAINAH_CLERK_PUBLISHABLE_KEY",
             "\""+clerkPublishableKey.replace("\\","").replace("\"","")+"\"")
@@ -35,19 +36,39 @@ android {
         compose = clerkEnabled
         buildConfig = true
     }
+    // Clerk's HTTP stack and jspecify both package the same Java 9 OSGi
+    // metadata. It is not used by Android and must appear only once in APK.
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
     buildTypes {
         getByName("release") { isMinifyEnabled = false }
+        getByName("debug") {
+            // A test UI APK must never replace the user's working VPN.
+            if (isolatedPreview) {
+                applicationIdSuffix = ".preview"
+                versionNameSuffix = "-preview"
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     if (providers.gradleProperty("vainahEnableLibbox").orNull == "true") {
         sourceSets.getByName("main").java.srcDir("src/libbox/java")
     }
     if (clerkEnabled) {
         sourceSets.getByName("main").java.srcDir("src/clerk/java")
+    }
+}
+
+// Kotlin 2.4 requires the typed compilerOptions DSL instead of kotlinOptions.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

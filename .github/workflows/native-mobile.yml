@@ -158,9 +158,20 @@ jobs:
         run: >
           gradle -p native/android
           -PvainahEnableClerk=true
-          -PvainahClerkPublishableKey=pk_test_synthetic_ci_only_not_a_real_instance
+          -PvainahIsolatedPreview=true
+          -PvainahClerkPublishableKey="${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY || 'pk_test_synthetic_ci_only_not_a_real_instance' }}"
           :app:assembleDebug
           --no-daemon --stacktrace
+      # A publishable Clerk key is public and may be supplied in GitHub Actions
+      # repository variables. Without it, this APK displays the new UI but
+      # CANNOT authenticate to a real Clerk instance. Never use secret keys here.
+      - name: Upload Clerk login UI preview APK (payment disabled)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vainahvpn-android-0.5.2-clerk-auth-preview
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
 
   ios:
     name: iOS Simulator unsigned compile
