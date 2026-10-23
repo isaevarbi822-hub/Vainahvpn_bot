@@ -20,6 +20,15 @@ class VlessRealityConfigTest {
         assertEquals("tun", inbound.getString("type"))
         assertTrue(inbound.getBoolean("auto_route"))
         assertEquals("hijack", inbound.getString("dns_mode"))
+        val dnsAddresses = inbound.getJSONArray("dns_address")
+        assertEquals(2, dnsAddresses.length())
+        assertEquals("172.19.0.2", dnsAddresses.getString(0))
+        assertEquals("fd00:19::2", dnsAddresses.getString(1))
+        assertEquals(TunDnsFallback.nextAddress("172.19.0.1", 30),
+            dnsAddresses.getString(0))
+        assertArrayEquals(
+            java.net.InetAddress.getByName(TunDnsFallback.nextAddress("fd00:19::1", 126)).address,
+            java.net.InetAddress.getByName(dnsAddresses.getString(1)).address)
         val addresses = inbound.getJSONArray("address")
         assertTrue((0 until addresses.length()).any { addresses.getString(it).contains(".") })
         assertTrue((0 until addresses.length()).any { addresses.getString(it).contains(":") })
