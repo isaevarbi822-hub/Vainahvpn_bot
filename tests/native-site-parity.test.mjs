@@ -74,7 +74,7 @@ test('account screen does not invent remote entitlements, payments or a working 
   assert.match(androidApp,/BuildConfig\.VAINAH_DIRECT_CHECKOUT_ENABLED/);
   assert.match(androidApp,/NativeCheckout\.fetchAvailability/);
   const checkout=read('native/android/app/src/main/java/app/vainah/vpn/NativeCheckout.kt');
-  assert.match(checkout,/checkoutReady/);
+  assert.match(checkout,/nativeCheckoutReady/);
   assert.match(checkout,/plan\.priceRub/);
   assert.match(checkout,/if \(VainahPlans\.all\.none/);
   assert.doesNotMatch(checkout,/createInvoice|paymentId|PANEL_API_TOKEN|ROLLYPAY_API_KEY/);
