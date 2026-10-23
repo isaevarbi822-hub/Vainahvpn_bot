@@ -13,6 +13,7 @@ object TunDnsFallback {
     fun nextAddress(rawAddress: String, prefixLength: Int): String? = runCatching {
         // Only numeric addresses are accepted; never resolve a hostname over
         // an underlying network while configuring the tunnel.
+        require(rawAddress.contains('.') || rawAddress.contains(':'))
         require(rawAddress.matches(Regex("[0-9A-Fa-f:.]+")))
         val input = InetAddress.getByName(rawAddress).address
         require(prefixLength in 0..input.size * 8)
