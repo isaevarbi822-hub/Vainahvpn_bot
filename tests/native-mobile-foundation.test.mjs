@@ -132,7 +132,8 @@ test('Both mobile clients select real subscription rows without claiming protect
  assert.match(iosApp,/SubscriptionServers\.loadProfiles/);
  assert.match(iosApp,/selectedServerId/);
  assert.match(android,/names\.forEachIndexed/);
- assert.match(iosApp,/ForEach\(serverNames\.indices/);
+ assert.match(iosApp,/ForEach\(Array\(serverProfiles\.enumerated\(\)\)/);
+ assert.match(iosApp,/serverSearch/);
 });
 
 test('Mobile subscriptions validate REALITY nodes and refuse iOS redirects',()=>{
