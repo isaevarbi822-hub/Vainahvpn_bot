@@ -40,6 +40,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                                       code: 1002))
             return
         }
+        // The only allowed input source is the shared secure Keychain.
+        // A missing or changed subscription never becomes a system tunnel.
+        guard let uri = SharedTunnelProfile.load(),
+              VlessRealityConfig.parse(uri) != nil else {
+            completionHandler(NSError(domain: "app.vainah.vpn.PacketTunnel",
+                                      code: 1003))
+            return
+        }
         engine.start(provider: self) { [weak self] error in
             // Never complete with nil just because NE has allocated a profile.
             // Only a genuine packet-forwarding engine may signal success.

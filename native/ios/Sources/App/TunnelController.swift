@@ -66,9 +66,12 @@ final class TunnelController: ObservableObject {
     // credential; never put it in logs, error messages or NE configuration.
     @Published private(set) var profilePrepared = false
     private var currentProfileId: String?
+    private var currentProfileURI: String?
 
     func resetProfile() {
         currentProfileId = nil
+        currentProfileURI = nil
+        SharedTunnelProfile.clear()
         profilePrepared = false
         state = .disconnected
         explanation = "Выбери сервер новой подписки перед подключением."
@@ -76,8 +79,12 @@ final class TunnelController: ObservableObject {
 
     func prepare(_ server: SubscriptionServer) {
         currentProfileId = nil
+        currentProfileURI = nil
         profilePrepared = VlessRealityConfig.validate(server.uri)
-        if profilePrepared { currentProfileId = server.id }
+        if profilePrepared {
+            currentProfileId = server.id
+            currentProfileURI = server.uri
+        }
         if !profilePrepared {
             state = .unavailable
             explanation = "Выбранный сервер не поддерживается. Нужен VLESS REALITY TCP."
@@ -93,7 +100,8 @@ final class TunnelController: ObservableObject {
             explanation = "Сначала сохрани HTTPS-ссылку подписки."
             return
         }
-        guard profilePrepared, currentProfileId != nil else {
+        guard profilePrepared, currentProfileId != nil,
+              let profileURI = currentProfileURI else {
             state = .unavailable
             explanation = "Сначала выбери и проверь VLESS REALITY TCP сервер."
             return
@@ -101,6 +109,14 @@ final class TunnelController: ObservableObject {
         guard VLESSCore.available else {
             state = .unavailable
             explanation = "Для H1Cloud нужен VLESS-движок. Эта версия не создаёт ложное подключение."
+            return
+        }
+        // This protected Keychain entry is accessible to the extension only
+        // when both app targets have the same signing entitlement. Refuse to
+        // proceed if provisioning does not permit secure sharing.
+        guard SharedTunnelProfile.save(profileURI) else {
+            state = .error
+            explanation = "Не удалось защитить VPN-профиль в общем Keychain."
             return
         }
         state = .preparing
@@ -126,6 +142,7 @@ final class TunnelController: ObservableObject {
             // Do not publish CONNECTED before NetworkExtension reports it.
             updateStatus(manager.connection.status)
         } catch {
+            SharedTunnelProfile.clear()
             state = .error
             explanation = "Не удалось создать системное подключение. Проверь разрешения NetworkExtension."
         }
@@ -140,6 +157,7 @@ final class TunnelController: ObservableObject {
             manager.connection.stopVPNTunnel()
         }
         managedConnection = nil
+        SharedTunnelProfile.clear()
         state = .disconnected
         explanation = "Подключение остановлено."
     }

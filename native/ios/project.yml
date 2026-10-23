@@ -34,6 +34,8 @@ targets:
           - packet-tunnel-provider
         com.apple.security.application-groups:
           - group.app.vainah.vpn
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.tunnel"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn
@@ -48,6 +50,7 @@ targets:
     platform: iOS
     sources:
       - Sources/TunnelExtension
+      - Sources/Shared
     info:
       path: Generated/PacketTunnelInfo.plist
       properties:
@@ -62,6 +65,8 @@ targets:
           - packet-tunnel-provider
         com.apple.security.application-groups:
           - group.app.vainah.vpn
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)app.vainah.vpn.tunnel"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vainah.vpn.PacketTunnel

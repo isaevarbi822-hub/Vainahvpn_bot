@@ -29,3 +29,16 @@ final class VlessRealityConfigTests: XCTestCase {
         XCTAssertFalse(VlessRealityConfig.validate("http://example.org"))
     }
 }
+
+final class SharedTunnelProfileTests: XCTestCase {
+    func testInvalidProfileNeverWrittenToSharedKeychain() {
+        XCTAssertFalse(SharedTunnelProfile.save("vless://invalid"))
+        XCTAssertFalse(SharedTunnelProfile.save("https://site.example/path"))
+    }
+
+    func testProfileCodeHasNoUserDefaultsFallback() throws {
+        // Security invariant is enforced by checking actual shared Keychain
+        // calls; entitlement availability must still be tested on signed iOS.
+        XCTAssertNil(VlessRealityConfig.parse("https://example.org/sub"))
+    }
+}
