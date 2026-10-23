@@ -35,5 +35,6 @@ dialog{max-width:500px;width:calc(100% - 36px);background:linear-gradient(135deg
 .advanced-import summary{cursor:pointer;font-weight:700;color:#e6ddff}
 .advanced-import p{line-height:1.6}
 @media(max-width:1040px){.subscription-card{grid-template-columns:1fr;gap:14px}}
+.server-choice[hidden],.server-search-empty[hidden]{display:none!important}
 
 .privacy-panel{border:1px solid #594874;background:linear-gradient(140deg,#232039,#111b31);border-radius:20px;padding:24px;margin:16px 0 23px}.privacy-panel h2{font-size:23px;margin:9px 0}.privacy-panel p{color:#c8c6dc;font-size:13px;line-height:1.6}.privacy-actions{display:flex;flex-wrap:wrap;gap:10px}.search-label{display:block;color:#d6cbf6;font-size:12px;font-weight:700;margin:14px 0 8px}.server-search{width:100%;max-width:530px;border:1px solid #655789;border-radius:13px;color:#f5f6ff;background:#121626;font:inherit;padding:12px 14px;margin-bottom:13px}.server-search:focus-visible{outline:2px solid #c8b1ff;outline-offset:2px}.server-list{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0}.server-list .server-choice{flex:1 1 200px;max-width:100%;overflow-wrap:anywhere;min-height:44px}.server-list .server-choice.active{border-color:#a98bff;background:#38294f;color:#fff}.server-list p{margin:0;color:#c8c6dc;font-size:13px}

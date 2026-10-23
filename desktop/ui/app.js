@@ -138,7 +138,13 @@
       button.hidden = !button.textContent.toLocaleLowerCase('ru-RU').includes(query);
     }
     const resultCount=[...list.querySelectorAll('button.server-choice')].filter(b=>!b.hidden).length;
-    if(!resultCount && visibleServers.length) void refreshServers();
+    let hint=document.getElementById('server-search-empty');
+    if(!hint){
+      hint=element('p','server-search-empty','Нет локаций по запросу');
+      hint.id='server-search-empty';
+      list.append(hint);
+    }
+    hint.hidden=resultCount!==0 || !visibleServers.length;
   });
   // Reflect unexpected native engine exits without claiming verified VPN protection.
   async function refreshEngineStatus(){
