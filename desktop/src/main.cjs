@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
 const { vlessUriToXray } = require('../shared/vless-link.cjs');
 const { fetchSubscription } = require('../shared/https-subscription.cjs');
+const { reconcileSubscriptionSelection } = require('../shared/subscription-reconcile.cjs');
 const { subscriptionErrorMessage } = require('../shared/subscription-error.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
@@ -84,11 +85,11 @@ async function refreshSubscribedServers() {
     const latest=await fetchSubscription(url);
     if(subscriptionGeneration!==generation || subscriptionUrl!==url ||
        engineSession.status.state!=='stopped')return;
-    const previous=chosenDirectProfile&&JSON.stringify(chosenDirectProfile);
+    const previous=chosenDirectProfile;
     subscriptionProfiles=latest.profiles;
-    chosenDirectProfile=previous
-      ?latest.profiles.find(p=>JSON.stringify(p)===previous)||null
-      :null;
+    // If a client UUID or REALITY key rotates for the same server, retain
+    // the user's selected location. Never silently switch countries.
+    chosenDirectProfile=reconcileSubscriptionSelection(previous,latest.profiles);
     chosenFile=null;
   }catch{
     // Preserve last-known-good servers on provider or network failures.
