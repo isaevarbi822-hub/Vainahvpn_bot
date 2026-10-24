@@ -104,21 +104,6 @@ class MainActivity : Activity() {
         }
     }
 
-    @Deprecated("Android Activity result callback is used for the separate Clerk Activity")
-    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
-        super.onActivityResult(requestCode,resultCode,data)
-        if(requestCode==requestClerkLogin && !isFinishing && !isDestroyed) {
-            // Clerk may publish sessionFlow immediately after AuthView finishes.
-            // Rebuild first, then re-evaluate once if the session raced lifecycle.
-            if(tab==Tab.ACCOUNT){
-                renderPage()
-                refresher.postDelayed({
-                    if(!isFinishing && !isDestroyed && tab==Tab.ACCOUNT)renderPage()
-                },350)
-            }
-        }
-    }
-
     override fun onPause() {
         refresher.removeCallbacks(refreshTask)
         super.onPause()
@@ -1098,12 +1083,24 @@ class MainActivity : Activity() {
         val consent=VpnService.prepare(this)
         if(consent!=null)startActivityForResult(consent,requestVpn)else startTunnel()
     }
-    @Deprecated("Compatibility VPN permission callback")
+    @Deprecated("Compatibility VPN permission and Clerk auth result callback")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
         super.onActivityResult(requestCode,resultCode,data)
-        if(requestCode==requestVpn){
-            if(resultCode==RESULT_OK)startTunnel()
-            else notice("Разрешение Android на VPN не предоставлено.")
+        when(requestCode) {
+            requestVpn -> {
+                if(resultCode==RESULT_OK)startTunnel()
+                else notice("Разрешение Android на VPN не предоставлено.")
+            }
+            requestClerkLogin -> {
+                if(!isFinishing && !isDestroyed && tab==Tab.ACCOUNT){
+                    // Refresh account even on cancel or when Clerk sessionFlow
+                    // updates just after AuthView closes. VPN callbacks remain intact.
+                    renderPage()
+                    refresher.postDelayed({
+                        if(!isFinishing && !isDestroyed && tab==Tab.ACCOUNT)renderPage()
+                    },350)
+                }
+            }
         }
     }
     private fun startTunnel(){
