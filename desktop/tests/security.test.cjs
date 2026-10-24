@@ -8,11 +8,11 @@ const load=file=>fs.readFileSync(path.join(root,file),'utf8');
 const {safePage,pages}=require('../shared/official.cjs');
 const {plans}=require('../shared/catalog.cjs');
 
-test('All outbound pages are explicitly whitelisted to the original public site',()=>{
+test('All outbound pages are explicitly whitelisted to the authenticated Render preview',()=>{
   assert.ok(Object.keys(pages).length>=8);
   for(const [name,url] of Object.entries(pages)){
     assert.equal(safePage(name),url);
-    assert.ok(url.startsWith('https://vainahvpnbot0.netlify.app/'));
+    assert.ok(url.startsWith('https://vainahvpn-python-preview.onrender.com/'));
   }
   for(const input of ['https://attacker.example','javascript:alert(1)','file:///etc/passwd','../about',{},null,'__proto__','constructor'])
     assert.equal(safePage(input),null);
