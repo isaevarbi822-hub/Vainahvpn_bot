@@ -19,10 +19,11 @@ test('Telegram Login kept and private account is hidden until server login',()=>
  assert.match(html,/id="account-private"[^>]*hidden/);
  assert.match(html,/id="account-auth-panel"/);
  assert.match(css,/\.account-shell \[hidden\]\{display:none!important\}/);
- assert.match(telegram,/telegram\.org\/js\/telegram-widget/);
- assert.match(telegram,/data-telegram-login','VainahVPNbot'/);
+ assert.match(telegram,/\/auth\/telegram\/start/);
+ assert.doesNotMatch(telegram,/telegram\.org\/js\/telegram-widget/);
  assert.match(client,/telegram-account/);
- assert.doesNotMatch(client,/send-my-vpn/);
+ assert.match(client,/send-my-vpn/);
+ assert.match(client,/my-vpn-access/);
 });
 test('site fetches real purchases, owner-bound VPN link and separately checks H1 status',()=>{
  assert.match(client,/website-account-overview/);
