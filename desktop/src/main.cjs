@@ -55,7 +55,13 @@ function openWebsiteInsideApp(url) {
     action:trustedSiteNavigation(target)?'allow':'deny'
   }));
   win.webContents.on('will-navigate',(event,target)=>{
-    if(!trustedSiteNavigation(target))event.preventDefault();
+    if(!trustedSiteNavigation(target)){event.preventDefault();return;}
+    // Telegram OIDC authorisation leaves our origin. Do not try to complete it
+    // inside an embedded Chromium window with the redirect blocked.
+    if(new URL(target).pathname==='/account.html'){
+      event.preventDefault();
+      void shell.openExternal(safePage('account')).catch(()=>{});
+    }
   });
   win.webContents.on('will-redirect',(event,target)=>{
     if(!trustedSiteNavigation(target))event.preventDefault();
@@ -355,9 +361,16 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:open-official',async(event,name)=>{
     if(!authorizedSender(event))return {ok:false};
     const url=safePage(name);
-    if(!url)return {ok:false};
-    try{return {ok:openWebsiteInsideApp(url)};}
-    catch{return {ok:false}}
+    if(!url || !trustedSiteNavigation(url))return {ok:false};
+    try{
+      // Only the pre-approved account URL may open externally, via a direct
+      // user click. System browser handles Telegram OpenID Connect correctly.
+      if(name==='account'){
+        await shell.openExternal(url);
+        return {ok:true};
+      }
+      return {ok:openWebsiteInsideApp(url)};
+    }catch{return {ok:false}}
   });
   const subscriptionTimer=setInterval(()=>{void refreshSubscribedServers()},5*60*1000);
   subscriptionTimer.unref?.();
