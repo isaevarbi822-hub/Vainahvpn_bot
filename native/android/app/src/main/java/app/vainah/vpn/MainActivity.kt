@@ -892,6 +892,42 @@ class MainActivity : Activity() {
                     }.show()
     }
 
+    /** Safe diagnostic strings only: never show URLs, JWTs or provider response. */
+    private fun sandboxFailureText(error:Throwable):String {
+        val explanation=when(error.message){
+            "SANDBOX_DISABLED_ON_SERVER" ->
+                "SB-503A: тестовый режим выключен на Netlify. Проверь " +
+                "VAINAH_ROLLYPAY_SANDBOX, разрешённый Clerk User ID, " +
+                "ключи RollyPay и Production Deploy."
+            "SANDBOX_PROVIDER_NOT_READY" ->
+                "SB-503B: сервер запущен, но RollyPay не подтвердил " +
+                "тестовый счёт. Проверь Netlify Functions → " +
+                "clerk-payment-sandbox и настройки RollyPay."
+            "SANDBOX_SESSION_REJECTED" ->
+                "SB-401: сервер не принял токен Clerk. Открой " +
+                "Netlify Functions → mobile-account и найди " +
+                "Clerk mobile authentication."
+            "SANDBOX_ACCOUNT_NOT_ALLOWED" ->
+                "SB-403: этот Clerk-аккаунт не разрешён для sandbox. " +
+                "Проверь VAINAH_SANDBOX_TESTER_CLERK_USER_ID " +
+                "или настройки доверенных источников Clerk."
+            "SANDBOX_ENDPOINT_NOT_DEPLOYED" ->
+                "SB-404: функция clerk-payment-sandbox ещё не опубликована " +
+                "на vainahvpnbot0."
+            "SANDBOX_RATE_LIMITED" ->
+                "SB-429: слишком много запросов. Повтори тест позже."
+            "CLERK_TOKEN_UNAVAILABLE" ->
+                "SB-AUTH: токен Clerk ещё не получен. Открой профиль Clerk " +
+                "и вернись в кабинет."
+            "SANDBOX_HTTP_400" ->
+                "SB-400: сервер отклонил тестовый запрос."
+            else ->
+                "SB-NET: сервер тестовой оплаты не ответил ожидаемым образом. " +
+                "Проверь подключение и логи функции clerk-payment-sandbox."
+        }
+        return explanation+" Реальные деньги не списывались."
+    }
+
     private fun startSandboxPayment() {
         // This is RollyPay's official test:true PayForm, NEVER a real charge.
         // The server restricts testing to the configured Clerk test owner.
@@ -909,7 +945,7 @@ class MainActivity : Activity() {
                 Thread {
                     val result=runCatching {
                         val token=clerkToken()
-                            ?: throw IllegalStateException("Войди через Clerk")
+                            ?: throw IllegalStateException("CLERK_TOKEN_UNAVAILABLE")
                         NativeIdentity.startSandbox(token)
                     }
                     runOnUiThread {
@@ -925,9 +961,8 @@ class MainActivity : Activity() {
                                 notice("Тестовая форма не открылась. " +
                                     "Можно проверить статус теста позже.")
                             }
-                        }.onFailure {
-                            notice("Sandbox не запущен. Проверь серверный режим теста " +
-                                "и разрешённый Clerk-аккаунт. Деньги не списывались.")
+                        }.onFailure { error ->
+                            notice(sandboxFailureText(error))
                         }
                     }
                 }.start()
@@ -956,9 +991,8 @@ class MainActivity : Activity() {
                         else -> "Статус теста неизвестен."
                     }
                     notice(status+" Деньги НЕ списаны, VPN НЕ изменён.")
-                }.onFailure {
-                    notice("Тестовый статус не проверен. Убедись, что sandbox " +
-                        "активен на Netlify, и повтори проверку.")
+                }.onFailure { error ->
+                    notice(sandboxFailureText(error))
                 }
             }
         }.start()
