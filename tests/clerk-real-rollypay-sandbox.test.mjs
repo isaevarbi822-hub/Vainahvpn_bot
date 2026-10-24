@@ -36,9 +36,9 @@ function providerMock(outcome='created'){
    if(args.method==='POST'){
      const body=JSON.parse(args.body);
      original=sandboxReply(body.order_id);
-     return {ok:true,json:async()=>({...original,...(outcome==='wrong_test'?{test:false}:{})})};
+     return {ok:true,status:200,json:async()=>({...original,...(outcome==='wrong_test'?{test:false}:{})})};
    }
-   return {ok:true,json:async()=>({...original,status:outcome==='wrong_test'?'created':outcome})};
+   return {ok:true,status:200,json:async()=>({...original,status:outcome==='wrong_test'?'created':outcome})};
  };
  return {requests,mock,getOriginal:()=>original};
 }
@@ -69,7 +69,7 @@ test('sandbox checks paid status directly against provider without fulfillment',
  const p=providerMock();
  const result=await startClerkSandbox(owner,env,p.mock);
  p.mock=async (url,args)=>{
-   if(args.method==='GET')return {ok:true,json:async()=>({...p.getOriginal(),status:'paid'})};
+   if(args.method==='GET')return {ok:true,status:200,json:async()=>({...p.getOriginal(),status:'paid'})};
    throw Error('Unwanted API operation');
  };
  const paid=await checkClerkSandbox(owner,result.proof,env,p.mock);
