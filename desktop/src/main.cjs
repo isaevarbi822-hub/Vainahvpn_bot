@@ -190,17 +190,26 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:import-vless-link',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
+    let profile;
     try{
-      const profile=vlessUriToXray(link);
-      const checked=await validateWithSingBox(enginePath(),profile);
-      if(!checked.ok)return {ok:false,message:'Ключ прочитан, но проверка sing-box не прошла'};
-      subscriptionGeneration++;
-      subscriptionUrl=null;
-      subscriptionProfiles=[profile];
-      chosenDirectProfile=profile;
-      chosenFile=null;
-      return {ok:true,message:'VLESS-ключ проверен. Можно тестировать запуск движка.'};
-    }catch{return {ok:false,message:'Нужен действительный vless:// ключ с TCP + REALITY'};}
+      profile=vlessUriToXray(link);
+    }catch{
+      return {ok:false,message:'Ссылка прочитана, но нужен действительный vless:// ключ с TCP/RAW + REALITY'};
+    }
+    // Parsing an offline key must not depend on sing-box being installed.
+    // Starting a tunnel still requires a successful engine validation.
+    const checked=process.platform==='win32'
+      ?await validateWithSingBox(enginePath(),profile)
+      :{ok:false,reason:'Windows engine only'};
+    subscriptionGeneration++;
+    subscriptionUrl=null;
+    subscriptionProfiles=[profile];
+    chosenDirectProfile=profile;
+    chosenFile=null;
+    return {ok:true,validated:checked.ok===true,
+      message:checked.ok
+        ?'VLESS-ключ импортирован и прошёл проверку sing-box.'
+        :'VLESS-ключ корректен и добавлен. Проверка движком пока недоступна; VPN ещё не подключён.'};
   });
   ipcMain.handle('vainah:import-https-subscription',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
