@@ -143,6 +143,13 @@
     const result=await window.vainah?.getSubscriptionServers?.();
     if(!list||!result?.ok)return;
     visibleServers=result.servers;
+    if(result.servers.length && !result.servers.some(server=>server.selected)){
+      const current=await window.vainah.getTunnelStatus().catch(()=>null);
+      if(current?.state==='stopped'){
+        document.getElementById('connection-status').textContent=
+          'Выбранный сервер больше не входит в подписку. Выбери другую локацию ниже.';
+      }
+    }
     list.replaceChildren();
     if(!result.servers.length){list.append(element('p','', 'Подписка ещё не добавлена.'));return;}
     const query=document.getElementById('home-server-search')?.value.trim().toLocaleLowerCase('ru-RU')||'';
@@ -279,6 +286,9 @@
           :'Оплата на сервере пока отключена: ничего не списывается.';
     }
     void refreshServers();
+    // Main process refreshes H1 data every five minutes while disconnected.
+    // UI reads only public labels from local IPC; no URL or VPN key is exposed.
+    setInterval(()=>{void refreshServers()},60*1000);
     if(status){
       const label=document.getElementById('connection-status');
       const button=document.getElementById('connect-button');
