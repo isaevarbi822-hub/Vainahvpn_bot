@@ -1,9 +1,11 @@
 'use strict';
 // Parse a single VLESS REALITY TCP URI without network requests.
 function vlessUriToXray(uri){
- if(typeof uri!=='string'||uri.length>8192||!uri.startsWith('vless://'))throw Error('Expected VLESS link');
+ if(typeof uri!=='string'||uri.length>8192)throw Error('Expected VLESS link');
+ const clean=uri.replace(/^\uFEFF/,'').trim();
+ if(!/^vless:\/\//i.test(clean)||/[\x00-\x20\x7f]/.test(clean))throw Error('Expected VLESS link');
  let url;
- try{url=new URL(uri);}catch{throw Error('Invalid VLESS link');}
+ try{url=new URL('vless://'+clean.slice(8));}catch{throw Error('Invalid VLESS link');}
  const id=decodeURIComponent(url.username);
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  if(!uuid.test(id))throw Error('Invalid UUID');
