@@ -18,7 +18,7 @@
     historyCount:$('account-history-count'),historyHint:$('account-history-hint'),
     refresh:$('account-refresh')
   };
-  let user=null,overview=null,vpnUrl=null,epoch=0,loginAttempt=0;
+  let user=null,overview=null,h1Status=null,vpnUrl=null,epoch=0,loginAttempt=0;
   const uuid=/^[a-f0-9]{8}-[a-f0-9-]{27,36}$/i;
   const rub=(value)=>Number.isFinite(Number(value))?new Intl.NumberFormat('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value))+' ₽':'—';
   const date=(value)=>{
@@ -71,6 +71,7 @@
     user=nextUser||null;
     epoch++;
     overview=null;
+    h1Status=null;
     clearVpnLink();
     el.plan.textContent='Загружаем…';el.expiry.textContent='—';el.devices.textContent='—';
     el.planName.textContent='Загружаем…';el.planSub.textContent='Проверяем покупки';
@@ -166,6 +167,7 @@
       el.deviceNote.textContent='Доступный лимит устройств появится после покупки. Количество подключённых устройств сейчас не отслеживается.';
       el.accessStatus.textContent='Пока нет выданной подписки с сайта. Посмотри тарифы, чтобы выбрать подходящий.';
       el.getVpn.disabled=true;
+      applyH1Status();
       return;
     }
     const valid=subscription.active;
@@ -185,6 +187,43 @@
       'Оплата подтверждена, заказ выдан. Чтобы получить персональную VPN-ссылку, нажми кнопку ниже. Фактический статус профиля проверяется отдельно по H1Cloud.':
       'Срок по записи в базе истёк. Если продлевал доступ через бота, его статус проверяй отдельно.';
     el.getVpn.disabled=!valid;
+    applyH1Status();
+  }
+  function applyH1Status(){
+    // Database history contains only completed website purchases; VPN access
+    // sold through the Telegram bot is verified separately in H1Cloud.
+    if(!user || !h1Status)return;
+    if(!h1Status.panelReady){
+      el.h1.textContent='H1Cloud пока не подключён к сайту.';
+      return;
+    }
+    if(!h1Status.found){
+      el.h1.textContent='H1Cloud не нашёл профиль для этого Telegram-аккаунта.';
+      return;
+    }
+    if(h1Status.banned){
+      el.h1.textContent='H1Cloud: профиль отключён. Обратись в поддержку.';
+      return;
+    }
+    if(!h1Status.active){
+      el.h1.textContent='H1Cloud: срок действия профиля истёк.';
+      return;
+    }
+    el.h1.textContent='H1Cloud подтверждает активный VPN до '+date(h1Status.expiresAt)+'.';
+    // Never invent price, device limit, plan, order, or secret VPN link.
+    if(overview?.subscription?.active)return;
+    el.plan.textContent='Активен в H1Cloud';
+    el.expiry.textContent=date(h1Status.expiresAt);
+    el.devices.textContent='Не определено';
+    el.planName.textContent='VPN-подписка активна';
+    el.planSub.textContent='Подтверждено панелью H1Cloud. Покупки через Telegram-бота не входят в историю сайта.';
+    el.planPrice.textContent='—';
+    el.chip.textContent='Подтверждено H1Cloud';
+    el.chip.className='account-chip good';
+    el.deviceLimit.textContent='—';
+    el.deviceNote.textContent='H1Cloud подтверждает срок. Лимит устройств текущий API не возвращает.';
+    el.accessStatus.textContent='VPN активен. Если подписка получена через Telegram-бота, ссылку можно найти в сообщении от бота. Получение ссылки на сайте станет доступно для оплаченных и выданных заказов сайта.';
+    el.getVpn.disabled=true;
   }
   async function loadOrders(version){
     el.history.replaceChildren(node('div','account-empty','Загружаем историю покупок…'));
@@ -205,13 +244,13 @@
     try{
       const info=await request('my-subscription');
       if(version!==epoch)return;
-      if(!info.panelReady)el.h1.textContent='H1Cloud пока не подключён к сайту.';
-      else if(!info.found)el.h1.textContent='Профиль по Telegram ID в H1Cloud пока не найден.';
-      else if(info.banned)el.h1.textContent='Профиль отключён. Обратись в поддержку.';
-      else if(info.active)el.h1.textContent='H1Cloud подтверждает: профиль активен до '+date(info.expiresAt)+'.';
-      else el.h1.textContent='H1Cloud: срок профиля истёк.';
+      h1Status=info;
+      applyH1Status();
     }catch{
-      if(version===epoch)el.h1.textContent='Панель H1Cloud временно недоступна. Даты покупок выше взяты из PostgreSQL; состояние VPN пока не подтверждено.';
+      if(version===epoch){
+        h1Status=null;
+        el.h1.textContent='Не удалось проверить H1Cloud. Подписка может оставаться активной — повтори проверку позже.';
+      }
     }
   }
   async function refreshAll(){
