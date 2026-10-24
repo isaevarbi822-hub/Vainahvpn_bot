@@ -113,7 +113,7 @@ test('Window waits for native engine shutdown before closing',()=>{
   assert.match(main,/shutdownComplete=true/);
 });
 
-test('Official site opens in isolated in-app window with strict origin checks',()=>{
+test('Official public site stays isolated, Telegram account opens in system browser',()=>{
   const main=load('src/main.cjs');
   assert.match(main,/partition:'persist:vainah-official-site'/);
   assert.match(main,/nodeIntegration:false,contextIsolation:true,sandbox:true/);
@@ -121,7 +121,10 @@ test('Official site opens in isolated in-app window with strict origin checks',(
   assert.match(main,/win\.webContents\.on\('will-navigate'/);
   assert.match(main,/win\.webContents\.on\('will-redirect'/);
   assert.match(main,/openWebsiteInsideApp\(url\)/);
-  assert.doesNotMatch(main,/shell\.openExternal\(url/);
+  assert.match(main,/if\(name==='account'\)/);
+  assert.match(main,/await shell\.openExternal\(url\)/);
+  assert.match(main,/if\(!url \|\| !trustedSiteNavigation\(url\)\)/);
+  assert.match(main,/shell\.openExternal\(safePage\('account'\)\)/);
 });
 
 test('Desktop restores unverified process state without claiming VPN protection',()=>{
