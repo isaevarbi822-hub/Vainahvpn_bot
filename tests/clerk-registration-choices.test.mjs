@@ -34,6 +34,6 @@ test('OTP stays within Clerk and the real VPN engine remains enabled in combined
   assert.doesNotMatch(app,/twilio|TWILIO_|createVerification|passwordHash|SecretKey/);
   assert.match(workflow,/-PvainahEnableLibbox=true/);
   assert.match(workflow,/-PvainahEnableClerk=true/);
-  assert.match(workflow,/VainahVPN-0\.5\.6-Android-libbox-Clerk-verification-preview/);
-  assert.match(gradle,/versionName = "0\.5\.6"/);
+  assert.match(workflow,/VainahVPN-0\.5\.8-Android-libbox-Clerk-RollyPay-sandbox/);
+  assert.match(gradle,/versionName = "0\.5\.8"/);
 });

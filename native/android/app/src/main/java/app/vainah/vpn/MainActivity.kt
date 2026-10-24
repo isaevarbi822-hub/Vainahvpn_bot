@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     // A return from hosted RollyPay checkout is NOT proof of payment.
     // It only prompts an authenticated server-side provider status refresh.
     private var checkoutReturnPending = false
+    private var sandboxReturnPending = false
     private var verifiedEmailHint: TextView? = null
     private var displayedClerkSignedIn:Boolean? = null
     private var checkoutStatusView: TextView? = null
@@ -93,6 +94,12 @@ class MainActivity : Activity() {
             checkoutReturnPending=false
             refresher.postDelayed({
                 if(!isFinishing && !isDestroyed)checkNativeOrder()
+            },750)
+        }
+        if(sandboxReturnPending){
+            sandboxReturnPending=false
+            refresher.postDelayed({
+                if(!isFinishing && !isDestroyed)checkSandboxPayment()
             },750)
         }
         // Returning from Clerk/settings must rebuild the *whole* account page,
@@ -885,6 +892,112 @@ class MainActivity : Activity() {
                     }.show()
     }
 
+    /** Safe diagnostic strings only: never show URLs, JWTs or provider response. */
+    private fun sandboxFailureText(error:Throwable):String {
+        val explanation=when(error.message){
+            "SANDBOX_DISABLED_ON_SERVER" ->
+                "SB-503A: тестовый режим выключен на Netlify. Проверь " +
+                "VAINAH_ROLLYPAY_SANDBOX, разрешённый Clerk User ID, " +
+                "ключи RollyPay и Production Deploy."
+            "SANDBOX_PROVIDER_NOT_READY" ->
+                "SB-503B: сервер запущен, но RollyPay не подтвердил " +
+                "тестовый счёт. Проверь Netlify Functions → " +
+                "clerk-payment-sandbox и настройки RollyPay."
+            "SANDBOX_SESSION_REJECTED" ->
+                "SB-401: сервер не принял токен Clerk. Открой " +
+                "Netlify Functions → mobile-account и найди " +
+                "Clerk mobile authentication."
+            "SANDBOX_ACCOUNT_NOT_ALLOWED" ->
+                "SB-403: этот Clerk-аккаунт не разрешён для sandbox. " +
+                "Проверь VAINAH_SANDBOX_TESTER_CLERK_USER_ID " +
+                "или настройки доверенных источников Clerk."
+            "SANDBOX_ENDPOINT_NOT_DEPLOYED" ->
+                "SB-404: функция clerk-payment-sandbox ещё не опубликована " +
+                "на vainahvpnbot0."
+            "SANDBOX_RATE_LIMITED" ->
+                "SB-429: слишком много запросов. Повтори тест позже."
+            "CLERK_TOKEN_UNAVAILABLE" ->
+                "SB-AUTH: токен Clerk ещё не получен. Открой профиль Clerk " +
+                "и вернись в кабинет."
+            "SANDBOX_HTTP_400" ->
+                "SB-400: сервер отклонил тестовый запрос."
+            else ->
+                "SB-NET: сервер тестовой оплаты не ответил ожидаемым образом. " +
+                "Проверь подключение и логи функции clerk-payment-sandbox."
+        }
+        return explanation+" Реальные деньги не списывались."
+    }
+
+    private fun startSandboxPayment() {
+        // This is RollyPay's official test:true PayForm, NEVER a real charge.
+        // The server restricts testing to the configured Clerk test owner.
+        if(!clerkLoggedIn()){
+            notice("Сначала войди через Clerk для теста оплаты.")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Тест RollyPay · 10 ₽")
+            .setMessage("Только демонстрация. Настоящие деньги НЕ спишутся, " +
+                "VPN НЕ продлится, подписка НЕ выдаётся. На странице RollyPay " +
+                "выбери симуляцию успешной оплаты или отмены.")
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Открыть тест"){_,_->
+                Thread {
+                    val result=runCatching {
+                        val token=clerkToken()
+                            ?: throw IllegalStateException("CLERK_TOKEN_UNAVAILABLE")
+                        NativeIdentity.startSandbox(token)
+                    }
+                    runOnUiThread {
+                        if(isFinishing||isDestroyed)return@runOnUiThread
+                        result.onSuccess { invoice ->
+                            mobileIdentity.saveSandboxProof(invoice.proof)
+                            runCatching {
+                                CustomTabsIntent.Builder().setShowTitle(true)
+                                    .setToolbarColor(d.background).build()
+                                    .launchUrl(this,Uri.parse(invoice.payUrl))
+                                sandboxReturnPending=true
+                            }.onFailure {
+                                notice("Тестовая форма не открылась. " +
+                                    "Можно проверить статус теста позже.")
+                            }
+                        }.onFailure { error ->
+                            notice(sandboxFailureText(error))
+                        }
+                    }
+                }.start()
+            }.show()
+    }
+
+    private fun checkSandboxPayment() {
+        val proof=mobileIdentity.sandboxProof()
+        if(proof==null){
+            notice("Сначала создай тестовый платёж RollyPay.")
+            return
+        }
+        Thread {
+            val result=runCatching {
+                val token=clerkToken()
+                    ?: throw IllegalStateException("Сессия Clerk недоступна")
+                NativeIdentity.sandboxStatus(token,proof)
+            }
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { payment ->
+                    val status=when(payment.status){
+                        "paid" -> "✓ Тестовая оплата успешно подтверждена RollyPay."
+                        "canceled","expired" -> "Тест завершён без оплаты."
+                        "created","processing" -> "Тест ещё не завершён на стороне RollyPay."
+                        else -> "Статус теста неизвестен."
+                    }
+                    notice(status+" Деньги НЕ списаны, VPN НЕ изменён.")
+                }.onFailure { error ->
+                    notice(sandboxFailureText(error))
+                }
+            }
+        }.start()
+    }
+
     private fun checkNativeOrder() {
         Thread {
             val token=clerkToken()
@@ -1010,6 +1123,20 @@ class MainActivity : Activity() {
         val orderStatus=action("Проверить оплату и получить VPN")
         add(providers,orderStatus,12)
         orderStatus.setOnClickListener{checkNativeOrder()}
+
+        val sandbox=panel(true)
+        add(parent,sandbox,16)
+        add(sandbox,overline("ПРОВЕРКА ОПЛАТЫ · SANDBOX"))
+        add(sandbox,text("Тест RollyPay · 10 ₽",19f,d.ink,true),10)
+        add(sandbox,text("Без настоящих списаний. Это проверка тестовой " +
+            "платёжной формы RollyPay — VPN и оплаченный срок не меняются.",
+            12f,d.muted),10)
+        val testStart=action("Запустить тестовый платёж",true)
+        add(sandbox,testStart,11)
+        testStart.setOnClickListener{startSandboxPayment()}
+        val testStatus=action("Проверить тестовый платёж")
+        add(sandbox,testStatus,8)
+        testStatus.setOnClickListener{checkSandboxPayment()}
     }
     private fun help(parent: LinearLayout) {
         intro(parent,"ЦЕНТР ПОДДЕРЖКИ",
