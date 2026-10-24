@@ -7,7 +7,7 @@ const { fetchSubscription } = require('../shared/https-subscription.cjs');
 const { normalizeVpnLink } = require('../shared/clipboard-link.cjs');
 const { saveSubscription, loadSubscription, clearSubscription } = require('../shared/subscription-store.cjs');
 const { reconcileSubscriptionSelection } = require('../shared/subscription-reconcile.cjs');
-const { subscriptionErrorMessage } = require('../shared/subscription-error.cjs');
+const { subscriptionErrorMessage, subscriptionDiagnosticCode } = require('../shared/subscription-error.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
 const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, clipboard, safeStorage } = require('electron');
@@ -329,7 +329,10 @@ app.whenReady().then(()=>{
           ' Подписка работает до закрытия приложения; защищённое сохранение недоступно.')};
     }catch(error){
       const message=subscriptionErrorMessage(error);
-      return {ok:false,message};
+      const diagnostic=subscriptionDiagnosticCode(error);
+      // A fixed allowlisted code only: never return raw URLs, hostnames,
+      // stack traces or Node error messages to the renderer.
+      return {ok:false,message,diagnostic};
     }
   });
   ipcMain.handle('vainah:subscription-servers',event=>{
