@@ -41,8 +41,16 @@ class NativeIdentity(context:Context) {
                     conn.setRequestProperty("Content-Type","application/json")
                     conn.outputStream.use{it.write(body.toString().toByteArray(Charsets.UTF_8))}
                 }
-                if(conn.responseCode !in 200..299)
-                    throw IllegalStateException("Сервер отклонил запрос (HTTP "+conn.responseCode+").")
+                val status=conn.responseCode
+                if(status !in 200..299){
+                    if(endpoint=="mobile-account"){
+                        when(status){
+                            503 -> throw IllegalStateException("CLERK_SERVER_SETUP")
+                            401 -> throw IllegalStateException("CLERK_SESSION_NOT_ACCEPTED")
+                        }
+                    }
+                    throw IllegalStateException("Сервер отклонил запрос (HTTP "+status+").")
+                }
                 if(conn.contentLengthLong>20_000)
                     throw IllegalStateException("Response too large")
                 val bytes=java.io.ByteArrayOutputStream()
