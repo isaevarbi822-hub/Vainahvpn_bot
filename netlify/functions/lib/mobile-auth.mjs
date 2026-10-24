@@ -89,6 +89,32 @@ export function nativeAuthorizedPartyMismatch(bearer,origins) {
   }catch{return false;}
 }
 
+/**
+ * Clerk Native API can issue session JWTs with no azp/Origin claim.
+ * Recognize ONLY this absence, never an unexpected non-empty azp.
+ *
+ * This reads untrusted claims to select a verification path; it does not
+ * authenticate anything. The selected path must still verify Clerk's
+ * signature, issuer, expiry and active session before any user is returned.
+ * Native endpoints accept explicit Bearer tokens only (no cookies or Origin).
+ */
+export function nativeBearerOmitsAzp(request,authorization){
+  if(typeof authorization!=='string'||
+     !/^Bearer [A-Za-z0-9._-]{40,8192}$/.test(authorization)||
+     request.headers.has('cookie')||
+     request.headers.has('origin')||
+     request.headers.has('sec-fetch-site'))return false;
+  try{
+    const jwt=authorization.slice(7);
+    const parts=jwt.split('.');
+    if(parts.length!==3||!parts.every(p=>p.length>0)||parts[1].length>4096)
+      return false;
+    const data=JSON.parse(Buffer.from(parts[1],'base64url').toString('utf8'));
+    return !!data && typeof data==='object' && !Array.isArray(data) &&
+      (data.azp===undefined||data.azp===null);
+  }catch{return false;}
+}
+
 export async function mobileSession(request,env=process.env,clientOverride=null){
   if(!clerkMobileConfigured(env))return null;
   const authorization=request.headers.get('authorization')||'';
@@ -102,15 +128,32 @@ export async function mobileSession(request,env=process.env,clientOverride=null)
     const client=clientOverride||createClerkClient({
       secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY
     });
-    // Never remove Clerk's authorizedParties verification to make a token pass.
-    // For native-origin JWTs configure exact trusted origins in Netlify's
-    // CLERK_AUTHORIZED_PARTIES rather than accepting arbitrary values.
+    // Always enforce configured origins on normal Clerk sessions.
     const origins=String(env.CLERK_AUTHORIZED_PARTIES||env.PUBLIC_SITE_ORIGIN)
       .split(',').map(x=>x.trim()).filter(Boolean);
     if(!origins.length)return null;
-    const verified=await client.authenticateRequest(request,{
+    let verified=await client.authenticateRequest(request,{
       authorizedParties:origins,acceptsToken:'session_token'
     });
+    if(!verified.isAuthenticated &&
+       verified.reason==='token-invalid-authorized-parties' &&
+       nativeBearerOmitsAzp(request,authorization)){
+      // Native API Bearer JWTs have no browser Origin/azp to compare against.
+      // Only on this narrow path, Clerk verifies the complete session token
+      // without the browser-specific azp allowlist. This MUST NOT accept a
+      // cookie, browser Origin, or a different/non-empty azp claim.
+      const nativeVerified=await client.authenticateRequest(request,{
+        acceptsToken:'session_token'
+      });
+      if(nativeVerified.isAuthenticated){
+        verified=nativeVerified;
+        console.info('Clerk mobile authentication: native-bearer-without-azp-verified');
+      }else{
+        console.warn('Clerk mobile authentication:',
+          safeClerkRejectionLabel(nativeVerified.reason));
+        return null;
+      }
+    }
     if(!verified.isAuthenticated){
       console.warn('Clerk mobile authentication:',
         safeClerkRejectionLabel(verified.reason));
