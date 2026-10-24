@@ -10,6 +10,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from python_server.telegram_oidc import router as telegram_oidc_router
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
@@ -69,6 +70,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Vainah VPN Python Server", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+app.include_router(telegram_oidc_router)
 
 
 @app.get("/api/health")
