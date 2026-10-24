@@ -52,6 +52,31 @@ class NativeIdentity(context:Context) {
                 }
                 val status=conn.responseCode
                 if(status !in 200..299){
+                    if(endpoint=="clerk-payment-sandbox"){
+                        // Only server-owned, exact messages may refine the error.
+                        // Never show arbitrary provider responses, tokens or PII.
+                        val serverError=runCatching {
+                            conn.errorStream?.use { stream ->
+                                val bytes=ByteArray(2048)
+                                val count=stream.read(bytes)
+                                if(count>0)
+                                    JSONObject(String(bytes,0,count,Charsets.UTF_8))
+                                        .optString("error","")
+                                else ""
+                            } ?: ""
+                        }.getOrDefault("")
+                        val code=when(status){
+                            401 -> "SANDBOX_SESSION_REJECTED"
+                            403 -> "SANDBOX_ACCOUNT_NOT_ALLOWED"
+                            404 -> "SANDBOX_ENDPOINT_NOT_DEPLOYED"
+                            503 -> if(serverError=="Тестовый режим платежей выключен")
+                                "SANDBOX_DISABLED_ON_SERVER"
+                                else "SANDBOX_PROVIDER_NOT_READY"
+                            429 -> "SANDBOX_RATE_LIMITED"
+                            else -> "SANDBOX_HTTP_"+status
+                        }
+                        throw IllegalStateException(code)
+                    }
                     if(endpoint=="mobile-account"){
                         when(status){
                             503 -> throw IllegalStateException("CLERK_SERVER_SETUP")
