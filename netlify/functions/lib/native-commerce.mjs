@@ -84,8 +84,8 @@ export function validateNativePayment(order,data){
     throw Error('NATIVE_AMOUNT_MISMATCH');
   return data.status;
 }
-export async function recordNativePayment(orderId,paymentId,status){
-  return transaction(async db=>{
+export async function recordNativePayment(orderId,paymentId,status,withTransaction=transaction){
+  return withTransaction(async db=>{
     const r=await db.query('SELECT * FROM vpn_native_orders WHERE id=$1 FOR UPDATE',[orderId]);
     const o=r.rows[0];
     if(!o||o.payment_id!==paymentId)return {error:'MISMATCH'};
