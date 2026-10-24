@@ -19,7 +19,7 @@
           return;
         }
         const button=document.createElement('a');
-        button.href='/auth/telegram/start';
+        button.href=options.returnTo==='checkout' ? '/auth/telegram/start?next=checkout' : '/auth/telegram/start';
         button.className='auth-primary';
         button.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:12px 22px;border-radius:13px;';
         button.textContent='✈ Войти через Telegram';
