@@ -36,3 +36,17 @@ jobs:
           VAINAH_LIVE_CHECKOUT: disabled
           VAINAH_PAYMENT_INTEGRATION_VERIFIED: not-verified
         run: python -m pytest -q python_server/tests
+
+      - name: Build preview Docker image
+        run: docker build -f Dockerfile.python -t vainah-python-preview:test .
+      - name: Check preview container health and plans
+        run: |
+          docker run -d --rm --name vainah-python-smoke -p 127.0.0.1:18888:8000 -e PUBLIC_SITE_ORIGIN=http://127.0.0.1:8000 -e VAINAH_LIVE_CHECKOUT=disabled -e VAINAH_PAYMENT_INTEGRATION_VERIFIED=not-verified vainah-python-preview:test
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18888/api/health && curl -fsS http://127.0.0.1:18888/.netlify/functions/subscription-plans; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs vainah-python-smoke
+          exit 1
