@@ -245,7 +245,8 @@ test('account page has four visible methods and never links to bot purchase',()=
   assert.match(html,/id="account-yandex-start"/);
   assert.match(client,/action:'check'/);
   assert.match(client,/alternate-login/);
-  assert.match(widget,/data-telegram-login/);
+  assert.match(widget,/auth\/telegram\/start/);
+  assert.doesNotMatch(widget,/telegram\.org\/js\/telegram-widget/);
   assert.doesNotMatch(client,/innerHTML\s*=/);
   assert.doesNotMatch(widget,/innerHTML\s*=/);
   assert.doesNotMatch(html,/>Купить через Telegram-бота</);
