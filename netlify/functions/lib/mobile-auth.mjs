@@ -50,28 +50,86 @@ export function verifiedPrimaryEmail(user){
  * A client cannot claim an email by sending it in the request body.
  * Pass a configured @clerk/backend client in tests only.
  */
+/**
+ * Keep auth failures private. The only values allowed in Netlify logs are
+ * fixed diagnostic labels; never include JWT, Clerk IDs, token claims or SDK
+ * error messages, which may contain private data.
+ */
+const clerkRejectionReasons=new Set([
+  'token-expired',
+  'token-invalid-issuer',
+  'token-invalid-signature',
+  'token-invalid-authorized-parties',
+  'token-not-active-yet',
+  'token-iat-in-the-future',
+  'session-token-missing',
+  'session-token-expired',
+  'session-token-invalid',
+  'session-token-unsupported',
+  'session-token-revoked',
+  'session-token-not-active-yet',
+  'signed-out'
+]);
+export function safeClerkRejectionLabel(reason){
+  return clerkRejectionReasons.has(reason)?reason:'session-not-accepted';
+}
+/**
+ * JWT claims are *unverified* here and only used to log a yes/no mismatch.
+ * ALL authentication and user ownership continue to depend exclusively on
+ * Clerk's cryptographic authenticateRequest() result.
+ */
+export function nativeAuthorizedPartyMismatch(bearer,origins) {
+  if(typeof bearer!=='string'||bearer.length>8192||!Array.isArray(origins))return false;
+  try{
+    const parts=bearer.split('.');
+    if(parts.length!==3||parts[1].length>4096)return false;
+    const claims=JSON.parse(Buffer.from(parts[1],'base64url').toString('utf8'));
+    return typeof claims?.azp==='string'&&
+      claims.azp.length>0&&!origins.includes(claims.azp);
+  }catch{return false;}
+}
+
 export async function mobileSession(request,env=process.env,clientOverride=null){
   if(!clerkMobileConfigured(env))return null;
   const authorization=request.headers.get('authorization')||'';
-  if(!/^Bearer [A-Za-z0-9._-]{40,8192}$/.test(authorization))return null;
+  if(!authorization)return null; // Anonymous browser probes are normal.
+  if(!/^Bearer [A-Za-z0-9._-]{40,8192}$/.test(authorization)){
+    console.warn('Clerk mobile authentication: bearer-format-invalid');
+    return null;
+  }
   try{
     const {createClerkClient}=clientOverride?{}:await import('@clerk/backend');
     const client=clientOverride||createClerkClient({
       secretKey:env.CLERK_SECRET_KEY,publishableKey:env.CLERK_PUBLISHABLE_KEY
     });
+    // Never remove Clerk's authorizedParties verification to make a token pass.
+    // For native-origin JWTs configure exact trusted origins in Netlify's
+    // CLERK_AUTHORIZED_PARTIES rather than accepting arbitrary values.
     const origins=String(env.CLERK_AUTHORIZED_PARTIES||env.PUBLIC_SITE_ORIGIN)
       .split(',').map(x=>x.trim()).filter(Boolean);
     if(!origins.length)return null;
     const verified=await client.authenticateRequest(request,{
       authorizedParties:origins,acceptsToken:'session_token'
     });
-    if(!verified.isAuthenticated)return null;
+    if(!verified.isAuthenticated){
+      console.warn('Clerk mobile authentication:',
+        safeClerkRejectionLabel(verified.reason));
+      if(nativeAuthorizedPartyMismatch(authorization.slice(7),origins))
+        console.warn('Clerk mobile authentication: authorized-party-origin-mismatch');
+      return null;
+    }
     const userId=verified.toAuth()?.userId;
     const subject=clerkIdentitySubject(userId,env.SESSION_SIGNING_KEY);
     const profile=await client.users.getUser(userId);
-    if(!profile||profile.id!==userId||profile.banned===true||profile.locked===true)return null;
+    if(!profile||profile.id!==userId||profile.banned===true||profile.locked===true){
+      console.warn('Clerk mobile authentication: user-not-active');
+      return null;
+    }
     return {provider:'clerk',subject,email:verifiedPrimaryEmail(profile)};
-  }catch{return null}
+  }catch{
+    console.warn('Clerk mobile authentication: backend-verification-failed');
+    return null;
+  }
 }
 export async function limitedJson(request){
   if(Number(request.headers.get('content-length')||0)>1024)return null;
