@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 
-test('Android 0.5.7 includes independent RollyPay sandbox with no real charge',()=>{
+test('Android 0.5.8 includes independent RollyPay sandbox with no real charge',()=>{
  const ui=read('native/android/app/src/main/java/app/vainah/vpn/MainActivity.kt');
  const client=read('native/android/app/src/main/java/app/vainah/vpn/NativeIdentity.kt');
  const gradle=read('native/android/app/build.gradle.kts');
  const workflow=read('.github/workflows/native-mobile.yml');
- assert.match(gradle,/versionName = "0\.5\.7"/);
+ assert.match(gradle,/versionName = "0\.5\.8"/);
  assert.match(ui,/Тест RollyPay · 10 ₽/);
  assert.match(ui,/Запустить тестовый платёж/);
  assert.match(ui,/Проверить тестовый платёж/);
@@ -21,7 +21,7 @@ test('Android 0.5.7 includes independent RollyPay sandbox with no real charge',(
  assert.match(client,/data\.optBoolean\("noCharge",false\)/);
  assert.match(workflow,/-PvainahEnableLibbox=true/);
  assert.match(workflow,/-PvainahEnableClerk=true/);
- assert.match(workflow,/VainahVPN-0\.5\.7-Android-libbox-Clerk-RollyPay-sandbox/);
+ assert.match(workflow,/VainahVPN-0\.5\.8-Android-libbox-Clerk-RollyPay-sandbox/);
 });
 
 test('Sandbox credential is an owner-bound proof, not a VPN subscription',()=>{
