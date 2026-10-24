@@ -224,14 +224,18 @@
     if(overview?.subscription?.active)return;
     el.plan.textContent='Активен в H1Cloud';
     el.expiry.textContent=date(h1Status.expiresAt);
-    el.devices.textContent='Не определено';
+    const limit=Number(h1Status.deviceLimit);
+    const hasLimit=Number.isSafeInteger(limit)&&limit>=1&&limit<=100;
+    el.devices.textContent=hasLimit?String(limit)+' устройств':'Не определено';
     el.planName.textContent='VPN-подписка активна';
     el.planSub.textContent='Подтверждено панелью H1Cloud. Покупки через Telegram-бота не входят в историю сайта.';
     el.planPrice.textContent='—';
     el.chip.textContent='Подтверждено H1Cloud';
     el.chip.className='account-chip good';
-    el.deviceLimit.textContent='—';
-    el.deviceNote.textContent='H1Cloud подтверждает срок. Лимит устройств текущий API не возвращает.';
+    el.deviceLimit.textContent=hasLimit?String(limit)+' устройств':'—';
+    el.deviceNote.textContent=hasLimit
+      ?'Это разрешённый лимит устройств в H1Cloud, а не число подключённых сейчас.'
+      :'H1Cloud подтверждает срок. Данные о лимите устройств не получены.';
     el.accessStatus.textContent='VPN активен. Получи личную ссылку прямо здесь или отправь её себе в Telegram. Никому не передавай эту ссылку.';
     el.getVpn.textContent='Получить VPN-ссылку';
     el.getVpn.disabled=false;
