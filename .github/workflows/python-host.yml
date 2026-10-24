@@ -1,0 +1,38 @@
+name: Python host smoke tests
+on:
+  pull_request:
+    paths:
+      - 'python_server/**'
+      - 'Dockerfile.python'
+      - '.github/workflows/python-host.yml'
+      - 'site/**'
+      - 'netlify/functions/**'
+  push:
+    branches: ['migration/python-host']
+permissions:
+  contents: read
+jobs:
+  python-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          python -m pip install -r python_server/requirements.txt pytest
+      - name: Python and Node syntax
+        run: |
+          python -m py_compile python_server/main.py
+          node --check python_server/legacy_bridge.mjs
+      - name: Run safe read-only smoke tests
+        env:
+          PUBLIC_SITE_ORIGIN: http://127.0.0.1:8000
+          VAINAH_LIVE_CHECKOUT: disabled
+          VAINAH_PAYMENT_INTEGRATION_VERIFIED: not-verified
+        run: python -m pytest -q python_server/tests

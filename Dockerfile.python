@@ -1,0 +1,15 @@
+# The application is publicly hosted by Python; Node remains local for legacy compatibility.
+FROM node:22-bookworm-slim AS node-deps
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
+
+FROM python:3.12-slim-bookworm
+WORKDIR /app
+COPY --from=node-deps /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-deps /app/node_modules /app/node_modules
+COPY . .
+RUN pip install --no-cache-dir -r python_server/requirements.txt
+ENV PORT=8000 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+EXPOSE 8000
+CMD ["sh", "-c", "uvicorn python_server.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers"]
