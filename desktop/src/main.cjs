@@ -5,11 +5,12 @@ const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
 const { vlessUriToXray } = require('../shared/vless-link.cjs');
 const { fetchSubscription } = require('../shared/https-subscription.cjs');
 const { normalizeVpnLink } = require('../shared/clipboard-link.cjs');
+const { saveSubscription, loadSubscription, clearSubscription } = require('../shared/subscription-store.cjs');
 const { reconcileSubscriptionSelection } = require('../shared/subscription-reconcile.cjs');
 const { subscriptionErrorMessage } = require('../shared/subscription-error.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
-const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, clipboard, safeStorage } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { safeServerLabel } = require('../shared/server-label.cjs');
@@ -77,6 +78,51 @@ let subscriptionProfiles = [];
 let subscriptionUrl = null;
 let subscriptionGeneration = 0;
 let subscriptionRefreshBusy = false;
+let subscriptionRestoreBusy = false;
+let subscriptionRestoreError = '';
+// Serialize disk writes so deleting a subscription cannot race with a save.
+let storeWrites = Promise.resolve();
+function withStoreLock(action){
+  const result=storeWrites.catch(()=>{}).then(action);
+  storeWrites=result.catch(()=>{});
+  return result;
+}
+async function rememberSubscription(type,uri){
+  if(process.platform!=='win32')return false;
+  return withStoreLock(()=>saveSubscription({type,uri},{
+    root:app.getPath('userData'),safeStorage
+  }));
+}
+async function forgetSubscription(){
+  if(process.platform!=='win32')return true;
+  return withStoreLock(()=>clearSubscription({
+    root:app.getPath('userData')
+  }));
+}
+async function restorePreviousSubscription(){
+  if(process.platform!=='win32'||subscriptionRestoreBusy)return;
+  const generation=subscriptionGeneration;
+  subscriptionRestoreBusy=true;
+  subscriptionRestoreError='';
+  try{
+    const saved=await loadSubscription({root:app.getPath('userData'),safeStorage});
+    if(!saved||subscriptionGeneration!==generation||
+       engineSession.status.state!=='stopped'||chosenFile||chosenDirectProfile)return;
+    let profiles;
+    if(saved.type==='vless')profiles=[vlessUriToXray(saved.uri)];
+    else profiles=(await fetchSubscription(saved.uri)).profiles;
+    if(subscriptionGeneration!==generation||
+       engineSession.status.state!=='stopped'||chosenFile||chosenDirectProfile)return;
+    if(!Array.isArray(profiles)||!profiles.length)return;
+    subscriptionUrl=saved.type==='https'?saved.uri:null;
+    subscriptionProfiles=profiles;
+    chosenDirectProfile=profiles[0];
+    subscriptionGeneration++;
+  }catch{
+    if(subscriptionGeneration===generation)
+      subscriptionRestoreError='Подписка сохранена, но пока не удалось получить серверы. Проверь доступность H1Cloud и повторно добавь ссылку.';
+  }finally{subscriptionRestoreBusy=false}
+}
 async function refreshSubscribedServers() {
   if(subscriptionRefreshBusy || !subscriptionUrl ||
      engineSession.status.state!=='stopped')return;
@@ -232,9 +278,11 @@ app.whenReady().then(()=>{
   ipcMain.handle('vainah:import-vless-link',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
     if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
+    const generation=++subscriptionGeneration;
+    const normalized=normalizeVpnLink(link);
     let profile;
     try{
-      profile=vlessUriToXray(normalizeVpnLink(link));
+      profile=vlessUriToXray(normalized);
     }catch{
       return {ok:false,message:'Ссылка прочитана, но нужен действительный vless:// ключ с TCP/RAW + REALITY'};
     }
@@ -243,15 +291,19 @@ app.whenReady().then(()=>{
     const checked=process.platform==='win32'
       ?await validateWithSingBox(enginePath(),profile)
       :{ok:false,reason:'Windows engine only'};
-    subscriptionGeneration++;
+    if(generation!==subscriptionGeneration||engineSession.status.state!=='stopped')
+      return {ok:false,message:'Подписка изменилась. Повтори импорт.'};
     subscriptionUrl=null;
     subscriptionProfiles=[profile];
     chosenDirectProfile=profile;
     chosenFile=null;
-    return {ok:true,validated:checked.ok===true,
-      message:checked.ok
+    const saved=await rememberSubscription('vless',normalized);
+    return {ok:true,validated:checked.ok===true,saved,
+      message:(checked.ok
         ?'VLESS-ключ импортирован и прошёл проверку sing-box.'
-        :'VLESS-ключ корректен и добавлен. Проверка движком пока недоступна; VPN ещё не подключён.'};
+        :'VLESS-ключ корректен и добавлен. Проверка движком пока недоступна; VPN ещё не подключён.')+
+        (saved?' Подписка защищённо сохранена для следующего запуска.':
+        ' Подписка работает до закрытия приложения; защищённое сохранение недоступно.')};
   });
   ipcMain.handle('vainah:import-https-subscription',async(event,link)=>{
     if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
@@ -268,7 +320,13 @@ app.whenReady().then(()=>{
       subscriptionProfiles=result.profiles;
       chosenDirectProfile=result.profiles[0];
       chosenFile=null;
-      return {ok:true,count:result.count,message:'Подписка загружена. Поддерживаемых серверов: '+result.count+'. Для тестового запуска выбран первый.'};
+      subscriptionRestoreError='';
+      const saved=await rememberSubscription('https',normalized);
+      return {ok:true,count:result.count,saved,
+        message:'Подписка загружена. Поддерживаемых серверов: '+result.count+
+          '. Для тестового запуска выбран первый.'+
+          (saved?' Подписка защищённо сохранена для следующего запуска.':
+          ' Подписка работает до закрытия приложения; защищённое сохранение недоступно.')};
     }catch(error){
       const message=subscriptionErrorMessage(error);
       return {ok:false,message};
@@ -276,11 +334,27 @@ app.whenReady().then(()=>{
   });
   ipcMain.handle('vainah:subscription-servers',event=>{
     if(!authorizedSender(event))return {ok:false,servers:[]};
-    return {ok:true,servers:subscriptionProfiles.map((profile,index)=>({
+    return {ok:true,restoring:subscriptionRestoreBusy,
+      restoreError:subscriptionRestoreError,
+      servers:subscriptionProfiles.map((profile,index)=>({
       index,
       label:safeServerLabel(profile,index),
       selected:chosenDirectProfile===profile
     }))};
+  });
+  ipcMain.handle('vainah:forget-subscription',async event=>{
+    if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    if(engineSession.status.state!=='stopped')
+      return {ok:false,message:'Останови VPN-движок перед удалением подписки.'};
+    subscriptionGeneration++;
+    const erased=await forgetSubscription();
+    if(!erased)return {ok:false,message:'Не удалось удалить защищённые данные из Windows.'};
+    subscriptionProfiles=[];
+    subscriptionUrl=null;
+    chosenDirectProfile=null;
+    chosenFile=null;
+    subscriptionRestoreError='';
+    return {ok:true,message:'Подписка удалена с этого компьютера. VPN не подключён.'};
   });
   ipcMain.handle('vainah:select-subscription-server',async(event,index)=>{
     if(!authorizedSender(event)||!Number.isInteger(index)||index<0||index>=subscriptionProfiles.length)
@@ -437,6 +511,7 @@ app.whenReady().then(()=>{
     });
   });
   createWindow();
+  void restorePreviousSubscription();
   app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow()});
 }).catch(()=>{app.quit()});
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});
