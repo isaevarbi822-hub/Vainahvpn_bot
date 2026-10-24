@@ -66,7 +66,7 @@ test('Desktop blocks sensitive IPC calls, native VPN impersonation and arbitrary
   assert.match(read('desktop/ui/index.html'),/connect-src 'none'/);
   assert.equal(safePage('javascript:alert(1)'),null);
   assert.equal(safePage('constructor'),null);
-  assert.equal(safePage('account'),'https://vainahvpnbot0.netlify.app/account.html');
+  assert.equal(safePage('account'),'https://vainahvpn-python-preview.onrender.com/account.html');
   assert.doesNotMatch(main,/child_process|process\.env\.PANEL_API_TOKEN|exec\(|spawn\(/);
   assert.doesNotThrow(()=>new Script(read('desktop/ui/app.js')));
 });
