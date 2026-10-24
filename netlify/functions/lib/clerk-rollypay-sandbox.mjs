@@ -53,16 +53,58 @@ export function verifyClerkSandboxPayment(data,orderId,paymentId){
     !STATES.has(data.status))throw Error('SANDBOX_PROVIDER_MISMATCH');
   return data.status;
 }
+/**
+ * Only public, bounded status categories are returned. Never read, log or
+ * forward a rejected provider body: it can contain merchant configuration,
+ * payment URLs, personally identifying information or raw upstream HTML.
+ */
+export function sandboxProviderFailureCode(error){
+  const code=error?.message;
+  if(typeof code!=='string')return 'SANDBOX_PROVIDER_UNKNOWN';
+  if(/^SANDBOX_PROVIDER_HTTP_(?:400|401|402|403|404|409|422|429|500|502|503|504)$/.test(code))
+    return code;
+  if([
+    'SANDBOX_PROVIDER_HTTP_OTHER',
+    'SANDBOX_PROVIDER_TIMEOUT',
+    'SANDBOX_PROVIDER_NETWORK',
+    'SANDBOX_PROVIDER_BAD_HTTP',
+    'SANDBOX_PROVIDER_RESPONSE_INVALID',
+    'SANDBOX_PROVIDER_MISMATCH',
+    'SANDBOX_PROVIDER_ID_INVALID',
+    'SANDBOX_PAY_URL_MISSING',
+    'SANDBOX_PAY_URL_INVALID',
+    'SANDBOX_EVENT_STATUS_CHANGED',
+    'SANDBOX_EVENT_INVALID',
+    'SANDBOX_PROOF_INVALID',
+    'SANDBOX_FORBIDDEN'
+  ].includes(code))return code;
+  return 'SANDBOX_PROVIDER_UNKNOWN';
+}
 async function requestProvider(path,method,body,env,fetcher){
-  const res=await fetcher(API+path,{
-    method,redirect:'error',cache:'no-store',
-    headers:{'X-API-Key':env.ROLLYPAY_API_KEY,
-      'X-Nonce':randomUUID(),'Content-Type':'application/json'},
-    ...(body?{body:JSON.stringify(body)}:{}),
-    signal:AbortSignal.timeout(9000)
-  });
-  if(!res?.ok)throw Error('SANDBOX_PROVIDER_UNAVAILABLE');
-  const data=await res.json().catch(()=>null);
+  let res;
+  try{
+    res=await fetcher(API+path,{
+      method,redirect:'error',cache:'no-store',
+      headers:{'X-API-Key':env.ROLLYPAY_API_KEY,
+        'X-Nonce':randomUUID(),'Content-Type':'application/json'},
+      ...(body?{body:JSON.stringify(body)}:{}),
+      signal:AbortSignal.timeout(9000)
+    });
+  }catch(error){
+    const timeout=error?.name==='TimeoutError'||error?.name==='AbortError';
+    throw Error(timeout?'SANDBOX_PROVIDER_TIMEOUT':'SANDBOX_PROVIDER_NETWORK');
+  }
+  if(!res||typeof res.ok!=='boolean'||!Number.isInteger(res.status))
+    throw Error('SANDBOX_PROVIDER_BAD_HTTP');
+  if(!res.ok){
+    // The provider has answered; this is not necessarily a network outage.
+    const status=res.status;
+    const known=[400,401,402,403,404,409,422,429,500,502,503,504];
+    throw Error(known.includes(status)?
+      'SANDBOX_PROVIDER_HTTP_'+status:'SANDBOX_PROVIDER_HTTP_OTHER');
+  }
+  let data;
+  try{data=await res.json()}catch{data=null}
   if(!data||typeof data!=='object'||Array.isArray(data))
     throw Error('SANDBOX_PROVIDER_RESPONSE_INVALID');
   return data;
