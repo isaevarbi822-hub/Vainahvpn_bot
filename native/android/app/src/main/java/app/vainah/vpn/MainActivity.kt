@@ -744,6 +744,35 @@ class MainActivity : Activity() {
         }.getOrNull()
     }
 
+    private fun refreshVerifiedDeliveryEmail() {
+        val label=verifiedEmailHint?:return
+        if(tab!=Tab.ACCOUNT)return
+        if(!clerkLoggedIn()){
+            label.text="○ Войди через Clerk. Для покупки понадобится проверенная почта."
+            return
+        }
+        label.text="Проверяем подтверждённую почту в Clerk…"
+        Thread {
+            val outcome=runCatching {
+                clerkToken()?.let{NativeIdentity.account(it)}
+            }
+            runOnUiThread {
+                if(isFinishing||isDestroyed||tab!=Tab.ACCOUNT||
+                   verifiedEmailHint!==label)return@runOnUiThread
+                val account=outcome.getOrNull()
+                label.text=when{
+                    account==null || !account.authenticated ->
+                        "Проверка аккаунта недоступна. Войди через Clerk повторно."
+                    account.verifiedDeliveryEmail ->
+                        "✓ Email подтверждён Clerk. Можно получать оплаченные VPN-ключи."
+                    else ->
+                        "● Вход подтверждён. Добавь email в профиле Clerk " +
+                        "и подтверди его перед покупкой."
+                }
+            }
+        }.start()
+    }
+
     private fun startClerkLogin() {
         if(!BuildConfig.VAINAH_CLERK_ENABLED ||
            !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)){
@@ -939,6 +968,13 @@ class MainActivity : Activity() {
             else "Войти / зарегистрироваться через Clerk",true)
         add(providers,signIn,12)
         signIn.setOnClickListener{startClerkLogin()}
+        val emailHint=text("Проверка статуса email…",12f,d.muted)
+        verifiedEmailHint=emailHint
+        add(providers,emailHint,12)
+        val emailAction=action("Добавить / подтвердить email в Clerk")
+        add(providers,emailAction,8)
+        emailAction.setOnClickListener{startClerkLogin()}
+        refresher.post { refreshVerifiedDeliveryEmail() }
         add(providers,text("Telegram и Яндекс пока используют независимую " +
             "веб-авторизацию; для покупок нужна подтверждённая сессия Clerk.",
             11f,d.muted),12)
