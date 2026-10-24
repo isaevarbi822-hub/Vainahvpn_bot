@@ -95,7 +95,7 @@ test('signed sandbox webhooks are independently checked and never grant VPN',asy
  const payId='pay_sandbox_test_123456789';
  const event={order_id:orderId,payment_id:payId,event_type:'payment.paid',
    amount:'10.00',status:'paid',currency:'RUB',test:true};
- const fake=async ()=>({ok:true,json:async()=>({
+ const fake=async ()=>({ok:true,status:200,json:async()=>({
    ...sandboxReply(orderId),status:'paid',payment_id:payId
  })});
  assert.deepEqual(await checkClerkSandboxWebhook(event,env,fake),
