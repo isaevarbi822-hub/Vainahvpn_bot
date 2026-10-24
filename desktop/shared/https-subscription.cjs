@@ -2,22 +2,7 @@
 const https=require('node:https');
 const dns=require('node:dns').promises;
 const net=require('node:net');
-const {vlessUriToXray}=require('./vless-link.cjs');
-function singBoxOutboundToXray(item){
- if(!item||item.type!=='vless'||typeof item.server!=='string'||!Number.isInteger(item.server_port)||
-   item.server_port<1||item.server_port>65535||typeof item.uuid!=='string'||item.tls?.enabled!==true||
-   item.tls?.reality?.enabled!==true||!item.tls.reality.public_key||!item.tls.server_name||
-   (item.transport&&item.transport.type!=='tcp'))return null;
- return {outbounds:[{protocol:'vless',
-  settings:{vnext:[{address:item.server,port:item.server_port,users:[{
-    id:item.uuid,flow:item.flow||''
-  }]}]},
-  streamSettings:{network:'tcp',security:'reality',realitySettings:{
-    serverName:item.tls.server_name,publicKey:item.tls.reality.public_key,
-    shortId:item.tls.reality.short_id||'',fingerprint:item.tls.utls?.fingerprint||'chrome'
-  }}
- }]};
-}
+const {parseSubscriptionBody}=require('./subscription-payload.cjs');
 function publicAddress(address){
  if(!net.isIP(address))return false;
  if(net.isIP(address)===4){
@@ -36,8 +21,15 @@ function publicAddress(address){
 }
 async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={}){
  if(typeof input!=='string'||input.length>8192)throw Error('Invalid subscription URL');
+ // Clipboard apps sometimes wrap the copied HTTPS URL with angle brackets or quotes.
+ // Only unwrap the ends; never rewrite an embedded bearer token or its query string.
+ let clean=input.trim().replace(/^\uFEFF/,'').trim();
+ if((clean.startsWith('<')&&clean.endsWith('>'))||
+    (clean.startsWith('"')&&clean.endsWith('"'))||
+    (clean.startsWith("'")&&clean.endsWith("'")))clean=clean.slice(1,-1).trim();
+ if(!clean || /[\x00-\x20\x7f]/.test(clean))throw Error('Invalid subscription URL');
  let url;
- try{url=new URL(input)}catch{throw Error('Invalid subscription URL')}
+ try{url=new URL(clean)}catch{throw Error('Invalid subscription URL')}
  if(url.protocol!=='https:'||url.username||url.password||
     url.hash||net.isIP(url.hostname)||!url.hostname.includes('.')||
     /[^a-z0-9.-]/i.test(url.hostname))throw Error('HTTPS hostname required');
@@ -50,54 +42,48 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
   throw Error('Subscription target unavailable');
  // Prefer IPv4 on networks where AAAA resolves but IPv6 is unavailable.
  const pinned=(resolved.find(x=>net.isIP(x.address)===4)||resolved[0]).address;
- const data=await new Promise((resolve,reject)=>{
-  const req=request(url,{timeout:8000,maxRedirects:0,lookup:(_host,_opts,cb)=>cb(null,pinned,net.isIP(pinned))},res=>{
+ const getOnce=target=>new Promise((resolve,reject)=>{
+  const req=request(target,{timeout:8000,maxRedirects:0,
+    headers:{Accept:'text/plain, application/json'},
+    lookup:(_host,_opts,cb)=>cb(null,pinned,net.isIP(pinned))},res=>{
+   // Only a same-origin redirect can be followed; never leak an H1 bearer URL
+   // or its request headers to a new hostname.
+   if([301,302,307,308].includes(res.statusCode)){
+     const location=res.headers?.location;
+     res.resume();
+     if(!location)return reject(Error('Subscription HTTP response'));
+     let next;
+     try{next=new URL(location,target)}catch{return reject(Error('Subscription HTTP response'))}
+     if(next.origin!==url.origin||next.username||next.password||next.hash)
+       return reject(Error('Subscription redirect refused'));
+     return resolve({redirect:next});
+   }
    if(res.statusCode!==200){
      res.resume();
-     // Keep the URL and any bearer token out of errors and logs.
      const error=Error('Subscription HTTP response');
      error.statusCode=Number(res.statusCode)||0;
      return reject(error);
    }
    const chunks=[];let total=0;
-   res.on('data',chunk=>{total+=chunk.length;if(total>256*1024){req.destroy(Error('Subscription too large'));return}chunks.push(chunk)});
-   res.on('end',()=>resolve(Buffer.concat(chunks).toString('utf8')));
+   res.on('data',chunk=>{
+     total+=chunk.length;
+     if(total>256*1024){req.destroy(Error('Subscription too large'));return}
+     chunks.push(chunk);
+   });
+   res.on('end',()=>resolve({body:Buffer.concat(chunks).toString('utf8')}));
    res.on('error',reject);
   });
   req.on('timeout',()=>req.destroy(Error('Subscription timeout')));
   req.on('error',reject);
  });
- const trimmed=data.trim();
- // Some panels return an Xray-style JSON document rather than a link list.
- if(trimmed.startsWith('{')){
-   let payload;
-   try{payload=JSON.parse(trimmed)}catch{throw Error('Unsupported subscription format')}
-   if(Array.isArray(payload?.outbounds)){
-     const profiles=[];
-     for(const outbound of payload.outbounds.slice(0,50)){
-       if(outbound?.protocol==='vless'&&outbound?.streamSettings?.security==='reality'&&
-         (!outbound.streamSettings.network||outbound.streamSettings.network==='tcp')){
-         if(outbound.settings?.vnext?.length===1)profiles.push({outbounds:[outbound]});
-       }
-     }
-     for(const outbound of payload.outbounds.slice(0,50)){
-       const converted=singBoxOutboundToXray(outbound);
-       if(converted)profiles.push(converted);
-     }
-     if(profiles.length)return {profiles,count:profiles.length};
-   }
-   throw Error('Unsupported subscription format');
+ let current=url, response;
+ for(let i=0;i<=2;i++){
+  response=await getOnce(current);
+  if(!response.redirect)break;
+  if(i===2)throw Error('Subscription redirect refused');
+  current=response.redirect;
  }
- // Accept both ordinary newline-delimited VLESS lists and base64 lists.
- // Avoid interpreting malformed or mixed text as base64.
- const decoded=trimmed.startsWith('vless://')?trimmed:(/^[A-Za-z0-9+/=\s]+$/.test(trimmed)
-   ? Buffer.from(trimmed.replace(/\s/g,''),'base64').toString('utf8')
-   : trimmed);
- const lines=decoded.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
- if(lines.length<1||lines.length>50)throw Error('Unsupported subscription');
- const profiles=[];
- for(const line of lines){if(line.startsWith('vless://')){try{profiles.push(vlessUriToXray(line))}catch{}}}
- if(!profiles.length)throw Error('No supported VLESS REALITY TCP servers');
- return {profiles,count:profiles.length};
+ return parseSubscriptionBody(response.body);
+
 }
 module.exports={fetchSubscription,publicAddress};
