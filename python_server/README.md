@@ -50,6 +50,36 @@ The repository branch `migration/python-host` contains `render.yaml`, which prov
 
 Never paste secret values into public GitHub or chats. The free Render database expires after 30 days; **do not migrate production subscription records into a temporary free database**. Reuse a durable existing DB only after checking access security and making a backup.
 
+## Updated Telegram Login (OIDC, no deprecated iframe)
+
+The deprecated `telegram.org/js/telegram-widget.js` is not used on the Python preview.
+Login now follows Authorization Code + PKCE with a short-lived, signed HttpOnly
+state cookie. The Python server verifies the Telegram signed ID token against
+Telegram's JWKS, checks issuer, audience, expiry and nonce, then creates the
+same signed session cookie that the existing H1Cloud/account API expects.
+
+In the Render service's **Environment** section, set these values:
+- `TELEGRAM_OIDC_CLIENT_ID`: Telegram Login Client ID shown in @BotFather
+  (it is a numeric bot/client ID, **not** the API token).
+- `TELEGRAM_OIDC_CLIENT_SECRET`: client secret from the same BotFather Login Widget setup.
+- `SESSION_SIGNING_KEY`: existing 32+ character server-side signing key.
+- `PUBLIC_SITE_ORIGIN=https://vainahvpn-python-preview.onrender.com`.
+
+In @BotFather, keep the old website URL and additionally allow
+`https://vainahvpn-python-preview.onrender.com` and the **full callback URL**
+`https://vainahvpn-python-preview.onrender.com/auth/telegram/callback`.
+Use the same bot as the one that handles account login on the old site.
+Never add client secrets or bot tokens to the frontend or a commit.
+
+The read-only readiness route is `/api/auth/telegram-status`:
+`{"oidcConfigured":true}` means the required server settings are present,
+**not** that the user has logged in. The login is tested from
+`/account.html`; after Telegram consent the server redirects back to that
+page with an authenticated cookie.
+
+Keep live checkout disabled until all authentication, DB, and RollyPay
+end-to-end checks pass on the new site.
+
 ## Check before canceling Netlify
 
 1. Open the new site's home page and navigate its assets, pages and navigation.
