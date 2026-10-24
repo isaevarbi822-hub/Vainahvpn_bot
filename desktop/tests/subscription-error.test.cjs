@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {subscriptionErrorMessage}=require('../shared/subscription-error.cjs');
+const {subscriptionErrorMessage,subscriptionDiagnosticCode}=require('../shared/subscription-error.cjs');
 test('categorizes TLS, DNS and HTTP errors without echoing bearer URLs',()=>{
  const secret='https://panel.example.com/sub?token=DO_NOT_LEAK';
  for(const [code,expected] of [
@@ -40,4 +40,18 @@ test('H1Cloud HTTP errors are actionable without revealing subscription tokens',
   assert.match(message,expected);
   assert.doesNotMatch(message,/TOP_SECRET|private\.example/);
  }
+});
+
+test('Node22 DNS connection failure is explained with a safe diagnostic code',()=>{
+ const error={code:'ERR_INVALID_IP_ADDRESS',message:'Bad IP in private https://provider.example/sub?key=SECRET'};
+ assert.match(subscriptionErrorMessage(error),/Node\.js 22/);
+ assert.equal(subscriptionDiagnosticCode(error),'ERR_INVALID_IP_ADDRESS');
+ assert.doesNotMatch(subscriptionErrorMessage(error),/SECRET|provider\.example/);
+});
+test('HTTP and unknown internal errors expose only safe allowlisted codes',()=>{
+ assert.equal(subscriptionDiagnosticCode({
+  message:'Subscription HTTP response',statusCode:403,url:'https://private.example/key=HIDDEN'
+ }),'HTTP_403');
+ assert.equal(subscriptionDiagnosticCode({code:'FATAL_https://bad.example/SECRET',message:'key=SECRET'}),'HTTPS_UNKNOWN');
+ assert.equal(subscriptionDiagnosticCode({message:'Unsupported subscription format'}),'FORMAT_UNSUPPORTED');
 });
