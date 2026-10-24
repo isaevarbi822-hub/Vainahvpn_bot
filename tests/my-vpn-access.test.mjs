@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {makeSession} from '../netlify/functions/lib/telegram-identity.mjs';
-import {readOwnH1Access,H1StatusError} from '../netlify/functions/lib/own-h1-access.mjs';
+import {readOwnH1Access} from '../netlify/functions/lib/own-h1-access.mjs';
+import {H1StatusError} from '../netlify/functions/lib/h1-readonly.mjs';
 import handler from '../netlify/functions/my-vpn-access.mjs';
 
 const env={
