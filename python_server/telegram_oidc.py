@@ -117,7 +117,7 @@ async def telegram_status():
 
 
 @router.get("/auth/telegram/start")
-async def telegram_start():
+async def telegram_start(request: Request):
     cfg = settings()
     if not cfg:
         return error_redirect("not_configured")
@@ -126,7 +126,9 @@ async def telegram_start():
     nonce = secrets.token_urlsafe(32)
     verifier = secrets.token_urlsafe(48)
     challenge = b64(hashlib.sha256(verifier.encode()).digest())
+    return_to = "checkout" if request.query_params.get("next") == "checkout" else "account"
     flow = flow_token({"state": state, "nonce": nonce, "verifier": verifier,
+                       "return_to": return_to,
                        "exp": int(time.time()) + 600}, key)
     args = {
         "client_id": client, "redirect_uri": site + "/auth/telegram/callback",
@@ -172,7 +174,8 @@ async def telegram_callback(request: Request):
         user_id, username = verify_token(id_token, keys_response.json(), client, flow["nonce"])
     except (httpx.HTTPError, ValueError, KeyError, TypeError, jwt.PyJWTError):
         return error_redirect()
-    response = RedirectResponse("/account.html?telegram_login=success", status_code=303)
+    destination = "/checkout.html" if flow.get("return_to") == "checkout" else "/account.html"
+    response = RedirectResponse(destination + "?telegram_login=success", status_code=303)
     response.set_cookie(
         SESSION_COOKIE, create_session(user_id, username, signing),
         max_age=604800, path="/", secure=True, httponly=True, samesite="lax",
