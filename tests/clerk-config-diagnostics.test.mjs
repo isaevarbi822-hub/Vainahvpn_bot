@@ -18,14 +18,14 @@ test('server diagnostics agree with strict Clerk configuration gate',()=>{
  assert.equal(clerkMobileConfigured({}),false);
  assert.deepEqual(clerkConfigurationProblems({}),[
    'CLERK_PUBLISHABLE_KEY',
-   'CLERK_SECRET_KEY (must match publishable key environment)',
+   'CLERK_SECRET_KEY (same environment as publishable key)',
    'SESSION_SIGNING_KEY (minimum 32 characters)',
    'PUBLIC_SITE_ORIGIN (exact HTTPS origin)'
  ]);
  const wrong={...baseline,CLERK_SECRET_KEY:'sk_live_'+'d'.repeat(24)};
  assert.equal(clerkMobileConfigured(wrong),false);
  assert.deepEqual(clerkConfigurationProblems(wrong),
-   ['CLERK_SECRET_KEY (must match publishable key environment)']);
+   ['CLERK_SECRET_KEY (same environment as publishable key)']);
  const invalid={...baseline,PUBLIC_SITE_ORIGIN:'https://vainahvpnbot0.netlify.app/'};
  assert.equal(clerkMobileConfigured(invalid),false);
  assert.deepEqual(clerkConfigurationProblems(invalid),
