@@ -1,4 +1,5 @@
 import {json,verifyRollypaySignature} from './lib/security.mjs';
+import clerkSandboxWebhook from './clerk-sandbox-webhook.mjs';
 import {checkoutReady,parseRubPrice} from './lib/plan-catalog.mjs';
 import {fetchPayment} from './lib/rollypay-client.mjs';
 import {validPaymentId} from './lib/rollypay-identifiers.mjs';
@@ -8,6 +9,10 @@ import {fulfillPaidOrder} from './lib/h1-fulfillment.mjs';
 
 export default async function handler(request){
   if(request.method!=='POST')return json({error:'Method not allowed'},405);
+  // Provider callbacks for TEST payments use the SAME configured terminal URL.
+  // They are verified separately and can NEVER reach the production ledger.
+  if(request.headers.get('x-test-mode')==='true')
+    return clerkSandboxWebhook(request);
   if(!checkoutReady())return json({error:'Production payment processing disabled'},503);
   if(Number(request.headers.get('content-length')||0)>32768)return json({error:'Too large'},413);
   const body=await request.text();
