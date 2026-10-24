@@ -22,7 +22,7 @@
     for(const pane of panes)pane.hidden=pane.dataset.authPane!==method;
     if(method!=='telegram'&&!methods[method])
       message($('[data-auth-message="'+method+'"]'),
-        'Этот способ входа пока не подключён в Netlify. Понадобится настройка провайдера подтверждения.');
+        'Этот способ входа пока не подключён на сервере. Понадобится настройка провайдера подтверждения.');
   }
   for(let i=0;i<tabs.length;i++){
     tabs[i].addEventListener('click',()=>select(tabs[i].dataset.authTab));
@@ -60,7 +60,7 @@
       const warning=$('#account-yandex-disabled');
       warning.hidden=methods.yandex;
       if(!methods.telegram)
-        message(tgStatus,'Для Telegram Login проверь TELEGRAM_BOT_TOKEN, SESSION_SIGNING_KEY, PUBLIC_SITE_ORIGIN и домен, разрешённый в BotFather.');
+        message(tgStatus,'Для Telegram Login проверь Client ID, Client Secret, SESSION_SIGNING_KEY и разрешённые URL в BotFather.');
     }catch{
       info.textContent='Не получилось проверить способы входа. Попробуй обновить страницу.';
     }
@@ -125,6 +125,9 @@
   }else{
     message(tgStatus,'Не удалось загрузить модуль Telegram Login. Обнови страницу.');
   }
+  const telegramHint=new URLSearchParams(window.location.search).get('telegram_login');
+  if(telegramHint==='error')message(tgStatus,'Вход Telegram не завершён. Проверь настройки BotFather и попробуй ещё раз.');
+  if(telegramHint==='not_configured')message(tgStatus,'Новый Telegram Login OIDC пока не настроен в Render.');
   const hint=new URLSearchParams(window.location.search).get('alt_login');
   if(hint==='error')info.textContent='Яндекс не подтвердил вход. Попробуй ещё раз или выбери другой способ.';
   if(hint==='success')info.textContent='Яндекс подтвердил вход. Проверяем защищённую сессию…';
