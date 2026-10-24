@@ -76,6 +76,11 @@ export async function readH1ClientStatus(telegramId,options={}) {
     found:true,
     active:!banned && seconds*1000>now,
     banned,
-    expiresAt:seconds>0?new Date(seconds*1000).toISOString():null
+    expiresAt:seconds>0?new Date(seconds*1000).toISOString():null,
+    // Device limit is safe account metadata, NOT connected-device information.
+    // Only include a validated positive integer; never invent a value.
+    ...(Number.isSafeInteger(Number(client.device_limit))&&
+        Number(client.device_limit)>=1&&Number(client.device_limit)<=100
+       ?{deviceLimit:Number(client.device_limit)}:{})
   };
 }
