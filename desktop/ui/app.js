@@ -278,7 +278,8 @@
         ? await window.vainah.importHttpsSubscription(link)
         : await window.vainah.importVlessLink(link);
       if(result?.ok)await refreshServers();
-      status.textContent=result?.message||'Не удалось прочитать подписку.';
+      status.textContent=(result?.message||'Не удалось прочитать подписку.')+
+        (!result?.ok&&result?.diagnostic?' [Код: '+result.diagnostic+']':'');
       if(result?.ok)field.value='';
     }catch{status.textContent='Не удалось импортировать ссылку. Проверь формат и доступность подписки.';}
     finally{importButton.disabled=false;}
@@ -327,6 +328,7 @@
       document.getElementById('detected-platform').textContent=
         info.platform==='win32'?'Компьютер с Windows':info.platform==='darwin'?'Компьютер с macOS':'Твой компьютер';
       document.getElementById('app-version').textContent=info.version;
+      document.getElementById('footer-app-version').textContent=info.version;
     }
     if(Array.isArray(catalog)){
       plans=catalog.filter(p=>p&&typeof p.title==='string'&&Number.isInteger(p.priceRub)&&
