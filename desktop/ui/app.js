@@ -151,7 +151,16 @@
       }
     }
     list.replaceChildren();
-    if(!result.servers.length){list.append(element('p','', 'Подписка ещё не добавлена.'));return;}
+    if(!result.servers.length){
+      if(result.restoring){
+        list.append(element('p','', 'Восстанавливаем сохранённую VPN-подписку…'));
+        setTimeout(()=>{void refreshServers()},1600);
+      }else{
+        list.append(element('p','', result.restoreError||
+          'Подписка ещё не добавлена. Вставь HTTPS-ссылку или VLESS-ключ.'));
+      }
+      return;
+    }
     const query=document.getElementById('home-server-search')?.value.trim().toLocaleLowerCase('ru-RU')||'';
     const matches=result.servers.filter(server=>server.label.toLocaleLowerCase('ru-RU').includes(query));
     if(!matches.length){list.append(element('p','', 'По запросу локаций не найдено.'));return;}
@@ -202,6 +211,21 @@
     }
   }
   setInterval(()=>{void refreshEngineStatus()},3000);
+  const forgetButton=document.getElementById('forget-vpn-link');
+  forgetButton?.addEventListener('click',async()=>{
+    if(!window.vainah?.forgetSubscription)return;
+    const status=document.getElementById('vless-import-status');
+    forgetButton.disabled=true;
+    try{
+      const reply=await window.vainah.forgetSubscription();
+      status.textContent=reply?.message||'Не удалось удалить подписку.';
+      if(reply?.ok){
+        document.getElementById('vless-key').value='';
+        await refreshServers();
+      }
+    }catch{status.textContent='Не удалось удалить подписку. Попробуй снова.'}
+    finally{forgetButton.disabled=false}
+  });
   const importButton=document.getElementById('import-vless');
   const pasteButton=document.getElementById('paste-vpn-link');
   const linkField=document.getElementById('vless-key');
