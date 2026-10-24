@@ -30,6 +30,8 @@ jobs:
         run: |
           python -m py_compile python_server/main.py
           node --check python_server/legacy_bridge.mjs
+      - name: Run legacy Node and frontend regression tests
+        run: npm test
       - name: Run safe read-only smoke tests
         env:
           PUBLIC_SITE_ORIGIN: http://127.0.0.1:8000
