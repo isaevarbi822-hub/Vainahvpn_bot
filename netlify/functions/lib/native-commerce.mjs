@@ -1,12 +1,12 @@
 import {randomUUID} from 'node:crypto';
 import {getPool,transaction} from './subscription-db.mjs';
-import {checkoutReady} from './plan-catalog.mjs';
+import {paymentInfrastructureReady} from './plan-catalog.mjs';
 import {validPaymentId} from './rollypay-identifiers.mjs';
 import {fetchPayment} from './rollypay-client.mjs';
 import {clerkMobileConfigured} from './mobile-auth.mjs';
 
 export function nativeCommerceReady(env=process.env){
-  return checkoutReady(env) && clerkMobileConfigured(env) &&
+  return paymentInfrastructureReady(env) && clerkMobileConfigured(env) &&
     env.CLERK_PUBLISHABLE_KEY.startsWith('pk_live_') &&
     env.CLERK_SECRET_KEY.startsWith('sk_live_') &&
     env.VAINAH_NATIVE_CHECKOUT==='approved-after-test' &&

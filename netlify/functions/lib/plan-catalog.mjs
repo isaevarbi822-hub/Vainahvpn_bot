@@ -16,10 +16,14 @@ export function planCatalog(env=process.env) {
   return entries.map(plan=>({...plan,priceRub:(plan.kopeks/100).toFixed(2)}));
 }
 export function planById(id,env=process.env) {return planCatalog(env).find(plan=>plan.id===String(id));}
-export function checkoutReady(env=process.env) {
-  // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
+/**
+ * Shared LIVE infrastructure gate. Does not claim provider/account eligibility;
+ * independent checkout gates remain disabled until the operator has reviewed
+ * the merchant agreement, H1Cloud delivery, refunds and real webhook checks.
+ */
+export function paymentInfrastructureReady(env=process.env) {
   const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
-    'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
+    'SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
   // Live checkout stays OFF unless an operator explicitly approves each
   // gate in the server environment after end-to-end tests and merchant review.
   if(env.VAINAH_LIVE_CHECKOUT!=='enabled-after-review' ||
@@ -34,4 +38,10 @@ export function checkoutReady(env=process.env) {
        panel.username||panel.password || !['/','/api','/api/'].includes(panel.pathname))return false;
   }catch{return false}
   return true;
+}
+/** Website checkout still requires Telegram Login and its bot token. */
+export function checkoutReady(env=process.env) {
+  return paymentInfrastructureReady(env) &&
+    typeof env.TELEGRAM_BOT_TOKEN==='string' &&
+    env.TELEGRAM_BOT_TOKEN.trim().length>0;
 }

@@ -31,7 +31,11 @@ export default async function handler(request){
       paidAt:r.paid_at?new Date(r.paid_at).toISOString():null,
       expiresAt:r.target_expires_at?new Date(r.target_expires_at).toISOString():null
     }));
-    const response=json({orders,historyLimited:orders.length===20});
+    const latestOutstanding=orders.find(o=>['created','awaiting_payment'].includes(o.status));
+    const latestDelivered=orders.find(o=>o.status==='paid'&&o.deliveryState==='delivered');
+    const response=json({orders,historyLimited:orders.length===20,
+      latestOutstandingOrderId:latestOutstanding?.orderId||null,
+      latestDeliveredOrderId:latestDelivered?.orderId||null});
     response.headers.set('Cache-Control','no-store');
     return response;
   }catch{

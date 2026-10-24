@@ -47,6 +47,10 @@ class MainActivity : Activity() {
     private var deviceFilter = 0
     private var checkoutGeneration = 0
     private var checkoutStatus: NativeCheckout.Availability? = null
+    // A return from hosted RollyPay checkout is NOT proof of payment.
+    // It only prompts an authenticated server-side provider status refresh.
+    private var checkoutReturnPending = false
+    private var verifiedEmailHint: TextView? = null
     private var checkoutStatusView: TextView? = null
     private val checkoutButtons = mutableListOf<Pair<VainahPlan, Button>>()
     private var activeConnectionLabel: TextView? = null
@@ -83,6 +87,13 @@ class MainActivity : Activity() {
         super.onResume()
         refresher.removeCallbacks(refreshTask)
         refresher.post(refreshTask)
+        if(checkoutReturnPending){
+            checkoutReturnPending=false
+            refresher.postDelayed({
+                if(!isFinishing && !isDestroyed)checkNativeOrder()
+            },750)
+        }
+        if(tab==Tab.ACCOUNT)refreshVerifiedDeliveryEmail()
     }
 
     override fun onPause() {
@@ -634,8 +645,8 @@ class MainActivity : Activity() {
         checkoutStatusView = billingLabel
         add(billingPanel,billingLabel,11)
         add(billingPanel,text(
-            "Счёт создаёт только наш сервер после входа через Telegram. " +
-                "Приложение не принимает номера карт и не подтверждает оплату самостоятельно.",
+            "Оплата привязана к входу Clerk. RollyPay открывается в защищённой вкладке; " +
+                "банк может подтвердить СБП. VPN выдаётся только после независимой проверки платежа.",
             11f,d.muted),8)
         val filter=panel()
         add(parent,filter,20)
@@ -733,6 +744,35 @@ class MainActivity : Activity() {
         }.getOrNull()
     }
 
+    private fun refreshVerifiedDeliveryEmail() {
+        val label=verifiedEmailHint?:return
+        if(tab!=Tab.ACCOUNT)return
+        if(!clerkLoggedIn()){
+            label.text="○ Войди через Clerk. Для покупки понадобится проверенная почта."
+            return
+        }
+        label.text="Проверяем подтверждённую почту в Clerk…"
+        Thread {
+            val outcome=runCatching {
+                clerkToken()?.let{NativeIdentity.account(it)}
+            }
+            runOnUiThread {
+                if(isFinishing||isDestroyed||tab!=Tab.ACCOUNT||
+                   verifiedEmailHint!==label)return@runOnUiThread
+                val account=outcome.getOrNull()
+                label.text=when{
+                    account==null || !account.authenticated ->
+                        "Проверка аккаунта недоступна. Войди через Clerk повторно."
+                    account.verifiedDeliveryEmail ->
+                        "✓ Email подтверждён Clerk. Можно получать оплаченные VPN-ключи."
+                    else ->
+                        "● Вход подтверждён. Добавь email в профиле Clerk " +
+                        "и подтверди его перед покупкой."
+                }
+            }
+        }.start()
+    }
+
     private fun startClerkLogin() {
         if(!BuildConfig.VAINAH_CLERK_ENABLED ||
            !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)){
@@ -757,10 +797,33 @@ class MainActivity : Activity() {
             runOnUiThread {
                 if(isFinishing||isDestroyed)return@runOnUiThread
                 if(token==null){
-                    notice("Войди через Clerk и подтверди email для получения VPN-ключа.")
+                    notice("Для покупки войди через Clerk в приложении.")
                     switch(Tab.ACCOUNT)
                     return@runOnUiThread
                 }
+                // Verify the current email state at Clerk BEFORE creating an invoice.
+                Thread {
+                    val readiness=runCatching { NativeIdentity.account(token) }
+                    runOnUiThread {
+                        if(isFinishing||isDestroyed)return@runOnUiThread
+                        if(readiness.isFailure){
+                            notice("Не удалось проверить Clerk-аккаунт. Проверь интернет.")
+                            return@runOnUiThread
+                        }
+                        if(readiness.getOrNull()?.verifiedDeliveryEmail!=true){
+                            notice("Подтверди email в Clerk перед покупкой, " +
+                                "чтобы подписка пришла именно тебе.")
+                            switch(Tab.ACCOUNT)
+                            return@runOnUiThread
+                        }
+                        confirmNativeCheckout(plan,token)
+                    }
+                }.start()
+            }
+        }.start()
+    }
+
+    private fun confirmNativeCheckout(plan:VainahPlan,token:String) {
                 AlertDialog.Builder(this)
                     .setTitle("Оформление: ${plan.title}")
                     .setMessage("К оплате ${plan.priceRub} ₽. После серверного подтверждения " +
@@ -776,9 +839,11 @@ class MainActivity : Activity() {
                                 invoice.onSuccess {
                                     mobileIdentity.saveOrder(it.orderId)
                                     runCatching {
+                                        // Pending only. Never trust a browser return as paid.
                                         CustomTabsIntent.Builder().setShowTitle(true)
                                             .setToolbarColor(d.background).build()
                                             .launchUrl(this,Uri.parse(it.payUrl))
+                                        checkoutReturnPending=true
                                     }.onFailure{
                                         notice("Платёжная вкладка не открылась. " +
                                             "Заказ можно проверить в кабинете.")
@@ -790,8 +855,6 @@ class MainActivity : Activity() {
                             }
                         }.start()
                     }.show()
-            }
-        }.start()
     }
 
     private fun checkNativeOrder() {
@@ -802,7 +865,7 @@ class MainActivity : Activity() {
             val result=if(token==null)Result.failure(
                 IllegalStateException("Clerk session missing"))
                 else runCatching {
-                    val id=NativeIdentity.latestOrder(token)
+                    val id=NativeIdentity.latestOrder(token,mobileIdentity.lastOrder())
                         ?: throw IllegalStateException("No purchases in this Clerk account")
                     mobileIdentity.saveOrder(id)
                     NativeIdentity.readOrder(token,id)
@@ -813,14 +876,24 @@ class MainActivity : Activity() {
                     if(order.status=="paid"&&order.delivery=="delivered"&&
                        order.subscriptionUrl!=null) {
                         if(vault.save(order.subscriptionUrl)){
-                            notice("Оплата подтверждена, VPN добавлен в приложение. " +
+                            chosenServer=-1
+                            selectedNode=null
+                            notice("Оплата подтверждена сервером! VPN сохранён. " +
                                 (if(order.emailState=="sent")"Письмо также отправлено."
-                                    else "Письмо ещё доставляется."))
-                        }else notice("VPN оплачен, но сохранить ссылку не удалось.")
+                                 else "Письмо ещё доставляется."))
+                        }else notice("Оплата подтверждена, но импорт VPN не удался.")
                     }else {
-                        notice("Оплата: ${order.status}. Выдача VPN: ${order.delivery}.")
+                        val status=when(order.status){
+                            "awaiting_payment","created" -> "Ожидаем подтверждения RollyPay"
+                            "paid" -> if(order.delivery=="retry") "Оплачено · сервер выдачи повторяет попытку"
+                                else "Оплачено · готовим VPN"
+                            "refunded","chargeback" -> "Возврат/оспаривание · нужна проверка поддержки"
+                            "canceled","expired" -> "Счёт закрыт · VPN не выдавался"
+                            else -> "Статус заказа: ${order.status}"
+                        }
+                        notice(status+". Проверку можно повторить в кабинете.")
                     }
-                }.onFailure{notice("Не удалось найти покупку в этом Clerk-аккаунте или проверить её статус.")}
+                }.onFailure{notice("Не удалось проверить заказ этого Clerk-аккаунта. Повтори позже.")}
             }
         }.start()
     }
@@ -895,6 +968,13 @@ class MainActivity : Activity() {
             else "Войти / зарегистрироваться через Clerk",true)
         add(providers,signIn,12)
         signIn.setOnClickListener{startClerkLogin()}
+        val emailHint=text("Проверка статуса email…",12f,d.muted)
+        verifiedEmailHint=emailHint
+        add(providers,emailHint,12)
+        val emailAction=action("Добавить / подтвердить email в Clerk")
+        add(providers,emailAction,8)
+        emailAction.setOnClickListener{startClerkLogin()}
+        refresher.post { refreshVerifiedDeliveryEmail() }
         add(providers,text("Telegram и Яндекс пока используют независимую " +
             "веб-авторизацию; для покупок нужна подтверждённая сессия Clerk.",
             11f,d.muted),12)

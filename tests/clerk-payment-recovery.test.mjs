@@ -42,7 +42,7 @@ test('a native order snapshots verified Clerk email; delivery date is durably re
  assert.ok(server.indexOf('const target=await reserveNativeExpiry(orderId)')<
    server.indexOf('result=await fulfillH1(orderId)'));
  assert.match(server,/ON CONFLICT\(customer_id\) DO UPDATE[\s\S]*?GREATEST\(/);
- assert.match(android,/fun latestOrder\(jwt:String\)/);
+ assert.match(android,/fun latestOrder\(jwt:String,preferredId:String\?=null\)/);
  assert.match(android,/exchange\("mobile-orders",null,jwt\)/);
  assert.doesNotMatch(android,/ROLLYPAY_API_KEY|CLERK_SECRET_KEY|RESEND_API_KEY|PANEL_API_TOKEN/);
 });

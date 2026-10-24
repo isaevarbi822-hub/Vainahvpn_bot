@@ -18,6 +18,7 @@ class NativeIdentity(context:Context) {
             prefs.edit().putString("last_order",id).apply()
     }
 
+    data class Account(val authenticated:Boolean,val verifiedDeliveryEmail:Boolean)
     data class Invoice(val orderId:String,val payUrl:String)
     data class Order(val status:String,val delivery:String,
         val subscriptionUrl:String?,val emailState:String)
@@ -56,6 +57,14 @@ class NativeIdentity(context:Context) {
                 return JSONObject(bytes.toString("UTF-8"))
             }finally{conn.disconnect()}
         }
+        fun account(jwt:String):Account {
+            val result=exchange("mobile-account",null,jwt)
+            return Account(
+                authenticated=result.optBoolean("authenticated",false),
+                verifiedDeliveryEmail=result.optBoolean("emailVerified",false)
+            )
+        }
+
         fun createInvoice(jwt:String,planId:String):Invoice {
             if(VainahPlans.all.none{it.id==planId})throw IllegalArgumentException("Bad plan")
             val data=exchange("mobile-checkout",JSONObject().put("plan",planId),jwt)
@@ -67,14 +76,21 @@ class NativeIdentity(context:Context) {
                 throw IllegalStateException("Unsafe payment address")
             return Invoice(data.getString("orderId"),url)
         }
-        fun latestOrder(jwt:String):String? {
+        fun latestOrder(jwt:String,preferredId:String?=null):String? {
             val data=exchange("mobile-orders",null,jwt)
             val list=data.optJSONArray("orders")?:return null
             if(list.length()==0)return null
-            val orderId=list.getJSONObject(0).optString("orderId")
-            if(!Regex("^[a-f0-9-]{36}$",RegexOption.IGNORE_CASE).matches(orderId))
-                throw IllegalStateException("Invalid server order identifier")
-            return orderId
+            val ids=(0 until list.length()).mapNotNull { i ->
+                list.optJSONObject(i)?.optString("orderId")
+                    ?.takeIf { it.matches(Regex("^[a-fA-F0-9-]{36}$")) }
+            }
+            // Old local state is NOT proof of ownership; Clerk-owned history is.
+            if(preferredId!=null && ids.contains(preferredId))return preferredId
+            val pending=data.optString("latestOutstandingOrderId","")
+            if(ids.contains(pending))return pending
+            val delivered=data.optString("latestDeliveredOrderId","")
+            if(ids.contains(delivered))return delivered
+            return ids.firstOrNull()
         }
         fun readOrder(jwt:String,id:String):Order {
             if(!Regex("^[a-f0-9-]{36}$",RegexOption.IGNORE_CASE).matches(id))
