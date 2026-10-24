@@ -12,8 +12,10 @@ function subscriptionErrorMessage(error){
   if(Number.isInteger(status)&&status>=300&&status<=399)return 'Сервер перенаправляет подписку (HTTP 3xx). Автоматические переходы отключены для защиты ключа.';
   return 'Сервер отклонил запрос подписки по HTTPS.';
  }
+ if(cause==='Subscription redirect refused')
+  return 'Сервер подписки перенаправляет на другой адрес. Для защиты VPN-ключа такой переход заблокирован.';
  if(cause==='Invalid subscription URL'||cause==='HTTPS hostname required')
-  return 'Неверная HTTPS-ссылка подписки или порт сервера.';
+  return 'Нужна полная HTTPS-ссылка подписки H1Cloud с действующим доменом и портом.';
  if(cause==='Subscription target unavailable')
   return 'DNS подписки указывает на закрытый или недоступный адрес.';
  if(cause==='Subscription DNS lookup failed'||['ENOTFOUND','EAI_AGAIN','ESERVFAIL'].includes(code))
