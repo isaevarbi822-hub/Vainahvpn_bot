@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     // A return from hosted RollyPay checkout is NOT proof of payment.
     // It only prompts an authenticated server-side provider status refresh.
     private var checkoutReturnPending = false
+    private var sandboxReturnPending = false
     private var verifiedEmailHint: TextView? = null
     private var displayedClerkSignedIn:Boolean? = null
     private var checkoutStatusView: TextView? = null
@@ -93,6 +94,12 @@ class MainActivity : Activity() {
             checkoutReturnPending=false
             refresher.postDelayed({
                 if(!isFinishing && !isDestroyed)checkNativeOrder()
+            },750)
+        }
+        if(sandboxReturnPending){
+            sandboxReturnPending=false
+            refresher.postDelayed({
+                if(!isFinishing && !isDestroyed)checkSandboxPayment()
             },750)
         }
         // Returning from Clerk/settings must rebuild the *whole* account page,
@@ -885,6 +892,78 @@ class MainActivity : Activity() {
                     }.show()
     }
 
+    private fun startSandboxPayment() {
+        // This is RollyPay's official test:true PayForm, NEVER a real charge.
+        // The server restricts testing to the configured Clerk test owner.
+        if(!clerkLoggedIn()){
+            notice("Сначала войди через Clerk для теста оплаты.")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Тест RollyPay · 10 ₽")
+            .setMessage("Только демонстрация. Настоящие деньги НЕ спишутся, " +
+                "VPN НЕ продлится, подписка НЕ выдаётся. На странице RollyPay " +
+                "выбери симуляцию успешной оплаты или отмены.")
+            .setNegativeButton("Отмена",null)
+            .setPositiveButton("Открыть тест"){_,_->
+                Thread {
+                    val result=runCatching {
+                        val token=clerkToken()
+                            ?: throw IllegalStateException("Войди через Clerk")
+                        NativeIdentity.startSandbox(token)
+                    }
+                    runOnUiThread {
+                        if(isFinishing||isDestroyed)return@runOnUiThread
+                        result.onSuccess { invoice ->
+                            mobileIdentity.saveSandboxProof(invoice.proof)
+                            runCatching {
+                                CustomTabsIntent.Builder().setShowTitle(true)
+                                    .setToolbarColor(d.background).build()
+                                    .launchUrl(this,Uri.parse(invoice.payUrl))
+                                sandboxReturnPending=true
+                            }.onFailure {
+                                notice("Тестовая форма не открылась. " +
+                                    "Можно проверить статус теста позже.")
+                            }
+                        }.onFailure {
+                            notice("Sandbox не запущен. Проверь серверный режим теста " +
+                                "и разрешённый Clerk-аккаунт. Деньги не списывались.")
+                        }
+                    }
+                }.start()
+            }.show()
+    }
+
+    private fun checkSandboxPayment() {
+        val proof=mobileIdentity.sandboxProof()
+        if(proof==null){
+            notice("Сначала создай тестовый платёж RollyPay.")
+            return
+        }
+        Thread {
+            val result=runCatching {
+                val token=clerkToken()
+                    ?: throw IllegalStateException("Сессия Clerk недоступна")
+                NativeIdentity.sandboxStatus(token,proof)
+            }
+            runOnUiThread {
+                if(isFinishing||isDestroyed)return@runOnUiThread
+                result.onSuccess { payment ->
+                    val status=when(payment.status){
+                        "paid" -> "✓ Тестовая оплата успешно подтверждена RollyPay."
+                        "canceled","expired" -> "Тест завершён без оплаты."
+                        "created","processing" -> "Тест ещё не завершён на стороне RollyPay."
+                        else -> "Статус теста неизвестен."
+                    }
+                    notice(status+" Деньги НЕ списаны, VPN НЕ изменён.")
+                }.onFailure {
+                    notice("Тестовый статус не проверен. Убедись, что sandbox " +
+                        "активен на Netlify, и повтори проверку.")
+                }
+            }
+        }.start()
+    }
+
     private fun checkNativeOrder() {
         Thread {
             val token=clerkToken()
@@ -1010,6 +1089,20 @@ class MainActivity : Activity() {
         val orderStatus=action("Проверить оплату и получить VPN")
         add(providers,orderStatus,12)
         orderStatus.setOnClickListener{checkNativeOrder()}
+
+        val sandbox=panel(true)
+        add(parent,sandbox,16)
+        add(sandbox,overline("ПРОВЕРКА ОПЛАТЫ · SANDBOX"))
+        add(sandbox,text("Тест RollyPay · 10 ₽",19f,d.ink,true),10)
+        add(sandbox,text("Без настоящих списаний. Это проверка тестовой " +
+            "платёжной формы RollyPay — VPN и оплаченный срок не меняются.",
+            12f,d.muted),10)
+        val testStart=action("Запустить тестовый платёж",true)
+        add(sandbox,testStart,11)
+        testStart.setOnClickListener{startSandboxPayment()}
+        val testStatus=action("Проверить тестовый платёж")
+        add(sandbox,testStatus,8)
+        testStatus.setOnClickListener{checkSandboxPayment()}
     }
     private fun help(parent: LinearLayout) {
         intro(parent,"ЦЕНТР ПОДДЕРЖКИ",
