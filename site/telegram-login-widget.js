@@ -1,45 +1,44 @@
-/* Reliable legacy Telegram Login Widget. The callback is verified on the server. */
+/* Vainah VPN Telegram Login: OIDC instead of deprecated iframe widget. */
 (function(){
   'use strict';
-  function mount(options){
-    const {container,status,retry,callback}=options||{};
-    if(!container||!status||!retry||!callback)return;
-    let sequence=0,timer=null;
-    function display(message){status.textContent=message}
-    function load(){
-      sequence++;const current=sequence;
-      if(timer)clearTimeout(timer);
+  function mount(options={}){
+    const {container,status,retry}=options;
+    if(!container||!status||!retry)return;
+    let version=0;
+    async function render(){
+      const current=++version;
       container.replaceChildren();
-      retry.disabled=true;retry.textContent='Загрузка…';
-      display('Загружаем официальную кнопку Telegram…');
-      const script=document.createElement('script');
-      script.async=true;
-      script.src='https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login','VainahVPNbot');
-      script.setAttribute('data-size','large');
-      script.setAttribute('data-radius','12');
-      script.setAttribute('data-onauth',callback);
-      script.onerror=()=>{
-        if(current!==sequence)return;
-        retry.disabled=false;retry.textContent='↻ Повторить загрузку';
-        display('Кнопка не загрузилась. Проверь доступность telegram.org или настройки браузера.');
-      };
-      script.onload=()=>{
-        if(current!==sequence)return;
-        retry.disabled=false;retry.textContent='↻ Перезагрузить кнопку';
-      };
-      container.append(script);
-      timer=setTimeout(()=>{
-        if(current!==sequence)return;
-        retry.disabled=false;retry.textContent='↻ Повторить загрузку';
-        if(container.querySelector('iframe'))
-          display('Нажми кнопку Telegram выше, чтобы подтвердить вход.');
-        else
-          display('Кнопка не появилась. Проверь домен в BotFather и загрузку официального виджета Telegram. При необходимости нажми «Повторить».');
-      },10000);
+      status.textContent='Проверяем Telegram Login…';
+      retry.disabled=true;
+      try{
+        const res=await fetch('/api/auth/telegram-status',{cache:'no-store',credentials:'same-origin'});
+        const data=await res.json();
+        if(current!==version)return;
+        if(!res.ok||data.oidcConfigured!==true){
+          status.textContent='Новый Telegram Login требует Client ID и Client Secret из BotFather в настройках Render.';
+          return;
+        }
+        const button=document.createElement('a');
+        button.href='/auth/telegram/start';
+        button.className='auth-primary';
+        button.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:12px 22px;border-radius:13px;';
+        button.textContent='✈ Войти через Telegram';
+        container.append(button);
+        const hint=new URLSearchParams(location.search).get('telegram_login');
+        status.textContent=hint==='error'
+          ?'Telegram не подтвердил вход. Проверь разрешённые URL в BotFather и повтори.'
+          :'Вход через официальную страницу Telegram. Пароль на сайте не вводится.';
+      }catch{
+        if(current===version)status.textContent='Не удалось проверить доступность Telegram Login. Повтори попытку.';
+      }finally{
+        if(current===version){
+          retry.disabled=false;
+          retry.textContent='↻ Проверить Telegram снова';
+        }
+      }
     }
-    retry.addEventListener('click',load);
-    load();
+    retry.addEventListener('click',render);
+    void render();
   }
   window.VainahTelegramWidget={mount};
 })();
