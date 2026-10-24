@@ -1,0 +1,28 @@
+name: Vainah VPN Python sandbox checks
+on:
+  push:
+    paths:
+      - 'python-backend/**'
+      - '.github/workflows/python-sandbox.yml'
+  pull_request:
+    paths:
+      - 'python-backend/**'
+      - '.github/workflows/python-sandbox.yml'
+  workflow_dispatch:
+jobs:
+  python-sandbox-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated Python dependencies
+        working-directory: python-backend
+        run: python -m pip install -r requirements.txt
+      - name: Verify Python syntax and run offline tests
+        working-directory: python-backend
+        run: |
+          python -m compileall -q app tests
+          python -m pytest -q
