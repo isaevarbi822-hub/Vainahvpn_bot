@@ -203,12 +203,45 @@
   }
   setInterval(()=>{void refreshEngineStatus()},3000);
   const importButton=document.getElementById('import-vless');
+  const pasteButton=document.getElementById('paste-vpn-link');
+  const linkField=document.getElementById('vless-key');
+  const importStatus=document.getElementById('vless-import-status');
+  pasteButton.addEventListener('click',async()=>{
+    if(!window.vainah?.pasteVpnLink){
+      importStatus.textContent='Вставка временно недоступна. Используй Ctrl+V.';
+      return;
+    }
+    pasteButton.disabled=true;
+    try{
+      // Clipboard is read by trusted Electron main only on this user click.
+      // Do not print the bearer URL into errors, logs or status text.
+      const result=await window.vainah.pasteVpnLink();
+      if(!result?.ok){
+        importStatus.textContent=result?.message||'Не удалось прочитать буфер обмена.';
+        return;
+      }
+      linkField.value=result.link;
+      linkField.focus({preventScroll:true});
+      linkField.setSelectionRange(linkField.value.length,linkField.value.length);
+      importStatus.textContent='Ссылка вставлена. Теперь нажми «Добавить подписку».';
+    }catch{
+      importStatus.textContent='Не удалось вставить ссылку. Попробуй Ctrl+V.';
+    }finally{pasteButton.disabled=false}
+  });
+  linkField.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();importButton.click()}
+  });
   importButton.addEventListener('click',async()=>{
-    const field=document.getElementById('vless-key');
-    const status=document.getElementById('vless-import-status');
+    const field=linkField;
+    const status=importStatus;
     if(!window.vainah?.importVlessLink)return;
     importButton.disabled=true;
-    const link=field.value.trim();
+    const original=field.value.replace(/^\uFEFF/,'').trim();
+    // Match the common chat wrappers accepted by the main-process parser.
+    const paired=(original.startsWith('<')&&original.endsWith('>'))||
+      (original.startsWith('"')&&original.endsWith('"'))||
+      (original.startsWith("'")&&original.endsWith("'"));
+    const link=paired?original.slice(1,-1).trim():original;
     if(!/^https:\/\//i.test(link)&&!/^vless:\/\//i.test(link)){
       status.textContent='Вставь полную ссылку, начинающуюся с https:// или vless://';
       importButton.disabled=false;
