@@ -79,7 +79,6 @@ test('desktop startup and forgotten subscription never reveal URL to renderer',a
  assert.match(main,/subscriptionGeneration\+\+/);
  assert.match(main,/ipcMain\.handle\('vainah:forget-subscription'/);
  assert.match(preload,/forgetSubscription:\(\)=>ipcRenderer\.invoke\('vainah:forget-subscription'\)/);
- assert.match(ui,/id=/); // check present in actual next statement
  assert.match(ui,/getElementById\('forget-vpn-link'\)/);
  assert.doesNotMatch(main,/console\.(log|error)\(.*subscriptionUrl/);
 });
