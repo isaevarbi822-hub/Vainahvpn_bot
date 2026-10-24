@@ -34,3 +34,24 @@ test('Sandbox credential is an owner-bound proof, not a VPN subscription',()=>{
  assert.doesNotMatch(body,/vault\.save|VainahVpnService|createInvoice\(/);
  assert.doesNotMatch(client,/ROLLYPAY_API_KEY|ROLLYPAY_SIGNING_SECRET|CLERK_SECRET_KEY/);
 });
+
+test('Android 0.5.8 reports sandbox root causes safely instead of generic errors',()=>{
+ const ui=read('native/android/app/src/main/java/app/vainah/vpn/MainActivity.kt');
+ const client=read('native/android/app/src/main/java/app/vainah/vpn/NativeIdentity.kt');
+ for(const code of [
+  'SANDBOX_DISABLED_ON_SERVER','SANDBOX_PROVIDER_NOT_READY',
+  'SANDBOX_SESSION_REJECTED','SANDBOX_ACCOUNT_NOT_ALLOWED',
+  'SANDBOX_ENDPOINT_NOT_DEPLOYED','SANDBOX_RATE_LIMITED'
+ ]){
+  assert.match(client,new RegExp(code));
+  assert.match(ui,new RegExp(code));
+ }
+ for(const indicator of ['SB-401','SB-403','SB-503A','SB-503B']){
+  assert.match(ui,new RegExp(indicator));
+ }
+ assert.match(ui,/notice\(sandboxFailureText\(error\)\)/);
+ assert.doesNotMatch(ui,/Sandbox не запущен\. Проверь серверный режим теста/);
+ assert.match(client,/val bytes=ByteArray\(2048\)/);
+ assert.match(client,/serverError=="Тестовый режим платежей выключен"/);
+ assert.doesNotMatch(ui,/notice\(.*error\.message/);
+});
