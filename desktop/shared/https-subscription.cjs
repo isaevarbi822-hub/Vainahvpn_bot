@@ -45,7 +45,15 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
  const getOnce=target=>new Promise((resolve,reject)=>{
   const req=request(target,{timeout:8000,maxRedirects:0,
     headers:{Accept:'text/plain, application/json'},
-    lookup:(_host,_opts,cb)=>cb(null,pinned,net.isIP(pinned))},res=>{
+    // Node 22 enables autoSelectFamily by default and may request all:true.
+    // An all:true lookup MUST return [{address, family}], not one IP string.
+    // Returning a string here caused invalid IP errors during imports.
+    lookup:(_host,opts,cb)=>{
+      const family=net.isIP(pinned);
+      return opts?.all
+        ?cb(null,[{address:pinned,family}])
+        :cb(null,pinned,family);
+    }},res=>{
    // Only a same-origin redirect can be followed; never leak an H1 bearer URL
    // or its request headers to a new hostname.
    if([301,302,307,308].includes(res.statusCode)){
