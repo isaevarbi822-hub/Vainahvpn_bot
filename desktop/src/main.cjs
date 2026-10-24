@@ -464,6 +464,9 @@ app.whenReady().then(()=>{
         subscriptionGeneration++;
         subscriptionUrl=null;
         chosenDirectProfile=null;
+        // A locally selected JSON profile supersedes the older saved URL.
+        // Do not unexpectedly resurrect an obsolete H1 profile next launch.
+        await forgetSubscription();
       }
       return {ok:true,profiles,engineCheck};
     } catch {
