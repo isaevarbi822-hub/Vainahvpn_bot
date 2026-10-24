@@ -64,7 +64,7 @@
     if(!result?.ok){
       const dialog=document.getElementById('connection-dialog');
       document.getElementById('dialog-title').textContent='Не удалось открыть страницу';
-      document.getElementById('dialog-description').textContent='Попробуй открыть сайт vainahvpnbot0.netlify.app вручную в своём браузере.';
+      document.getElementById('dialog-description').textContent='Попробуй открыть сайт vainahvpn-python-preview.onrender.com вручную в своём браузере.';
       dialog.showModal();
     }
   }
