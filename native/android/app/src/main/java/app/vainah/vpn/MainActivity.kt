@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     // It only prompts an authenticated server-side provider status refresh.
     private var checkoutReturnPending = false
     private var verifiedEmailHint: TextView? = null
+    private var displayedClerkSignedIn:Boolean? = null
     private var checkoutStatusView: TextView? = null
     private val checkoutButtons = mutableListOf<Pair<VainahPlan, Button>>()
     private var activeConnectionLabel: TextView? = null
@@ -96,7 +97,11 @@ class MainActivity : Activity() {
         }
         // Returning from Clerk/settings must rebuild the *whole* account page,
         // not just a stale email label. This updates the Login/Profile button.
-        if(tab==Tab.ACCOUNT)renderPage()
+        if(tab==Tab.ACCOUNT){
+            // Avoid losing unsaved form input when returning from notifications.
+            if(displayedClerkSignedIn!=clerkLoggedIn())renderPage()
+            else refreshVerifiedDeliveryEmail()
+        }
     }
 
     @Deprecated("Android Activity result callback is used for the separate Clerk Activity")
@@ -788,6 +793,9 @@ class MainActivity : Activity() {
                     account?.authenticated==true ->
                         "✓ Clerk: вход выполнен. Email ещё не подтверждён. " +
                         "Добавь его в профиль Clerk перед покупкой."
+                    outcome.exceptionOrNull()?.message=="CLERK_ENDPOINT_NOT_DEPLOYED" ->
+                        "✓ Clerk: вход выполнен. Сервер проверки ещё не развёрнут " +
+                        "на Netlify. Это не ошибка твоего аккаунта."
                     outcome.exceptionOrNull()?.message=="CLERK_SERVER_SETUP" ->
                         "✓ Clerk: вход выполнен. Проверка покупок пока недоступна: " +
                         "на сервере Netlify требуется настройка Clerk."
@@ -934,6 +942,7 @@ class MainActivity : Activity() {
     }
 
     private fun account(parent: LinearLayout) {
+        displayedClerkSignedIn=clerkLoggedIn()
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
             "Моя подписка.",
             "Данные о покупках доступны в защищённом кабинете сайта после входа.",
