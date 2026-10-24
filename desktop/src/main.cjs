@@ -4,11 +4,12 @@ const fs = require('node:fs/promises');
 const { parseXrayProfiles } = require('../shared/xray-profiles.cjs');
 const { vlessUriToXray } = require('../shared/vless-link.cjs');
 const { fetchSubscription } = require('../shared/https-subscription.cjs');
+const { normalizeVpnLink } = require('../shared/clipboard-link.cjs');
 const { reconcileSubscriptionSelection } = require('../shared/subscription-reconcile.cjs');
 const { subscriptionErrorMessage } = require('../shared/subscription-error.cjs');
 const { validateWithSingBox } = require('../shared/singbox-runtime.cjs');
 const { SingBoxSession } = require('../shared/singbox-session.cjs');
-const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell, Menu, dialog, clipboard } = require('electron');
 const { safePage } = require('../shared/official.cjs');
 const { plans } = require('../shared/catalog.cjs');
 const { safeServerLabel } = require('../shared/server-label.cjs');
@@ -129,6 +130,17 @@ function createWindow() {
   mainWindow.webContents.on('will-navigate', e => e.preventDefault());
   mainWindow.webContents.on('will-redirect', e => e.preventDefault());
   mainWindow.webContents.on('will-attach-webview', e => e.preventDefault());
+  // Electron has no default text-field context menu in a custom window.
+  // Show only native editing roles for actual editable controls.
+  mainWindow.webContents.on('context-menu', (_event,params)=>{
+    if(!params.isEditable||mainWindow.isDestroyed())return;
+    const edit=Menu.buildFromTemplate([
+      {role:'undo'}, {role:'redo'}, {type:'separator'},
+      {role:'cut'}, {role:'copy'}, {role:'paste'},
+      {type:'separator'}, {role:'selectAll'}
+    ]);
+    edit.popup({window:mainWindow});
+  });
   mainWindow.loadFile(path.join(__dirname,'..','ui','index.html'));
   mainWindow.once('ready-to-show',()=>mainWindow?.show());
   let closing=false;
@@ -152,7 +164,16 @@ function createWindow() {
 }
 app.whenReady().then(()=>{
   if(process.platform==='win32') app.setAppUserModelId('app.vainah.vpn.desktop');
-  Menu.setApplicationMenu(null);
+  // Keep native edit accelerators (Ctrl+V/C/X/A). Removing the whole menu
+  // caused text-entry shortcuts to be unreliable in packaged Windows builds.
+  // The top menu remains auto-hidden until Alt is pressed.
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {label:'Правка',submenu:[
+      {role:'undo'}, {role:'redo'}, {type:'separator'},
+      {role:'cut'}, {role:'copy'}, {role:'paste'},
+      {type:'separator'}, {role:'selectAll'}
+    ]}
+  ]));
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
   ipcMain.handle('vainah:info',event=>authorizedSender(event)?{
@@ -161,6 +182,20 @@ app.whenReady().then(()=>{
     preview:true
   }:null);
   ipcMain.handle('vainah:plans',event=>authorizedSender(event)?plans:[]);
+  // Deliberate user action on the local "Paste from clipboard" button.
+  // Only a bounded VPN URI is returned to its own sandboxed renderer; no
+  // clipboard monitor, persistence, analytics, or unsafe generic IPC.
+  ipcMain.handle('vainah:paste-vpn-link',event=>{
+    if(!authorizedSender(event))return {ok:false,message:'Доступ запрещён'};
+    try{
+      const link=normalizeVpnLink(clipboard.readText());
+      if(!link)return {ok:false,message:
+        'В буфере нет полной HTTPS-подписки или vless:// ссылки. Скопируй её заново.'};
+      return {ok:true,link};
+    }catch{
+      return {ok:false,message:'Windows не дал прочитать буфер обмена. Попробуй Ctrl+V.'};
+    }
+  });
   ipcMain.handle('vainah:open-network-test',async (event,name)=>{
     if(!authorizedSender(event))return {ok:false};
     const target=diagnosticPage(name);
@@ -199,7 +234,7 @@ app.whenReady().then(()=>{
     if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
     let profile;
     try{
-      profile=vlessUriToXray(link);
+      profile=vlessUriToXray(normalizeVpnLink(link));
     }catch{
       return {ok:false,message:'Ссылка прочитана, но нужен действительный vless:// ключ с TCP/RAW + REALITY'};
     }
@@ -223,10 +258,13 @@ app.whenReady().then(()=>{
     if(engineSession.status.state!=='stopped')return {ok:false,message:'Сначала отключи VPN-движок перед заменой подписки'};
     try{
       const generation=++subscriptionGeneration;
-      const result=await fetchSubscription(link);
+      const normalized=normalizeVpnLink(link);
+      if(!normalized||!/^https:\/\//i.test(normalized))
+        return {ok:false,message:'Вставь действительную HTTPS-ссылку подписки.'};
+      const result=await fetchSubscription(normalized);
       if(generation!==subscriptionGeneration || engineSession.status.state!=='stopped')
         return {ok:false,message:'Подписка изменилась, повтори обновление'};
-      subscriptionUrl=link;
+      subscriptionUrl=normalized;
       subscriptionProfiles=result.profiles;
       chosenDirectProfile=result.profiles[0];
       chosenFile=null;
