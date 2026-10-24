@@ -16,7 +16,7 @@ test('Clerk callback re-renders account and obtains a new server verification',(
  const ui=read('native/android/app/src/main/java/app/vainah/vpn/MainActivity.kt');
  const auth=read('native/android/app/src/clerk/java/app/vainah/vpn/ClerkLoginActivity.kt');
  assert.match(ui,/override fun onActivityResult\(/);
- assert.match(ui,/requestCode==requestClerkLogin/);
+ assert.match(ui,/requestClerkLogin ->/);
  assert.match(ui,/if\(displayedClerkSignedIn!=clerkLoggedIn\(\)\)renderPage\(\)/);
  assert.match(ui,/refreshVerifiedDeliveryEmail\(\)/);
  assert.match(ui,/account\?\.authenticated==true && account\.verifiedDeliveryEmail/);
