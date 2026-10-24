@@ -26,6 +26,11 @@ SKIP_HEADERS = {"connection", "host", "transfer-encoding", "content-length", "ke
 async def lifespan(app: FastAPI):
     if not SITE.is_dir() or not FUNCTIONS.is_dir():
         raise RuntimeError("Run the application from the complete Vainah VPN repository")
+    # Render supplies a public HTTPS origin automatically. Keep explicit overrides possible.
+    if not os.environ.get("PUBLIC_SITE_ORIGIN"):
+        hosted_origin = os.environ.get("RENDER_EXTERNAL_URL", "")
+        if hosted_origin.startswith("https://"):
+            os.environ["PUBLIC_SITE_ORIGIN"] = hosted_origin.rstrip("/")
     internal_key = secrets.token_urlsafe(32)
     process = await asyncio.create_subprocess_exec(
         "node", str(Path(__file__).with_name("legacy_bridge.mjs")),
@@ -87,7 +92,7 @@ async def legacy_function(name: str, request: Request):
     body = await request.body()
     if len(body) > MAX_BODY:
         return JSONResponse({"error": "Too large"}, status_code=413)
-    request_headers = [(k, v) for k, v in request.headers.raw if k.decode("latin1").lower() not in SKIP_HEADERS]
+    request_headers = [(k, v) for k, v in request.headers.raw if k.decode("latin1").lower() not in SKIP_HEADERS | {"x-vainah-internal-key"}]
     request_headers.append((b"x-vainah-internal-key", request.app.state.internal_key.encode("ascii")))
     try:
         upstream = await request.app.state.http.request(
