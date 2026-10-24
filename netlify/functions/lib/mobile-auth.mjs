@@ -2,6 +2,26 @@ import {createHmac} from 'node:crypto';
 
 // Clerk is the ONLY account authority for mobile purchases. No local OTP,
 // fabricated SMS/email code, unsigned identity or Telegram fallback.
+/** Only variable NAMES may be logged; never credential values. */
+export function clerkConfigurationProblems(env=process.env){
+  const issues=[];
+  const pk=String(env.CLERK_PUBLISHABLE_KEY||'');
+  const sk=String(env.CLERK_SECRET_KEY||'');
+  const mode=/^pk_(test|live)_[A-Za-z0-9_-]{18,}$/.exec(pk)?.[1];
+  if(!mode)issues.push('CLERK_PUBLISHABLE_KEY');
+  const skValid=/^sk_(test|live)_[A-Za-z0-9_-]{18,}$/.test(sk);
+  if(!skValid || !mode || !sk.startsWith('sk_'+mode+'_'))
+    issues.push('CLERK_SECRET_KEY (same environment as publishable key)');
+  if(typeof env.SESSION_SIGNING_KEY!=='string'||env.SESSION_SIGNING_KEY.length<32)
+    issues.push('SESSION_SIGNING_KEY (minimum 32 characters)');
+  try{
+    const origin=new URL(env.PUBLIC_SITE_ORIGIN);
+    if(origin.protocol!=='https:'||origin.origin!==env.PUBLIC_SITE_ORIGIN)
+      issues.push('PUBLIC_SITE_ORIGIN (exact HTTPS origin)');
+  }catch{issues.push('PUBLIC_SITE_ORIGIN (exact HTTPS origin)')}
+  return issues;
+}
+
 export function clerkMobileConfigured(env=process.env){
   const pk=String(env.CLERK_PUBLISHABLE_KEY||'');
   const sk=String(env.CLERK_SECRET_KEY||'');
