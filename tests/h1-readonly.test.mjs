@@ -14,7 +14,7 @@ const response=(data,status=200)=>new Response(JSON.stringify(data),{
 test('read H1 profile: only GET under authenticated Telegram ID; no keys escape',async()=>{
   let seen=0;
   const privateData={name:'tg123456789',expires_at:1893456000,status:'active',banned:false,
-    uuid:'SECRET-UUID',subscription_url:'https://vpn-panel.example/sub/SECRET',
+    device_limit:6,uuid:'SECRET-UUID',subscription_url:'https://vpn-panel.example/sub/SECRET',
     links:{ws:'vless://VERY-SECRET-ACCESS'},devices:[{id:'sensitive'}]};
   const result=await readH1ClientStatus('123456789',{env,now:1800000000000,
     fetcher:async(url,options)=>{
@@ -30,7 +30,7 @@ test('read H1 profile: only GET under authenticated Telegram ID; no keys escape'
   assert.equal(seen,1);
   assert.deepEqual(result,{
     panelReady:true,found:true,active:true,banned:false,
-    expiresAt:'2030-01-01T00:00:00.000Z'
+    expiresAt:'2030-01-01T00:00:00.000Z',deviceLimit:6
   });
   assert.doesNotMatch(JSON.stringify(result),/SECRET|vless|links|devices|uuid/i);
 });
