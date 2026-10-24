@@ -77,6 +77,7 @@
     el.planName.textContent='Загружаем…';el.planSub.textContent='Проверяем покупки';
     el.planPrice.textContent='—';el.historyCount.textContent='0';
     el.deviceLimit.textContent='—';el.getVpn.disabled=true;
+    el.getVpn.textContent='Получить VPN-ссылку';
     el.login.hidden=!!user;
     el.private.hidden=!user;
     el.altPrivate.hidden=true;
@@ -187,6 +188,7 @@
       'Оплата подтверждена, заказ выдан. Чтобы получить персональную VPN-ссылку, нажми кнопку ниже. Фактический статус профиля проверяется отдельно по H1Cloud.':
       'Срок по записи в базе истёк. Если продлевал доступ через бота, его статус проверяй отдельно.';
     el.getVpn.disabled=!valid;
+    el.getVpn.textContent='Получить VPN-ссылку';
     applyH1Status();
   }
   function applyH1Status(){
@@ -222,8 +224,9 @@
     el.chip.className='account-chip good';
     el.deviceLimit.textContent='—';
     el.deviceNote.textContent='H1Cloud подтверждает срок. Лимит устройств текущий API не возвращает.';
-    el.accessStatus.textContent='VPN активен. Если подписка получена через Telegram-бота, ссылку можно найти в сообщении от бота. Получение ссылки на сайте станет доступно для оплаченных и выданных заказов сайта.';
-    el.getVpn.disabled=true;
+    el.accessStatus.textContent='VPN активен. Нажми кнопку, чтобы получить свою ссылку в личные сообщения Telegram от Vainah VPN. Для этого сначала нужно нажать Start у бота.';
+    el.getVpn.textContent='Отправить VPN в Telegram';
+    el.getVpn.disabled=false;
   }
   async function loadOrders(version){
     el.history.replaceChildren(node('div','account-empty','Загружаем историю покупок…'));
@@ -235,8 +238,9 @@
     }catch(error){
       if(version!==epoch)return;
       el.history.replaceChildren(node('div','account-empty','Не удалось загрузить историю: '+error.message));
-      el.accessStatus.textContent='Не удалось проверить покупку. Обнови страницу позже.';
+      el.accessStatus.textContent='История покупок временно недоступна. H1Cloud проверяем отдельно.';
       el.getVpn.disabled=true;
+      applyH1Status();
     }
   }
   async function loadH1(version){
@@ -261,12 +265,27 @@
     if(version===epoch){el.refresh.disabled=false;el.refresh.textContent='↻ Обновить данные'}
   }
   async function revealAccess(){
+    if(!user)return;
     const orderId=overview?.subscription?.accessOrderId;
-    if(!user||!overview?.subscription?.active||!uuid.test(orderId||''))return;
+    const websiteOrder=overview?.subscription?.active && uuid.test(orderId||'');
+    // For an existing H1Cloud subscriber we can send their own active
+    // subscription to their verified Telegram account. The public JSON
+    // response never contains the personal VPN URL.
+    const ownPanelProfile=!websiteOrder && h1Status?.panelReady && h1Status?.found && h1Status?.active;
+    if(!websiteOrder && !ownPanelProfile)return;
     const version=epoch;
     el.getVpn.disabled=true;clearVpnLink();
-    el.accessStatus.textContent='Получаем защищённую VPN-ссылку из H1Cloud…';
+    el.accessStatus.textContent=websiteOrder
+      ?'Получаем защищённую VPN-ссылку из H1Cloud…'
+      :'Отправляем твою действующую VPN-ссылку в Telegram…';
     try{
+      if(ownPanelProfile){
+        const reply=await request('send-my-vpn',{method:'POST'});
+        if(version!==epoch)return;
+        if(reply.sent!==true)throw Error('Telegram не подтвердил доставку');
+        el.accessStatus.textContent='Готово! VPN-ссылка отправлена в твой Telegram. Проверь личные сообщения от Vainah VPN.';
+        return;
+      }
       const data=await request('website-vpn-access?order='+encodeURIComponent(orderId));
       if(version!==epoch)return;
       const url=new URL(data.subscriptionUrl);
@@ -276,8 +295,10 @@
       el.openVpn.hidden=false;el.copyVpn.hidden=false;
       el.accessStatus.textContent='Ссылка готова. Не передавай её посторонним — она даёт доступ к твоему VPN.';
     }catch(error){
-      if(version===epoch)el.accessStatus.textContent='Не удалось получить VPN-ссылку: '+error.message+'. Покупка остаётся в истории.';
-    }finally{if(version===epoch)el.getVpn.disabled=false}
+      if(version===epoch)el.accessStatus.textContent='Не удалось получить VPN-ссылку: '+error.message;
+    }finally{
+      if(version===epoch)el.getVpn.disabled=false;
+    }
   }
   el.getVpn.addEventListener('click',revealAccess);
   el.copyVpn.addEventListener('click',async()=>{
