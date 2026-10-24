@@ -18,7 +18,16 @@ class NativeIdentity(context:Context) {
             prefs.edit().putString("last_order",id).apply()
     }
 
+    fun sandboxProof():String?=prefs.getString("sandbox_proof",null)
+    fun saveSandboxProof(proof:String){
+        if(proof.length in 60..3000 &&
+           Regex("^[A-Za-z0-9_-]+\\.[a-f0-9]{64}$").matches(proof))
+            prefs.edit().putString("sandbox_proof",proof).apply()
+    }
+
     data class Account(val authenticated:Boolean,val verifiedDeliveryEmail:Boolean)
+    data class SandboxInvoice(val proof:String,val payUrl:String)
+    data class SandboxStatus(val status:String,val noCharge:Boolean,val noVpnGranted:Boolean)
     data class Invoice(val orderId:String,val payUrl:String)
     data class Order(val status:String,val delivery:String,
         val subscriptionUrl:String?,val emailState:String)
@@ -72,6 +81,46 @@ class NativeIdentity(context:Context) {
                 authenticated=result.optBoolean("authenticated",false),
                 verifiedDeliveryEmail=result.optBoolean("emailVerified",false)
             )
+        }
+
+        /** Real provider SANDBOX. The only amount is fixed on the server at 10 RUB;
+         *  production checkout remains disabled and this never grants VPN.
+         */
+        fun startSandbox(jwt:String):SandboxInvoice {
+            val data=exchange("clerk-payment-sandbox",JSONObject().put("action","start"),jwt)
+            if(!data.optBoolean("sandbox",false)||
+                !data.optBoolean("noCharge",false)||
+                !data.optBoolean("noVpnGranted",false)||
+                data.optString("amountRub")!="10.00")
+                throw IllegalStateException("Not an isolated sandbox payment")
+            val url=data.getString("payUrl")
+            val target=URL(url)
+            if(target.protocol!="https"||target.host!="pay.rollypay.io"||
+                target.port!=-1||target.userInfo!=null||target.ref!=null||
+                target.query!=null ||
+                !Regex("^/pay/[A-Za-z0-9][A-Za-z0-9_-]{5,255}/?$").matches(target.path))
+                throw IllegalStateException("Untrusted test payment URL")
+            val proof=data.getString("proof")
+            if(proof.length !in 60..3000 ||
+                !Regex("^[A-Za-z0-9_-]+\\.[a-f0-9]{64}$").matches(proof))
+                throw IllegalStateException("Untrusted test payment receipt")
+            return SandboxInvoice(proof,url)
+        }
+        fun sandboxStatus(jwt:String,proof:String):SandboxStatus {
+            if(proof.length !in 60..3000 ||
+               !Regex("^[A-Za-z0-9_-]+\\.[a-f0-9]{64}$").matches(proof))
+                throw IllegalArgumentException("Invalid sandbox receipt")
+            val data=exchange("clerk-payment-sandbox",
+                JSONObject().put("action","status").put("proof",proof),jwt)
+            if(!data.optBoolean("sandbox",false)||
+                !data.optBoolean("noCharge",false)||
+                !data.optBoolean("noVpnGranted",false)||
+                data.optString("amountRub")!="10.00")
+                throw IllegalStateException("Sandbox response not verified")
+            val status=data.optString("status")
+            if(status !in listOf("created","processing","paid","canceled","expired"))
+                throw IllegalStateException("Unrecognized sandbox state")
+            return SandboxStatus(status,true,true)
         }
 
         fun createInvoice(jwt:String,planId:String):Invoice {
