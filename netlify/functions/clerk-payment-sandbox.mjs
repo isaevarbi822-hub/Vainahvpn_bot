@@ -1,6 +1,7 @@
 import {json} from './lib/security.mjs';
 import {mobileSession,limitedJson} from './lib/mobile-auth.mjs';
-import {clerkSandboxEnabled,clerkSandboxOwner,startClerkSandbox,checkClerkSandbox} from './lib/clerk-rollypay-sandbox.mjs';
+import {clerkSandboxEnabled,clerkSandboxOwner,startClerkSandbox,checkClerkSandbox,
+  sandboxProviderFailureCode} from './lib/clerk-rollypay-sandbox.mjs';
 
 /**
  * Clerk-only RollyPay TEST payment: no charge, no DB, no H1Cloud and no email.
@@ -30,7 +31,13 @@ export default async function handler(request){
       return json({error:'Invalid sandbox receipt'},400);
     return json(await checkClerkSandbox(owner,body.proof));
   }catch(error){
-    console.warn('RollyPay sandbox validation failed:',error?.message||'Error');
-    return json({error:'Тестовый платёж не подтверждён. Проверь настройки sandbox.'},503);
+    // Only short, known diagnostic codes. No upstream response body, merchant
+    // key, provider URL, Clerk JWT or error.message from unknown dependencies.
+    const diagnostic=sandboxProviderFailureCode(error);
+    console.warn('RollyPay sandbox validation failed:',diagnostic);
+    return json({
+      error:'Тестовый платёж не подтверждён. Проверь настройки sandbox.',
+      diagnostic
+    },503);
   }
 }
