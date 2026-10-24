@@ -1,6 +1,6 @@
 'use strict';
 /** Allowlist: renderer cannot cause arbitrary URLs, custom schemes or local files to open. */
-const SITE = 'https://vainahvpnbot0.netlify.app';
+const SITE = 'https://vainahvpn-python-preview.onrender.com';
 const pages = Object.freeze({
   account: SITE+'/account.html',
   plans: SITE+'/plans.html',
