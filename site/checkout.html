@@ -102,7 +102,7 @@ footer{border-top:1px solid #2a2e43;margin-top:95px;padding:49px 0 36px;backgrou
    window.VainahTelegramWidget.mount({
      container:widget,status:loginStatus,
      retry:document.getElementById('telegram-widget-retry'),
-     callback:'onVainahTelegramAuth(user)'
+     returnTo:'checkout'
    });
  }else loginStatus.textContent='Кнопка Telegram пока недоступна. Обнови страницу.';
  initial();
