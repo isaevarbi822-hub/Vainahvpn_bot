@@ -47,6 +47,7 @@ class NativeIdentity(context:Context) {
                         when(status){
                             503 -> throw IllegalStateException("CLERK_SERVER_SETUP")
                             401 -> throw IllegalStateException("CLERK_SESSION_NOT_ACCEPTED")
+                            404 -> throw IllegalStateException("CLERK_ENDPOINT_NOT_DEPLOYED")
                         }
                     }
                     throw IllegalStateException("Сервер отклонил запрос (HTTP "+status+").")
