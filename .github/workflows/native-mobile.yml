@@ -244,10 +244,10 @@ jobs:
             :app:assembleDebug :app:testDebugUnitTest \
             --no-daemon --stacktrace
           test -s native/android/app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload combined Vainah VPN 0.5.5 with Clerk payment status
+      - name: Upload combined Vainah VPN 0.5.6 with Clerk verification status
         uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-0.5.5-Android-libbox-Clerk-payment-preview
+          name: VainahVPN-0.5.6-Android-libbox-Clerk-verification-preview
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
