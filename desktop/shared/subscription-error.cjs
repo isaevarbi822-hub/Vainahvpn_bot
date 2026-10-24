@@ -41,7 +41,44 @@ function subscriptionErrorMessage(error){
   return 'Тайм-аут при установлении защищённого HTTPS-соединения.';
  if(['ECONNABORTED','EADDRNOTAVAIL'].includes(code))
   return 'Windows не смогла установить HTTPS-соединение. Проверь сеть и VPN-прокси.';
+ if(['ERR_INVALID_IP_ADDRESS','ERR_INVALID_ARG_TYPE','ERR_INVALID_ARG_VALUE'].includes(code))
+  return 'Внутренняя ошибка DNS-запроса приложения. В новой версии исправлена совместимость с Node.js 22.';
+ if(['ERR_TLS_CERT_ALTNAME_INVALID','CERT_REVOKED'].includes(code))
+  return 'Ошибка проверки TLS-сертификата подписки. Незащищённое соединение запрещено.';
  // Only fixed text: never include error.message, error.stack, hostname, URL or token.
- return 'Неизвестная ошибка HTTPS. Проверь доступность ссылки в браузере Windows.';
+ return 'Неизвестная ошибка HTTPS. Сообщи диагностический код без VPN-ссылки.';
 }
-module.exports={subscriptionErrorMessage};
+const ALLOWED_CODES=new Set([
+ 'ERR_INVALID_IP_ADDRESS','ERR_INVALID_ARG_TYPE','ERR_INVALID_ARG_VALUE',
+ 'ENOTFOUND','EAI_AGAIN','ESERVFAIL','ECONNRESET','ECONNREFUSED',
+ 'ETIMEDOUT','ESOCKETTIMEDOUT','EHOSTUNREACH','ENETUNREACH','EPIPE',
+ 'EPROTO','ERR_SSL_WRONG_VERSION_NUMBER','ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE',
+ 'UNABLE_TO_VERIFY_LEAF_SIGNATURE','UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+ 'DEPTH_ZERO_SELF_SIGNED_CERT','SELF_SIGNED_CERT_IN_CHAIN',
+ 'CERT_HAS_EXPIRED','CERT_NOT_YET_VALID','ERR_TLS_CERT_ALTNAME_INVALID',
+ 'ERR_TLS_HANDSHAKE_TIMEOUT','ERR_SOCKET_CONNECTION_TIMEOUT',
+ 'ECONNABORTED','EADDRNOTAVAIL'
+]);
+function subscriptionDiagnosticCode(error){
+ const code=error?.code||error?.cause?.code;
+ if(typeof code==='string'&&ALLOWED_CODES.has(code))return code;
+ const message=String(error?.message||'');
+ if(message==='Subscription HTTP response'){
+  const status=error?.statusCode;
+  return Number.isInteger(status)&&status>=100&&status<=599?'HTTP_'+status:'HTTP_UNKNOWN';
+ }
+ const fixed=new Map([
+  ['Invalid subscription URL','URL_INVALID'],
+  ['HTTPS hostname required','URL_INVALID'],
+  ['Subscription redirect refused','REDIRECT_BLOCKED'],
+  ['Subscription target unavailable','DNS_PRIVATE_TARGET'],
+  ['Subscription DNS lookup failed','DNS_LOOKUP_FAILED'],
+  ['Subscription timeout','HTTPS_TIMEOUT'],
+  ['Unsupported subscription','FORMAT_UNSUPPORTED'],
+  ['Unsupported subscription format','FORMAT_UNSUPPORTED'],
+  ['No supported VLESS REALITY TCP servers','NO_SUPPORTED_SERVERS'],
+  ['Subscription too large','RESPONSE_TOO_LARGE']
+ ]);
+ return fixed.get(message)||'HTTPS_UNKNOWN';
+}
+module.exports={subscriptionErrorMessage,subscriptionDiagnosticCode};
