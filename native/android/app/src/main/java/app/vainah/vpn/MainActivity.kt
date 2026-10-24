@@ -812,6 +812,7 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    @Suppress("DEPRECATION")
     private fun startClerkLogin() {
         if(!BuildConfig.VAINAH_CLERK_ENABLED ||
            !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)){
@@ -820,7 +821,6 @@ class MainActivity : Activity() {
             return
         }
         runCatching {
-            @Suppress("DEPRECATION")
             startActivityForResult(
                 Intent().setClassName(this,"app.vainah.vpn.ClerkLoginActivity"),
                 requestClerkLogin
