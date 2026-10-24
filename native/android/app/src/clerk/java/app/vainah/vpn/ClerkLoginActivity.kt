@@ -66,7 +66,7 @@ class ClerkLoginActivity : ComponentActivity() {
                     ) {
                         Text("Вход в Vainah VPN подтверждён")
                         UserButton()
-                        Button(onClick = { finish() }) { Text("Вернуться в Vainah VPN") }
+                        Button(onClick = { setResult(RESULT_OK); finish() }) { Text("Вернуться в Vainah VPN") }
                     }
                     chosenIdentifier != null -> {
                         // Clerk routes +E164 identifiers into its phone flow.
@@ -75,7 +75,7 @@ class ClerkLoginActivity : ComponentActivity() {
                         AuthView(
                             initialIdentifier = identifier,
                             persistIdentifiers = false,
-                            onAuthComplete = { finish() },
+                            onAuthComplete = { setResult(RESULT_OK); finish() },
                             onDismiss = { chosenIdentifier = null }
                         )
                     }

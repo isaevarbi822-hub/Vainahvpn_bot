@@ -29,8 +29,10 @@ test('Clerk native infrastructure gate is independent from Telegram bot',()=>{
 
 test('Clerk account delivery-email readiness never leaks contact or tokens',async()=>{
   const response=await account(new Request('https://vpn.example.test/.netlify/functions/mobile-account'));
-  assert.equal(response.status,401);
-  assert.deepEqual(await response.json(),{authenticated:false,emailVerified:false});
+  assert.equal(response.status,503);
+  assert.deepEqual(await response.json(),{
+    error:'CLERK_SERVER_SETUP_REQUIRED',authenticated:false,emailVerified:false
+  });
   const posted=await account(new Request('https://vpn.example.test/.netlify/functions/mobile-account',
      {method:'POST',body:'{}'}));
   assert.equal(posted.status,405);

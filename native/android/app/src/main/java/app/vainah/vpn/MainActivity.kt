@@ -51,6 +51,7 @@ class MainActivity : Activity() {
     // It only prompts an authenticated server-side provider status refresh.
     private var checkoutReturnPending = false
     private var verifiedEmailHint: TextView? = null
+    private var displayedClerkSignedIn:Boolean? = null
     private var checkoutStatusView: TextView? = null
     private val checkoutButtons = mutableListOf<Pair<VainahPlan, Button>>()
     private var activeConnectionLabel: TextView? = null
@@ -68,6 +69,7 @@ class MainActivity : Activity() {
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
     private val requestVpn = 4519
+    private val requestClerkLogin = 4521
     private val refresher = Handler(Looper.getMainLooper())
     private var statusView: TextView? = null
     private var connectionDetailView: TextView? = null
@@ -93,7 +95,13 @@ class MainActivity : Activity() {
                 if(!isFinishing && !isDestroyed)checkNativeOrder()
             },750)
         }
-        if(tab==Tab.ACCOUNT)refreshVerifiedDeliveryEmail()
+        // Returning from Clerk/settings must rebuild the *whole* account page,
+        // not just a stale email label. This updates the Login/Profile button.
+        if(tab==Tab.ACCOUNT){
+            // Avoid losing unsaved form input when returning from notifications.
+            if(displayedClerkSignedIn!=clerkLoggedIn())renderPage()
+            else refreshVerifiedDeliveryEmail()
+        }
     }
 
     override fun onPause() {
@@ -271,6 +279,7 @@ class MainActivity : Activity() {
         checkoutGeneration++
         checkoutButtons.clear()
         checkoutStatusView = null
+        verifiedEmailHint = null
         activeConnectionLabel = null
         powerView = null
         statusView = null
@@ -295,7 +304,7 @@ class MainActivity : Activity() {
             Tab.ACCOUNT -> account(body)
             Tab.HELP -> help(body)
         }
-        add(body,text("VAINAH VPN · 0.5.1 · Android",11f,d.muted),26)
+        add(body,text("VAINAH VPN · ${BuildConfig.VERSION_NAME} · Android",11f,d.muted),26)
     }
 
     private fun brandHeader(parent: LinearLayout) {
@@ -748,31 +757,47 @@ class MainActivity : Activity() {
         val label=verifiedEmailHint?:return
         if(tab!=Tab.ACCOUNT)return
         if(!clerkLoggedIn()){
-            label.text="○ Войди через Clerk. Для покупки понадобится проверенная почта."
+            label.text="○ Нет активной Clerk-сессии. Войди или зарегистрируйся."
             return
         }
-        label.text="Проверяем подтверждённую почту в Clerk…"
+        // Local signed-in state is distinct from backend purchase eligibility.
+        label.text="✓ Clerk: вход выполнен. Проверяем email на сервере…"
         Thread {
             val outcome=runCatching {
-                clerkToken()?.let{NativeIdentity.account(it)}
+                val token=clerkToken()
+                    ?: throw IllegalStateException("CLERK_TOKEN_UNAVAILABLE")
+                NativeIdentity.account(token)
             }
             runOnUiThread {
                 if(isFinishing||isDestroyed||tab!=Tab.ACCOUNT||
                    verifiedEmailHint!==label)return@runOnUiThread
                 val account=outcome.getOrNull()
                 label.text=when{
-                    account==null || !account.authenticated ->
-                        "Проверка аккаунта недоступна. Войди через Clerk повторно."
-                    account.verifiedDeliveryEmail ->
-                        "✓ Email подтверждён Clerk. Можно получать оплаченные VPN-ключи."
+                    account?.authenticated==true && account.verifiedDeliveryEmail ->
+                        "✓ Clerk: вход выполнен. ✓ Email подтверждён для доставки VPN."
+                    account?.authenticated==true ->
+                        "✓ Clerk: вход выполнен. Email ещё не подтверждён. " +
+                        "Добавь его в профиль Clerk перед покупкой."
+                    outcome.exceptionOrNull()?.message=="CLERK_ENDPOINT_NOT_DEPLOYED" ->
+                        "✓ Clerk: вход выполнен. Сервер проверки ещё не развёрнут " +
+                        "на Netlify. Это не ошибка твоего аккаунта."
+                    outcome.exceptionOrNull()?.message=="CLERK_SERVER_SETUP" ->
+                        "✓ Clerk: вход выполнен. Проверка покупок пока недоступна: " +
+                        "на сервере Netlify требуется настройка Clerk."
+                    outcome.exceptionOrNull()?.message=="CLERK_SESSION_NOT_ACCEPTED" ->
+                        "✓ Clerk: вход выполнен на телефоне. Сервер не принял сессию. " +
+                        "Проверь Clerk instance и authorized parties на Netlify."
+                    outcome.exceptionOrNull()?.message=="CLERK_TOKEN_UNAVAILABLE" ->
+                        "✓ Clerk: вход выполнен. Сессия ещё загружается — обнови статус."
                     else ->
-                        "● Вход подтверждён. Добавь email в профиле Clerk " +
-                        "и подтверди его перед покупкой."
+                        "✓ Clerk: вход выполнен. Серверная проверка email сейчас недоступна. " +
+                        "Повтори позже."
                 }
             }
         }.start()
     }
 
+    @Suppress("DEPRECATION")
     private fun startClerkLogin() {
         if(!BuildConfig.VAINAH_CLERK_ENABLED ||
            !ClerkPublicKey.isConfigured(BuildConfig.VAINAH_CLERK_PUBLISHABLE_KEY)){
@@ -781,7 +806,10 @@ class MainActivity : Activity() {
             return
         }
         runCatching {
-            startActivity(Intent().setClassName(this,"app.vainah.vpn.ClerkLoginActivity"))
+            startActivityForResult(
+                Intent().setClassName(this,"app.vainah.vpn.ClerkLoginActivity"),
+                requestClerkLogin
+            )
         }.onFailure{notice("Экран Clerk недоступен в этой сборке.")}
     }
 
@@ -899,6 +927,7 @@ class MainActivity : Activity() {
     }
 
     private fun account(parent: LinearLayout) {
+        displayedClerkSignedIn=clerkLoggedIn()
         intro(parent,"ЛИЧНЫЙ КАБИНЕТ",
             "Моя подписка.",
             "Данные о покупках доступны в защищённом кабинете сайта после входа.",
@@ -1054,12 +1083,24 @@ class MainActivity : Activity() {
         val consent=VpnService.prepare(this)
         if(consent!=null)startActivityForResult(consent,requestVpn)else startTunnel()
     }
-    @Deprecated("Compatibility VPN permission callback")
+    @Deprecated("Compatibility VPN permission and Clerk auth result callback")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
         super.onActivityResult(requestCode,resultCode,data)
-        if(requestCode==requestVpn){
-            if(resultCode==RESULT_OK)startTunnel()
-            else notice("Разрешение Android на VPN не предоставлено.")
+        when(requestCode) {
+            requestVpn -> {
+                if(resultCode==RESULT_OK)startTunnel()
+                else notice("Разрешение Android на VPN не предоставлено.")
+            }
+            requestClerkLogin -> {
+                if(!isFinishing && !isDestroyed && tab==Tab.ACCOUNT){
+                    // Refresh account even on cancel or when Clerk sessionFlow
+                    // updates just after AuthView closes. VPN callbacks remain intact.
+                    renderPage()
+                    refresher.postDelayed({
+                        if(!isFinishing && !isDestroyed && tab==Tab.ACCOUNT)renderPage()
+                    },350)
+                }
+            }
         }
     }
     private fun startTunnel(){
