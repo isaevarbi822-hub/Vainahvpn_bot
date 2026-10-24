@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/native-ios-android-vpn-foundation
+      - fix/windows-subscription-import-20261024
     paths:
       - "desktop/**"
       - "tests/native-desktop-preview.test.mjs"
