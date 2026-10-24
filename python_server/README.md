@@ -36,6 +36,20 @@ VAINAH_PAYMENT_INTEGRATION_VERIFIED=not-verified
 
 Expose Python port 8000 through hosting HTTPS / a trusted reverse proxy. The Node adapter only binds to 127.0.0.1:18787. Keep a continuously running service with restart-on-failure.
 
+## Free preview hosting on Render (0 ₽; no production traffic)
+
+The repository branch `migration/python-host` contains `render.yaml`, which provisions **one free Docker web service** in Frankfurt. No database is created automatically, and real checkout stays disabled.
+
+1. Use a Render account **only if its eligibility and age requirements permit** (otherwise have an eligible parent/guardian manage the hosting).
+2. In [Render Dashboard](https://dashboard.render.com/), choose **New → Blueprint**, connect the GitHub repository `isaevarbi822-hub/Vainahvpn_bot`, and choose the branch `migration/python-host`.
+3. Select `render.yaml` and create the Blueprint. Confirm the new web service uses **Free** (not Starter). Do not activate billable resources.
+4. Render builds `Dockerfile.python` and issues an `https://...onrender.com` URL. The Python host automatically uses Render's `RENDER_EXTERNAL_URL` as `PUBLIC_SITE_ORIGIN` unless a custom origin is set.
+5. Test `/`, `/api/health`, and `/.netlify/functions/subscription-plans`. The last path is **locally routed on Python + Node**, not hosted by Netlify.
+6. For authenticated features, configure necessary tokens in Render's protected Environment settings, adjust allowed login domains, and verify against test accounts only. Do not migrate or enable live payment webhooks until validated with RollyPay and H1Cloud.
+7. Keep Netlify up until successful functional tests and the final migration. Preview hosting goes idle after 15 minutes, so it is unsuitable for guaranteed always-on payment callbacks or live customers.
+
+Never paste secret values into public GitHub or chats. The free Render database expires after 30 days; **do not migrate production subscription records into a temporary free database**. Reuse a durable existing DB only after checking access security and making a backup.
+
 ## Check before canceling Netlify
 
 1. Open the new site's home page and navigate its assets, pages and navigation.
