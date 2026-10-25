@@ -29,15 +29,30 @@ object SubscriptionServers {
 
     fun load(raw: String): List<String> = loadNodes(raw).map { it.label }
 
+    // Identify our own app honestly; do not impersonate third-party VPN clients
+    // or weaken HTTPS to get around a legitimate H1Cloud denial.
+    internal fun configureConnection(connection: HttpURLConnection) {
+        connection.connectTimeout = 8000
+        connection.readTimeout = 12000
+        connection.instanceFollowRedirects = false
+        connection.useCaches = false
+        connection.setRequestProperty(
+            "User-Agent", "VainahVPN-Android/" + BuildConfig.VERSION_NAME
+        )
+        connection.setRequestProperty(
+            "Accept",
+            "text/plain, application/json, application/octet-stream;q=0.9, */*;q=0.5"
+        )
+        connection.setRequestProperty("Cache-Control", "no-cache")
+    }
+
     fun loadNodes(raw: String): List<VainahNode> {
         val link=SubscriptionLink.validate(raw) ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         val connection=(URL(link).openConnection() as HttpURLConnection)
-        connection.connectTimeout=8000
-        connection.readTimeout=8000
-        connection.instanceFollowRedirects=false
-        connection.setRequestProperty("Accept","text/plain, application/json")
+        configureConnection(connection)
         try {
-            if(connection.responseCode!=200)throw IllegalStateException("Сервер подписки не ответил успешно")
+            val status = connection.responseCode
+            if (status != 200) throw SubscriptionHttpStatus(status)
             val bytes=connection.inputStream.use { input ->
                 val output=java.io.ByteArrayOutputStream()
                 val buffer=ByteArray(4096)
