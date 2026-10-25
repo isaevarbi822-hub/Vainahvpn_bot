@@ -65,7 +65,14 @@ object SubscriptionServers {
         raw: String,
         open: (String) -> HttpURLConnection
     ): List<VainahNode> {
-        var current = SubscriptionLink.validate(raw)
+        // Legitimately issued VLESS REALITY keys can be imported locally:
+        // an HTTPS server declining the subscription request does not alter
+        // the key's validity. No network request occurs for direct keys.
+        val input = SubscriptionInput.validate(raw)
+            ?: throw IllegalArgumentException("Неверная подписка или VLESS-ключ")
+        if (SubscriptionInput.isDirectKey(input))
+            return SubscriptionPayloadParser.nodes(input)
+        var current = SubscriptionLink.validate(input)
             ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         for (hop in 0..2) {
             val connection = open(current)
