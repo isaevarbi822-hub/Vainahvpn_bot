@@ -295,7 +295,7 @@ class MainActivity : Activity() {
             Tab.ACCOUNT -> account(body)
             Tab.HELP -> help(body)
         }
-        add(body,text("VAINAH VPN · 0.5.1 · Android",11f,d.muted),26)
+        add(body,text("VAINAH VPN · ${BuildConfig.VERSION_NAME} · Android",11f,d.muted),26)
     }
 
     private fun brandHeader(parent: LinearLayout) {
@@ -573,10 +573,10 @@ class MainActivity : Activity() {
                         syncStatus.text = if (previous != null && restored == null)
                             "Обновлено: ${names.size} локаций. Старый сервер удалён или изменён — выбери другой."
                             else "Обновлено: ${names.size} локаций. Выбор ${if (restored != null) "сохранён" else "доступен"}."
-                    }.onFailure {
-                        // Keep the last successful list and selection on
-                        // temporary H1Cloud/network errors; never show secrets.
-                        syncStatus.text = "Ошибка SUB/Xray JSON. Ранее загруженные локации сохранены."
+                    }.onFailure { error ->
+                        // Never expose raw Java/HTTP errors or the bearer URL.
+                        // A failed refresh must not erase working node selection.
+                        syncStatus.text = SubscriptionLoadFailure.explain(error)
                     }
                 }
             }.start()
