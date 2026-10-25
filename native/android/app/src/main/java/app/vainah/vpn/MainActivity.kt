@@ -975,6 +975,20 @@ class MainActivity : Activity() {
                 notice("VPN-конфигурация защищённо сохранена в Android Keystore. Открой главную страницу и обнови серверы.")
             }else notice("Нужна полная HTTPS-ссылка или действительный VLESS TCP REALITY-ключ.")
         }
+        val compareLink = action("Сравнить ссылку с Happ · локально")
+        add(vaultCard,compareLink,9)
+        compareLink.setOnClickListener {
+            // The EditText holds user-pasted secret; only show SAME/DIFFERENT.
+            // Never call the network or send a URL to logs/diagnostics.
+            val comparison = SubscriptionLinkComparison.check(
+                vault.load(), input.text.toString()
+            )
+            notice(SubscriptionLinkComparison.message(comparison))
+        }
+        add(vaultCard,text(
+            "Вставь в поле выше полную ссылку из Happ и нажми «Сравнить». " +
+                "Ничего не меняется, пока ты сам не нажмёшь «Добавить подписку».",
+            11f,d.muted),8)
         val delete=action("Удалить с устройства")
         add(vaultCard,delete,9)
         delete.setOnClickListener{
