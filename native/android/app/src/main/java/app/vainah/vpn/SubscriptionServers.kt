@@ -4,6 +4,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
 import java.net.URI
+import java.net.SocketTimeoutException
 import java.util.Locale
 
 /** Fetches subscription over HTTPS. Never logs bearer URLs or node credentials. */
@@ -38,8 +39,13 @@ object SubscriptionServers {
         connection: HttpURLConnection,
         identityHeaders: Map<String, String> = emptyMap()
     ) {
-        connection.connectTimeout = 8000
-        connection.readTimeout = 12000
+        // Render Free sleeps when idle. Its first HTTPS response after waking
+        // can take about a minute. Apply the longer timeout only to the exact,
+        // verified Python preview host, never every H1Cloud VPN subscription.
+        val pythonPreview = SubscriptionOrigin.fromLink(connection.url.toExternalForm()) ==
+            SubscriptionOrigin.Kind.PYTHON_RENDER
+        connection.connectTimeout = if (pythonPreview) 12000 else 8000
+        connection.readTimeout = if (pythonPreview) 85000 else 12000
         connection.instanceFollowRedirects = false
         connection.useCaches = false
         connection.setRequestProperty(
@@ -126,6 +132,10 @@ object SubscriptionServers {
                     output.toByteArray()
                 }
                 return SubscriptionPayloadParser.nodes(bytes.toString(Charsets.UTF_8))
+            } catch (_: SocketTimeoutException) {
+                // Exception message may contain a private bearer URL. Keep
+                // only its origin classification in the user-facing error.
+                throw SubscriptionRequestTimeout(SubscriptionOrigin.fromLink(current))
             } finally {
                 connection.disconnect()
             }
