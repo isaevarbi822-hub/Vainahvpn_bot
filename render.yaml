@@ -15,3 +15,5 @@ services:
         value: disabled
       - key: VAINAH_PAYMENT_INTEGRATION_VERIFIED
         value: not-verified
+      - key: VAINAH_NATIVE_CHECKOUT
+        value: disabled

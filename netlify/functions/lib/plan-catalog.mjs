@@ -16,23 +16,32 @@ export function planCatalog(env=process.env) {
   return entries.map(plan=>({...plan,priceRub:(plan.kopeks/100).toFixed(2)}));
 }
 export function planById(id,env=process.env) {return planCatalog(env).find(plan=>plan.id===String(id));}
-export function checkoutReady(env=process.env) {
-  // Deliberate kill-switch: never charge before the DB, merchant and delivery bridge work.
+/**
+ * Shared LIVE infrastructure gate. Does not claim provider/account eligibility;
+ * independent checkout gates remain disabled until the operator has reviewed
+ * the merchant agreement, H1Cloud delivery, refunds and real webhook checks.
+ */
+export function paymentInfrastructureReady(env=process.env) {
   const required=['DATABASE_URL','ROLLYPAY_API_KEY','ROLLYPAY_SIGNING_SECRET',
-    'TELEGRAM_BOT_TOKEN','SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
-  // Two independent, explicit operator gates. Neither an API key nor a
-  // public browser flag can activate production checkout on its own.
+    'SESSION_SIGNING_KEY','PANEL_BASE_URL','PANEL_API_TOKEN','PUBLIC_SITE_ORIGIN'];
+  // Live checkout stays OFF unless an operator explicitly approves each
+  // gate in the server environment after end-to-end tests and merchant review.
   if(env.VAINAH_LIVE_CHECKOUT!=='enabled-after-review' ||
      env.VAINAH_PAYMENT_INTEGRATION_VERIFIED!=='verified-on-production')return false;
-  if(!required.every(key=>typeof env[key]==='string' && env[key].trim().length>0))return false;
+  if(!required.every(name=>typeof env[name]==='string'&&env[name].trim()))return false;
   if(env.SESSION_SIGNING_KEY.length<32 || env.ROLLYPAY_SIGNING_SECRET.length<16)return false;
-  try {
-    const site=new URL(env.PUBLIC_SITE_ORIGIN);
-    const panel=new URL(env.PANEL_BASE_URL);
-    if(site.protocol!=='https:' || site.origin!==env.PUBLIC_SITE_ORIGIN ||
-       site.username || site.password || site.search || site.hash)return false;
-    if(panel.protocol!=='https:' || panel.username || panel.password ||
-       panel.search || panel.hash || !['/','/api','/api/'].includes(panel.pathname))return false;
-  }catch{return false;}
+  try{
+    const site=new URL(env.PUBLIC_SITE_ORIGIN),panel=new URL(env.PANEL_BASE_URL);
+    if(site.protocol!=='https:'||site.origin!==env.PUBLIC_SITE_ORIGIN ||
+       site.search||site.hash||site.username||site.password)return false;
+    if(panel.protocol!=='https:'||panel.search||panel.hash||
+       panel.username||panel.password || !['/','/api','/api/'].includes(panel.pathname))return false;
+  }catch{return false}
   return true;
+}
+/** Website checkout still requires Telegram Login and its bot token. */
+export function checkoutReady(env=process.env) {
+  return paymentInfrastructureReady(env) &&
+    typeof env.TELEGRAM_BOT_TOKEN==='string' &&
+    env.TELEGRAM_BOT_TOKEN.trim().length>0;
 }
