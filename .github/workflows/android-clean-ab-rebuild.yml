@@ -1,0 +1,125 @@
+name: Android clean A/B rebuild - working vs current
+
+on:
+  push:
+    branches:
+      - diagnostics/android-clean-ab-rebuild-20261025
+    paths:
+      - ".github/workflows/android-clean-ab-rebuild.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-compare:
+    name: Android ${{ matrix.label }} VPN import comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Baseline 2026-10-24
+            artifact: VainahVPN-AB-BASELINE-20261024-libbox-Clerk
+            ref: 316ba6c87ee8e334bcedbfc6dc6aea66cf58d09f
+            suffix: abbaseline
+            app_label: "Vainah BASE (Oct24)"
+          - label: Current 2026-10-25
+            artifact: VainahVPN-AB-CURRENT-20261025-libbox-Clerk
+            ref: 3509142b7ca6b482aca2816c9fc314d34e1165f0
+            suffix: abcurrent
+            app_label: "Vainah NEW (Oct25)"
+    env:
+      # Only publishable Clerk keys are allowed in build inputs, never secret keys.
+      CLERK_PUBLIC_KEY: ${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
+      VAINAH_AB_SUFFIX: ${{ matrix.suffix }}
+      VAINAH_AB_APP_LABEL: ${{ matrix.app_label }}
+    steps:
+      - name: Checkout PINNED Android version
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Give each build an isolated application ID
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path=Path("native/android/app/build.gradle.kts")
+          src=path.read_text()
+          suffix=os.environ["VAINAH_AB_SUFFIX"]
+          label=os.environ["VAINAH_AB_APP_LABEL"]
+          assert suffix in {"abbaseline","abcurrent"}
+          assert label in {"Vainah BASE (Oct24)","Vainah NEW (Oct25)"}
+          assert 'applicationIdSuffix = ".preview"' in src
+          assert 'manifestPlaceholders["vainahAppLabel"] = "Vainah VPN Preview"' in src
+          src=src.replace('applicationIdSuffix = ".preview"',
+              'applicationIdSuffix = ".'+suffix+'"')
+          src=src.replace('manifestPlaceholders["vainahAppLabel"] = "Vainah VPN Preview"',
+              'manifestPlaceholders["vainahAppLabel"] = "'+label+'"')
+          path.write_text(src)
+          print("Using isolated package app.vainah.vpn."+suffix)
+          PY
+      - name: Require an actual Clerk public config for full login
+        id: clerk
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, os, re
+          from pathlib import Path
+          key=os.environ.get("CLERK_PUBLIC_KEY","")
+          m=re.fullmatch(r"pk_(?:test|live)_([A-Za-z0-9_=-]{12,512})",key)
+          try:
+              domain=base64.urlsafe_b64decode(m.group(1)+"="*((-len(m.group(1)))%4)).decode("ascii") if m else ""
+          except (ValueError, UnicodeError):
+              domain=""
+          good=bool(domain.endswith("$") and "." in domain and len(domain)<254)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as p:
+              p.write("enabled="+("true" if good else "false")+"\n")
+          print("Real Clerk configuration available" if good else "No valid Clerk public config: building VPN-only app, NOT a login-capable APK")
+          PY
+      - name: Clean rebuild from pinned source and run unit tests
+        shell: bash
+        env:
+          WITH_CLERK: ${{ steps.clerk.outputs.enabled }}
+        run: |
+          set -euo pipefail
+          cmd=(gradle -p native/android
+            -PvainahEnableLibbox=true
+            -PvainahIsolatedPreview=true)
+          if [[ "$WITH_CLERK" == "true" ]]; then
+            cmd+=(-PvainahEnableClerk=true
+              "-PvainahClerkPublishableKey=$CLERK_PUBLIC_KEY")
+          fi
+          cmd+=(:app:clean :app:assembleDebug :app:testDebugUnitTest
+            --no-daemon --stacktrace)
+          "${cmd[@]}"
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Check A/B app identity and save source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ab-report
+          git rev-parse HEAD > ab-report/source-commit.txt
+          echo "An isolated DEBUG APK for comparing HTTP subscription behavior." > ab-report/README.txt
+          echo "This does NOT imply successful real-device VPN connectivity." >> ab-report/README.txt
+          echo "It does NOT modify production Android, Netlify or Python/Render." >> ab-report/README.txt
+          sha256sum native/android/app/build/outputs/apk/debug/app-debug.apk > ab-report/apk-sha256.txt
+      - name: Upload independent A/B VPN app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            native/android/app/build/outputs/apk/debug/app-debug.apk
+            ab-report/
+          if-no-files-found: error
+          retention-days: 7
