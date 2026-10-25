@@ -37,7 +37,8 @@ object SubscriptionServers {
     // or weaken HTTPS to get around a legitimate H1Cloud denial.
     internal fun configureConnection(
         connection: HttpURLConnection,
-        identityHeaders: Map<String, String> = emptyMap()
+        identityHeaders: Map<String, String> = emptyMap(),
+        approvedUserAgent: String? = null
     ) {
         // Render Free sleeps when idle. Its first HTTPS response after waking
         // can take about a minute. Apply the longer timeout only to the exact,
@@ -49,7 +50,9 @@ object SubscriptionServers {
         connection.instanceFollowRedirects = false
         connection.useCaches = false
         connection.setRequestProperty(
-            "User-Agent", "VainahVPN-Android/" + BuildConfig.VERSION_NAME
+            "User-Agent",
+            approvedUserAgent?.takeIf(SubscriptionUserAgentValue::valid)
+                ?: ("VainahVPN-Android/" + BuildConfig.VERSION_NAME)
         )
         connection.setRequestProperty(
             "Accept",
@@ -85,6 +88,7 @@ object SubscriptionServers {
     internal fun loadNodesWithConnection(
         raw: String,
         identityHeaders: Map<String, String> = emptyMap(),
+        approvedUserAgent: String? = null,
         open: (String) -> HttpURLConnection
     ): List<VainahNode> {
         // Legitimately issued VLESS REALITY keys can be imported locally:
@@ -98,7 +102,7 @@ object SubscriptionServers {
             ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         for (hop in 0..2) {
             val connection = open(current)
-            configureConnection(connection, identityHeaders)
+            configureConnection(connection, identityHeaders, approvedUserAgent)
             try {
                 val status = connection.responseCode
                 if (status in listOf(301, 302, 303, 307, 308)) {
@@ -144,8 +148,10 @@ object SubscriptionServers {
     }
 
     fun loadNodes(
-        raw: String, identityHeaders: Map<String, String> = emptyMap()
-    ): List<VainahNode> = loadNodesWithConnection(raw, identityHeaders) {
+        raw: String,
+        identityHeaders: Map<String, String> = emptyMap(),
+        approvedUserAgent: String? = null
+    ): List<VainahNode> = loadNodesWithConnection(raw, identityHeaders, approvedUserAgent) {
         URL(it).openConnection() as HttpURLConnection
     }
 }
