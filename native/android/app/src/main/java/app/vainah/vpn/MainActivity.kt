@@ -513,6 +513,48 @@ class MainActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
             override fun afterTextChanged(s: Editable?) { applySearch() }
         })
+        // Last successfully parsed H1 list is encrypted in Android Keystore,
+        // so a temporary outage does not empty the whole home screen.
+        val showNodes: (List<VainahNode>, Boolean) -> Unit = { incoming, fromCache ->
+            val names = ServerListReconciler.unique(incoming)
+            val previous = selectedNode
+            val restored = ServerListReconciler.preserve(previous, names)
+            selectedNode = restored
+            chosenServer = if (restored == null) -1 else names.indexOf(restored)
+            visibleNodes.clear()
+            visibleNodes.addAll(names)
+            selectedLocation.text = if (restored == null)
+                "Выбери сервер для подключения" else "✓ Выбрано: ${restored.label}"
+            serverResults.removeAllViews()
+            refreshConnectionStatus()
+            names.forEachIndexed { index, node ->
+                val choice = action(if (node == restored) "✓ ${node.label}" else node.label)
+                add(serverResults, choice, 7)
+                choice.setOnClickListener {
+                    chosenServer = index
+                    selectedNode = node
+                    selectedLocation.text = "✓ Выбрано: ${node.label}"
+                    refreshConnectionStatus()
+                    for (child in 0 until serverResults.childCount) {
+                        val other = serverResults.getChildAt(child) as? Button ?: continue
+                        val current = names[child]
+                        other.text = if (current == node) "✓ ${current.label}" else current.label
+                    }
+                }
+            }
+            applySearch()
+            syncStatus.text = if (fromCache)
+                "Показаны ${names.size} ранее сохранённых локаций. Проверяем актуальность H1Cloud…"
+            else if (previous != null && restored == null)
+                "Обновлено: ${names.size} локаций. Старый сервер изменён — выбери другой."
+            else
+                "Обновлено: ${names.size} локаций. Выбор ${if (restored != null) "сохранён" else "доступен"}."
+        }
+        val cachedLink = vault.load()
+        if (cachedLink != null) {
+            val cached = vault.cachedServers(cachedLink)
+            if (cached.isNotEmpty()) showNodes(cached, true)
+        }
         val loadServers=action("Обновить серверы")
         serverRefreshButton = loadServers
         add(servers,loadServers,10)
@@ -526,7 +568,12 @@ class MainActivity : Activity() {
             loadServers.isEnabled=false
             syncStatus.text = "Обновляем список локаций…"
             Thread {
-                val result=runCatching { SubscriptionServers.loadNodes(link) }
+                val result=runCatching {
+                    val fresh = SubscriptionServers.loadNodes(link)
+                    // Keep only OS-encrypted credentials after a successful fetch.
+                    vault.saveServerCache(link, fresh)
+                    fresh
+                }
                 runOnUiThread {
                     // Never display a response from a previous screen or
                     // subscription, even if its network request finished last.
@@ -540,43 +587,14 @@ class MainActivity : Activity() {
                         return@runOnUiThread
                     }
                     result.onSuccess { incoming ->
-                        val names = ServerListReconciler.unique(incoming)
-                        visibleNodes.clear()
-                        visibleNodes.addAll(names)
-                        val previous = selectedNode
-                        val restored = ServerListReconciler.preserve(previous, names)
-                        selectedNode = restored
-                        chosenServer = if (restored == null) -1 else names.indexOf(restored)
-                        selectedLocation.text = if (restored == null)
-                            "Выбери сервер для подключения"
-                        else "✓ Выбрано: ${restored.label}"
-                        serverResults.removeAllViews()
-                        refreshConnectionStatus()
-                        names.forEachIndexed { index, node ->
-                            val choice=action(if (node == restored) "✓ ${node.label}" else node.label)
-                            add(serverResults,choice,7)
-                            choice.setOnClickListener {
-                                chosenServer=index
-                                selectedNode=node
-                                selectedLocation.text = "✓ Выбрано: ${node.label}"
-                                refreshConnectionStatus()
-                                // Mark the selection without exposing the raw
-                                // VLESS URL, UUID, host or subscriber token.
-                                for (child in 0 until serverResults.childCount) {
-                                    val other = serverResults.getChildAt(child) as? Button ?: continue
-                                    val current = names[child]
-                                    other.text = if (current == node) "✓ ${current.label}" else current.label
-                                }
-                            }
-                        }
-                        applySearch()
-                        syncStatus.text = if (previous != null && restored == null)
-                            "Обновлено: ${names.size} локаций. Старый сервер удалён или изменён — выбери другой."
-                            else "Обновлено: ${names.size} локаций. Выбор ${if (restored != null) "сохранён" else "доступен"}."
+                        showNodes(incoming, false)
                     }.onFailure { error ->
                         // Never expose raw Java/HTTP errors or the bearer URL.
                         // A failed refresh must not erase working node selection.
-                        syncStatus.text = SubscriptionLoadFailure.explain(error)
+                        syncStatus.text = SubscriptionLoadFailure.explain(error) +
+                            if (visibleNodes.isNotEmpty())
+                                " Показываем последний сохранённый список; проверь его актуальность."
+                            else ""
                     }
                 }
             }.start()
