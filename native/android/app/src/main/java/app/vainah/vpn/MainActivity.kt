@@ -112,7 +112,9 @@ class MainActivity : Activity() {
         val button = serverRefreshButton ?: return
         if (!button.isEnabled) return
         val elapsed = SystemClock.elapsedRealtime() - lastServerRefreshAttemptMs
-        if (elapsed >= serverRefreshIntervalMs && vault.load() != null) {
+        val saved = vault.load()
+        if (elapsed >= serverRefreshIntervalMs && saved != null &&
+            !SubscriptionInput.isDirectKey(saved)) {
             button.performClick()
         }
     }
@@ -469,8 +471,10 @@ class MainActivity : Activity() {
         add(servers,overline("СЕРВЕРЫ И КОНФИГУРАЦИИ"))
         add(servers,text("Твои локации",23f,d.ink,true),9)
         add(servers,text(if(vault.load()!=null)
-            "SUB и совместимый Xray JSON. Локации обновляются каждые 5 минут, пока приложение открыто."
-            else "Добавь свою HTTPS-подписку в кабинете, чтобы увидеть её серверы.",
+            if (SubscriptionInput.isDirectKey(vault.load().orEmpty()))
+                "Прямой VLESS-ключ: сервер загружается локально. Автообновление доступно для HTTPS-подписок."
+            else "SUB и Xray JSON. Серверы обновляются каждые 5 минут, пока приложение открыто."
+            else "Добавь HTTPS-подписку или собственный VLESS REALITY-ключ в кабинете.",
             12f,d.muted),7)
         val syncStatus = text("Список ещё не синхронизирован", 12f, d.muted)
         add(servers, syncStatus, 7)
@@ -544,7 +548,9 @@ class MainActivity : Activity() {
             }
             applySearch()
             syncStatus.text = if (fromCache)
-                "Показаны ${names.size} ранее сохранённых локаций. Проверяем актуальность H1Cloud…"
+                "Показаны ${names.size} ранее сохранённых локаций. Доступность H1Cloud не подтверждена."
+            else if (SubscriptionInput.isDirectKey(vault.load().orEmpty()))
+                "Прямой VLESS-ключ импортирован локально. Серверов: ${names.size}. Синхронизация подписки не выполняется."
             else if (previous != null && restored == null)
                 "Обновлено: ${names.size} локаций. Старый сервер изменён — выбери другой."
             else
@@ -930,7 +936,7 @@ class MainActivity : Activity() {
         add(vaultCard,text("Ссылка хранится на устройстве в Android Keystore. Это не является подтверждением оплаченной подписки.",
             12f,d.muted),8)
         val input=EditText(this).apply{
-            hint="https://... (личная ссылка подписки)"
+            hint="https:// подписка или vless:// собственный ключ"
             setHintTextColor(d.muted);setTextColor(d.ink);textSize=13f
             inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
             setSingleLine(true)
@@ -946,8 +952,8 @@ class MainActivity : Activity() {
                 chosenServer = -1
                 selectedNode = null
                 input.text.clear();renderPage()
-                notice("Ссылка сохранена локально и зашифрована с помощью Android Keystore.")
-            }else notice("Нужна корректная HTTPS-ссылка подписки из кабинета.")
+                notice("VPN-конфигурация защищённо сохранена в Android Keystore. Открой главную страницу и обнови серверы.")
+            }else notice("Нужна полная HTTPS-ссылка или действительный VLESS TCP REALITY-ключ.")
         }
         val delete=action("Удалить с устройства")
         add(vaultCard,delete,9)
