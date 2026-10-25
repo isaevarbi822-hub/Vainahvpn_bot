@@ -44,7 +44,14 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
  const pinned=(resolved.find(x=>net.isIP(x.address)===4)||resolved[0]).address;
  const getOnce=target=>new Promise((resolve,reject)=>{
   const req=request(target,{timeout:8000,maxRedirects:0,
-    headers:{Accept:'text/plain, application/json'},
+    // Identify the genuine Vainah client. Some subscription backends require
+    // a recognizable User-Agent and reject bare Node.js requests with HTTP 403.
+    // Never impersonate another product or bypass a server's access controls.
+    headers:{
+      'User-Agent':'VainahVPN/0.5.7 (Windows; subscription client)',
+      'Accept':'text/plain, application/json, application/octet-stream;q=0.9, */*;q=0.5',
+      'Cache-Control':'no-cache'
+    },
     // Node 22 enables autoSelectFamily by default and may request all:true.
     // An all:true lookup MUST return [{address, family}], not one IP string.
     // Returning a string here caused invalid IP errors during imports.
