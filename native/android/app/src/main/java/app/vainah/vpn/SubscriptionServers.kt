@@ -34,7 +34,10 @@ object SubscriptionServers {
 
     // Identify our own app honestly; do not impersonate third-party VPN clients
     // or weaken HTTPS to get around a legitimate H1Cloud denial.
-    internal fun configureConnection(connection: HttpURLConnection) {
+    internal fun configureConnection(
+        connection: HttpURLConnection,
+        identityHeaders: Map<String, String> = emptyMap()
+    ) {
         connection.connectTimeout = 8000
         connection.readTimeout = 12000
         connection.instanceFollowRedirects = false
@@ -47,6 +50,18 @@ object SubscriptionServers {
             "text/plain, application/json, application/octet-stream;q=0.9, */*;q=0.5"
         )
         connection.setRequestProperty("Cache-Control", "no-cache")
+        // Only a fixed allowlist of optional, user-approved device headers.
+        // Do not forward arbitrary supplied header keys or subscription tokens.
+        val id = identityHeaders["X-HWID"]
+        if (SubscriptionHwidHeaders.validId(id)) {
+            connection.setRequestProperty("X-HWID", id)
+            connection.setRequestProperty("X-Device-Os", "Android")
+            listOf("X-Ver-Os", "X-Device-Model").forEach { key ->
+                identityHeaders[key]?.takeIf { value ->
+                    value.length in 1..64 && value.all { it.code in 32..126 }
+                }?.let { connection.setRequestProperty(key, it) }
+            }
+        }
     }
 
     private fun sameOrigin(current: String, next: String): Boolean {
@@ -63,6 +78,7 @@ object SubscriptionServers {
     /** Follow at most 2 same-origin HTTPS redirects; never forward bearer links cross-host. */
     internal fun loadNodesWithConnection(
         raw: String,
+        identityHeaders: Map<String, String> = emptyMap(),
         open: (String) -> HttpURLConnection
     ): List<VainahNode> {
         // Legitimately issued VLESS REALITY keys can be imported locally:
@@ -76,7 +92,7 @@ object SubscriptionServers {
             ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
         for (hop in 0..2) {
             val connection = open(current)
-            configureConnection(connection)
+            configureConnection(connection, identityHeaders)
             try {
                 val status = connection.responseCode
                 if (status in listOf(301, 302, 303, 307, 308)) {
@@ -111,7 +127,9 @@ object SubscriptionServers {
         throw SubscriptionHttpStatus(302)
     }
 
-    fun loadNodes(raw: String): List<VainahNode> = loadNodesWithConnection(raw) {
+    fun loadNodes(
+        raw: String, identityHeaders: Map<String, String> = emptyMap()
+    ): List<VainahNode> = loadNodesWithConnection(raw, identityHeaders) {
         URL(it).openConnection() as HttpURLConnection
     }
 }
