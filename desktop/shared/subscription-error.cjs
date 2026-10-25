@@ -5,7 +5,8 @@ function subscriptionErrorMessage(error){
  const code=String(error?.code||error?.cause?.code||'');
  if(cause==='Subscription HTTP response'){
   const status=error?.statusCode;
-  if(status===401||status===403)return 'Доступ к подписке запрещён (HTTP '+status+'). Проверь срок и правильность ссылки.';
+  if(status===401)return 'Сервер подписки ответил HTTP 401: для запроса нужна авторизация. Это не подтверждает окончание срока VPN. Проверь требования H1Cloud к этому клиенту.';
+  if(status===403)return 'Сервер подписки ответил HTTP 403 именно этому приложению. Ссылка может работать в другом VPN-клиенте: сервер мог отклонить User-Agent, настройки доступа или IP. Срок VPN этим ответом не проверен.';
   if(status===404||status===410)return 'Подписка не найдена или больше не существует (HTTP '+status+').';
   if(status===429)return 'Сервер ограничил число запросов (HTTP 429). Попробуй позже.';
   if(Number.isInteger(status)&&status>=500&&status<=599)return 'Сервер подписки временно недоступен (HTTP 5xx).';
