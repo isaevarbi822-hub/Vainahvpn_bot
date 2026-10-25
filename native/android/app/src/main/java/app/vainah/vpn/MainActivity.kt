@@ -586,7 +586,9 @@ class MainActivity : Activity() {
             syncStatus.text = "Обновляем список локаций…"
             Thread {
                 val result=runCatching {
-                    val fresh = SubscriptionServers.loadNodes(link, subscriptionHwid.requestHeaders())
+                    val fresh = SubscriptionServers.loadNodes(
+                        link, subscriptionHwid.requestHeaders(), vault.userAgent()
+                    )
                     // Keep only OS-encrypted credentials after a successful fetch.
                     vault.saveServerCache(link, fresh)
                     fresh
@@ -1044,6 +1046,51 @@ class MainActivity : Activity() {
                         notice("Настройка сохранена. На главной странице нажми «Обновить серверы».")
                     } else notice("Не удалось сохранить настройку HWID.")
                 }.show()
+        }
+        // A subscription backend may intentionally allow or deny clients by
+        // User-Agent. Any alternate value must be entered by the user.
+        // Protect it with the same Keystore key as their subscription.
+        val agentCard = panel()
+        add(parent, agentCard, 14)
+        add(agentCard, overline("СОВМЕСТИМОСТЬ · USER-AGENT"))
+        add(agentCard, text(
+            if (vault.userAgent() == null) "Стандартный Vainah VPN"
+            else "Пользовательский User-Agent включён",
+            18f, d.ink, true), 7)
+        add(agentCard, text(
+            "Некоторые панели выдают подписки только разрешённым клиентам. " +
+            "Укажи User-Agent, который твой провайдер разрешил использовать. " +
+            "При его передаче сервер может увидеть идентификатор клиента. " +
+            "Это не гарантирует снятия HTTP 403 или изменения лимита устройств.",
+            12f, d.muted), 9)
+        val agentInput = EditText(this).apply {
+            hint = "User-Agent из настроек разрешённого клиента"
+            setHintTextColor(d.muted); setTextColor(d.ink); textSize = 12f
+            inputType = InputType.TYPE_CLASS_TEXT or
+                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            setSingleLine(true)
+            background = shape(Color.rgb(14,21,38), Color.rgb(14,21,38), 12f)
+            setPadding(dp(14),dp(14),dp(14),dp(14))
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        add(agentCard, agentInput, 8)
+        val saveAgent = action("Применить User-Agent")
+        add(agentCard, saveAgent, 8)
+        saveAgent.setOnClickListener {
+            if (vault.saveUserAgent(agentInput.text.toString())) {
+                agentInput.text.clear()
+                nextAutoServerRefreshElapsedMs = 0L
+                notice("User-Agent сохранён зашифрованно. На главной обнови серверы.")
+                renderPage()
+            } else notice("Сначала сохрани VPN-ссылку. User-Agent: 5–180 латинских печатных символов, без ссылок и токенов.")
+        }
+        val resetAgent = action("Вернуть стандартный Vainah VPN")
+        add(agentCard, resetAgent, 8)
+        resetAgent.setOnClickListener {
+            vault.resetUserAgent()
+            nextAutoServerRefreshElapsedMs = 0L
+            renderPage()
+            notice("Восстановлен стандартный User-Agent Vainah VPN.")
         }
         val cabinet=panel()
         add(parent,cabinet,16)
