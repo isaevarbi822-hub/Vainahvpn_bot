@@ -41,7 +41,11 @@ class SecureSubscription(private val context: Context) {
         val encrypted = cipher.doFinal(url.toByteArray(Charsets.UTF_8))
         val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
         val data = Base64.encodeToString(encrypted, Base64.NO_WRAP)
-        return store.edit().putString("ciphertext", "$iv:$data").commit()
+        val previous = load()
+        val editor = store.edit().putString("ciphertext", "$iv:$data")
+        // Never show cached servers from another subscriber/account.
+        if (previous != url) editor.remove("server_cache_v1")
+        return editor.commit()
     }
 
     fun load(): String? {
@@ -63,5 +67,57 @@ class SecureSubscription(private val context: Context) {
         }
     }
 
-    fun delete() { store.edit().remove("ciphertext").apply() }
+    /**
+     * Cache only successfully parsed server URIs inside Android Keystore AES-GCM.
+     * A cached node list is not an entitlement or proof of current availability.
+     */
+    fun saveServerCache(subscription: String, nodes: List<VainahNode>): Boolean {
+        val link = SubscriptionLink.validate(subscription) ?: return false
+        if (nodes.isEmpty() || nodes.size > 50 || nodes.any { it.uri.length > 8192 })
+            return false
+        if (load() != link) return false
+        return runCatching {
+            val body = org.json.JSONObject()
+                .put("link", link)
+                .put("nodes", org.json.JSONArray(nodes.map { it.uri }))
+                .toString().toByteArray(Charsets.UTF_8)
+            if (body.size > 262144) return false
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, key())
+            val ciphertext = cipher.doFinal(body)
+            val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+            val encrypted = Base64.encodeToString(ciphertext, Base64.NO_WRAP)
+            // Recheck before writing: user may have changed the subscription.
+            if (load() != link) return false
+            store.edit().putString("server_cache_v1", "$iv:$encrypted").commit()
+        }.getOrDefault(false)
+    }
+
+    fun cachedServers(subscription: String): List<VainahNode> {
+        val link = SubscriptionLink.validate(subscription) ?: return emptyList()
+        if (load() != link) return emptyList()
+        val pair = store.getString("server_cache_v1", null)?.split(':', limit = 2)
+            ?: return emptyList()
+        if (pair.size != 2) return emptyList()
+        return runCatching {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE, key(),
+                GCMParameterSpec(128, Base64.decode(pair[0], Base64.NO_WRAP))
+            )
+            val clear = cipher.doFinal(Base64.decode(pair[1], Base64.NO_WRAP))
+            if (clear.size > 262144) return emptyList()
+            val payload = org.json.JSONObject(String(clear, Charsets.UTF_8))
+            if (payload.optString("link") != link) return emptyList()
+            val values = payload.optJSONArray("nodes") ?: return emptyList()
+            if (values.length() !in 1..50) return emptyList()
+            val uris = (0 until values.length()).map { values.getString(it) }
+            if (uris.any { it.length > 8192 }) return emptyList()
+            SubscriptionPayloadParser.nodes(uris.joinToString("\n"))
+        }.getOrElse { emptyList() }
+    }
+
+    fun delete() {
+        store.edit().remove("ciphertext").remove("server_cache_v1").apply()
+    }
 }
