@@ -11,21 +11,26 @@ import javax.net.ssl.SSLException
  */
 class SubscriptionHttpStatus(
     val status: Int,
-    val category: SubscriptionDenial.Kind = SubscriptionDenial.Kind.UNKNOWN
+    val category: SubscriptionDenial.Kind = SubscriptionDenial.Kind.UNKNOWN,
+    val source: SubscriptionOrigin.Kind = SubscriptionOrigin.Kind.NONE
 ) : Exception()
 
 object SubscriptionLoadFailure {
     fun explain(error: Throwable): String = when (error) {
         is SubscriptionHttpStatus -> when (error.status) {
-            401 -> "H1Cloud ответил HTTP 401: приложению нужна авторизация. Это не доказательство окончания подписки."
+            401 -> "HTTP 401: сервер отклонил авторизацию. " +
+                SubscriptionOrigin.label(error.source) +
+                " Это не доказательство окончания подписки."
             403 -> "HTTP 403: сервер подписки отклонил запрос Vainah VPN. " +
+                SubscriptionOrigin.label(error.source) + " " +
                 "Подписка может работать в другом VPN-клиенте. " +
                 SubscriptionDenial.label(error.category) +
                 " Это не подтверждает окончание подписки."
             404, 410 -> "HTTP ${error.status}: сервер не нашёл запрошенный адрес подписки. Проверь ссылку в кабинете."
             429 -> "HTTP 429: сервер временно ограничил число запросов. Ранее загруженные серверы сохранены."
             in 300..399 -> "HTTP ${error.status}: сервер перенаправляет подписку. Автоматический переход заблокирован ради защиты ссылки."
-            in 500..599 -> "HTTP ${error.status}: сервер H1Cloud временно недоступен."
+            in 500..599 -> "HTTP ${error.status}: сервер подписки ответил ошибкой. " +
+                SubscriptionOrigin.label(error.source)
             else -> "HTTP ${error.status}: сервер не отдал список VPN-серверов."
         }
         is UnknownHostException -> "Ошибка DNS: домен подписки сейчас не определяется."
