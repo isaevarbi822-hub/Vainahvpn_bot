@@ -67,6 +67,7 @@ class MainActivity : Activity() {
     private var nextAutoServerRefreshElapsedMs = 0L
     private lateinit var mobileIdentity: NativeIdentity
     private lateinit var vault: SecureSubscription
+    private lateinit var subscriptionHwid: SubscriptionHwid
     private val d get() = VainahDesign
     private val requestVpn = 4519
     private val refresher = Handler(Looper.getMainLooper())
@@ -198,6 +199,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         vault = SecureSubscription(this)
+        subscriptionHwid = SubscriptionHwid(this)
         mobileIdentity = NativeIdentity(this)
         tab = savedInstanceState?.getString("page")?.let {
             runCatching { Tab.valueOf(it) }.getOrNull()
@@ -580,7 +582,7 @@ class MainActivity : Activity() {
             syncStatus.text = "Обновляем список локаций…"
             Thread {
                 val result=runCatching {
-                    val fresh = SubscriptionServers.loadNodes(link)
+                    val fresh = SubscriptionServers.loadNodes(link, subscriptionHwid.requestHeaders())
                     // Keep only OS-encrypted credentials after a successful fetch.
                     vault.saveServerCache(link, fresh)
                     fresh
@@ -984,6 +986,40 @@ class MainActivity : Activity() {
         }
         add(vaultCard,text("VPN-ссылку нельзя публиковать или отправлять посторонним.",
             11f,d.muted),13)
+        val deviceCard = panel()
+        add(parent, deviceCard, 14)
+        add(deviceCard, overline("ДОСТУП К ПОДПИСКЕ · HWID"))
+        add(deviceCard, text("Идентификатор Vainah VPN", 19f, d.ink, true), 8)
+        add(deviceCard, text(
+            "Некоторые панели требуют X-HWID для учёта устройств. " +
+            "По умолчанию выключено. При включении H1Cloud получит случайный " +
+            "постоянный ID этого приложения, версию Android и модель телефона. " +
+            "Это может занять отдельное место в лимите устройств; ID Happ не копируется.",
+            12f, d.muted), 8)
+        val hwidButton = action(
+            if (subscriptionHwid.isEnabled()) "✓ Отправка HWID включена · изменить"
+            else "Отправка HWID выключена · включить")
+        add(deviceCard, hwidButton, 12)
+        hwidButton.setOnClickListener {
+            val enabled = subscriptionHwid.isEnabled()
+            AlertDialog.Builder(this)
+                .setTitle(if (enabled) "Отключить HWID?" else "Включить отправку HWID?")
+                .setMessage(if (enabled)
+                    "Vainah VPN перестанет передавать идентификатор и модель телефона " +
+                    "при загрузке HTTPS-подписки. Существующий слот на сервере это не удалит."
+                    else "H1Cloud будет получать отдельный идентификатор Vainah VPN, " +
+                    "версию Android и модель телефона только при обращении к твоей " +
+                    "HTTPS-подписке. Это может расходовать ещё один слот устройства. " +
+                    "Если сервер не разрешает этот HWID, ошибка 403 останется.")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton(if (enabled) "Отключить" else "Включить") { _, _ ->
+                    if (subscriptionHwid.setEnabled(!enabled)) {
+                        nextAutoServerRefreshElapsedMs = 0L
+                        renderPage()
+                        notice("Настройка сохранена. На главной странице нажми «Обновить серверы».")
+                    } else notice("Не удалось сохранить настройку HWID.")
+                }.show()
+        }
         val cabinet=panel()
         add(parent,cabinet,16)
         add(cabinet,overline("ПОДПИСКА И ИСТОРИЯ"))
