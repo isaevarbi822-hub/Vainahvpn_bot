@@ -68,6 +68,7 @@ class MainActivity : Activity() {
     private lateinit var mobileIdentity: NativeIdentity
     private lateinit var vault: SecureSubscription
     private lateinit var subscriptionHwid: SubscriptionHwid
+    private lateinit var subscriptionUserAgent: SubscriptionUserAgent
     private val d get() = VainahDesign
     private val requestVpn = 4519
     private val refresher = Handler(Looper.getMainLooper())
@@ -200,6 +201,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         vault = SecureSubscription(this)
         subscriptionHwid = SubscriptionHwid(this)
+        subscriptionUserAgent = SubscriptionUserAgent(this)
         mobileIdentity = NativeIdentity(this)
         tab = savedInstanceState?.getString("page")?.let {
             runCatching { Tab.valueOf(it) }.getOrNull()
@@ -586,7 +588,9 @@ class MainActivity : Activity() {
             syncStatus.text = "Обновляем список локаций…"
             Thread {
                 val result=runCatching {
-                    val fresh = SubscriptionServers.loadNodes(link, subscriptionHwid.requestHeaders())
+                    val fresh = SubscriptionServers.loadNodes(
+                        link, subscriptionHwid.requestHeaders(), subscriptionUserAgent.current()
+                    )
                     // Keep only OS-encrypted credentials after a successful fetch.
                     vault.saveServerCache(link, fresh)
                     fresh
@@ -1044,6 +1048,48 @@ class MainActivity : Activity() {
                         notice("Настройка сохранена. На главной странице нажми «Обновить серверы».")
                     } else notice("Не удалось сохранить настройку HWID.")
                 }.show()
+        }
+        // Provider-authorized HTTP client compatibility setting.
+        // Never copy another app's HWID or identity automatically.
+        val agentCard = panel()
+        add(parent, agentCard, 14)
+        add(agentCard, overline("HTTPS-ПОДПИСКА · СОВМЕСТИМОСТЬ"))
+        add(agentCard, text("User-Agent для подписки", 19f, d.ink, true), 8)
+        add(agentCard, text(
+            "По умолчанию используется Vainah VPN. Если провайдер разрешил " +
+            "другое значение User-Agent для твоей подписки, можно указать его здесь. " +
+            "Не копируй чужие идентификаторы устройств и не используй " +
+            "эту настройку для обхода лимита устройств или авторизации.",
+            12f, d.muted), 8)
+        val agentInput = EditText(this).apply {
+            hint = "Значение User-Agent, разрешённое провайдером"
+            setHintTextColor(d.muted)
+            setTextColor(d.ink)
+            textSize = 12f
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine(true)
+            setText(subscriptionUserAgent.current().orEmpty())
+            background = shape(Color.rgb(14,21,38),Color.rgb(14,21,38),12f)
+            setPadding(dp(14),dp(15),dp(14),dp(15))
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+        }
+        add(agentCard, agentInput, 12)
+        val saveAgent = action("Сохранить User-Agent")
+        add(agentCard, saveAgent, 10)
+        saveAgent.setOnClickListener {
+            if (subscriptionUserAgent.save(agentInput.text.toString())) {
+                nextAutoServerRefreshElapsedMs = 0L
+                notice("Настройка сохранена. Обнови серверы на главной странице.")
+            } else notice("User-Agent не принят: нужен короткий текст без ссылок, токенов и переносов строк.")
+        }
+        val clearAgent = action("Стандартный User-Agent Vainah VPN")
+        add(agentCard, clearAgent, 8)
+        clearAgent.setOnClickListener {
+            if (subscriptionUserAgent.save("")) {
+                agentInput.text.clear()
+                nextAutoServerRefreshElapsedMs = 0L
+                notice("Возвращён стандартный User-Agent Vainah VPN.")
+            } else notice("Не удалось сбросить User-Agent.")
         }
         val cabinet=panel()
         add(parent,cabinet,16)
