@@ -109,7 +109,9 @@ object SubscriptionServers {
                 if (status != 200) {
                     val kind = if (status == 403) SubscriptionDenial.fromResponse(connection)
                         else SubscriptionDenial.Kind.UNKNOWN
-                    throw SubscriptionHttpStatus(status, kind)
+                    throw SubscriptionHttpStatus(
+                        status, kind, SubscriptionOrigin.fromLink(current)
+                    )
                 }
                 val bytes = connection.inputStream.use { input ->
                     val output = java.io.ByteArrayOutputStream()
