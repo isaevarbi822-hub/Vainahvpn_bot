@@ -48,7 +48,7 @@ async function fetchSubscription(input,{resolver=dns.lookup,request=https.get}={
     // a recognizable User-Agent and reject bare Node.js requests with HTTP 403.
     // Never impersonate another product or bypass a server's access controls.
     headers:{
-      'User-Agent':'VainahVPN/0.5.7 (Windows; subscription client)',
+      'User-Agent':'VainahVPN/'+require('../package.json').version+' (Windows; subscription client)',
       'Accept':'text/plain, application/json, application/octet-stream;q=0.9, */*;q=0.5',
       'Cache-Control':'no-cache'
     },
