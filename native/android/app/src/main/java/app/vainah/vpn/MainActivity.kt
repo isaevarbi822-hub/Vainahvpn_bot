@@ -62,8 +62,9 @@ class MainActivity : Activity() {
     private var serverRefreshButton: Button? = null
     private var serverRefreshInFlight = false
     private var serverRefreshGeneration = 0
-    private var lastServerRefreshAttemptMs = 0L
-    private val serverRefreshIntervalMs = 5 * 60 * 1000L
+    // ElapsedRealtime keeps automatic retry pacing independent of phone clock.
+    // Manual refresh remains available, even during temporary provider denial.
+    private var nextAutoServerRefreshElapsedMs = 0L
     private lateinit var mobileIdentity: NativeIdentity
     private lateinit var vault: SecureSubscription
     private val d get() = VainahDesign
@@ -110,11 +111,12 @@ class MainActivity : Activity() {
     private fun maybeRefreshServerList() {
         if (tab != Tab.HOME || serverRefreshInFlight) return
         val button = serverRefreshButton ?: return
-        if (!button.isEnabled) return
-        val elapsed = SystemClock.elapsedRealtime() - lastServerRefreshAttemptMs
-        val saved = vault.load()
-        if (elapsed >= serverRefreshIntervalMs && saved != null &&
-            !SubscriptionInput.isDirectKey(saved)) {
+        if (!button.isEnabled || vault.load() == null) return
+        val saved = vault.load() ?: return
+        if (SubscriptionRefreshPolicy.shouldAutoRefresh(
+                SystemClock.elapsedRealtime(), nextAutoServerRefreshElapsedMs,
+                VpnConnectionState.read(this).canDisconnect,
+                SubscriptionInput.isDirectKey(saved))) {
             button.performClick()
         }
     }
@@ -570,7 +572,10 @@ class MainActivity : Activity() {
             if(link==null){notice("Сначала добавь HTTPS-подписку.");return@setOnClickListener}
             val generation = serverRefreshGeneration
             serverRefreshInFlight = true
-            lastServerRefreshAttemptMs = SystemClock.elapsedRealtime()
+            // Set the next automatic attempt even while this one is pending.
+            // On 401/403/429 the actual retry interval is increased below.
+            nextAutoServerRefreshElapsedMs =
+                SystemClock.elapsedRealtime() + SubscriptionRefreshPolicy.NORMAL_MS
             loadServers.isEnabled=false
             syncStatus.text = "Обновляем список локаций…"
             Thread {
@@ -581,6 +586,14 @@ class MainActivity : Activity() {
                     fresh
                 }
                 runOnUiThread {
+                    // Schedule no aggressive retry when H1Cloud refuses access.
+                    // A late response may still set pacing, but must never
+                    // repaint a newer subscription or change its server list.
+                    if (!isFinishing && !isDestroyed && vault.load() == link) {
+                        nextAutoServerRefreshElapsedMs =
+                            SubscriptionRefreshPolicy.nextAllowed(
+                                SystemClock.elapsedRealtime(), result.exceptionOrNull())
+                    }
                     // Never display a response from a previous screen or
                     // subscription, even if its network request finished last.
                     if (isFinishing || isDestroyed || tab != Tab.HOME ||
@@ -608,7 +621,12 @@ class MainActivity : Activity() {
         // Fetch when the screen is first opened, without reinstalling the app.
         if (vault.load()!=null) loadServers.post {
             if (serverRefreshButton === loadServers && tab == Tab.HOME) {
-                loadServers.performClick()
+                val saved = vault.load()
+                val fromDirectKey = saved != null &&
+                    SubscriptionInput.isDirectKey(saved)
+                val canAutoRefresh = !VpnConnectionState.read(this).canDisconnect &&
+                    SystemClock.elapsedRealtime() >= nextAutoServerRefreshElapsedMs
+                if (fromDirectKey || canAutoRefresh) loadServers.performClick()
             }
         }
         val goProfile=action("Добавить или изменить подписку")
