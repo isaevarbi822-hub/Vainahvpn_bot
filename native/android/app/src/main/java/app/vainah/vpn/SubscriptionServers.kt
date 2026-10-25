@@ -22,6 +22,8 @@ object SubscriptionServers {
                 "герман" in lower || "🇩🇪" in clean -> "🇩🇪 Германия"
             Regex("(^|[^a-z])(spain|espana|españa|es)([^a-z]|$)").containsMatchIn(lower) ||
                 "испан" in lower || "🇪🇸" in clean -> "🇪🇸 Испания"
+            Regex("(^|[^a-z])(poland|polska|pl)([^a-z]|$)").containsMatchIn(lower) ||
+                "польш" in lower || "🇵🇱" in clean -> "🇵🇱 Польша"
             else -> null
         }
         return country ?: clean
