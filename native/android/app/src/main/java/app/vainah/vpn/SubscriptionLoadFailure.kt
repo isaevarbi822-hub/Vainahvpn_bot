@@ -9,13 +9,18 @@ import javax.net.ssl.SSLException
  * Public, credential-safe explanations for HTTPS subscription failures.
  * Never display Throwable.message: Java may include a private subscription URL.
  */
-class SubscriptionHttpStatus(val status: Int) : Exception()
+class SubscriptionHttpStatus(
+    val status: Int,
+    val category: SubscriptionDenial.Kind = SubscriptionDenial.Kind.UNKNOWN
+) : Exception()
 
 object SubscriptionLoadFailure {
     fun explain(error: Throwable): String = when (error) {
         is SubscriptionHttpStatus -> when (error.status) {
             401 -> "H1Cloud ответил HTTP 401: приложению нужна авторизация. Это не доказательство окончания подписки."
-            403 -> "H1Cloud ответил HTTP 403 этому приложению. Подписка может работать в другом VPN-клиенте. Это не означает, что срок истёк."
+            403 -> "HTTP 403: сервер подписки отклонил запрос Vainah VPN. " +
+                SubscriptionDenial.label(error.category) +
+                " Это не подтверждает окончание подписки."
             404, 410 -> "HTTP ${error.status}: сервер не нашёл запрошенный адрес подписки. Проверь ссылку в кабинете."
             429 -> "HTTP 429: сервер временно ограничил число запросов. Ранее загруженные серверы сохранены."
             in 300..399 -> "HTTP ${error.status}: сервер перенаправляет подписку. Автоматический переход заблокирован ради защиты ссылки."
