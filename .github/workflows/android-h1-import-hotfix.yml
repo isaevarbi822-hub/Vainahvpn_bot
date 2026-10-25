@@ -36,7 +36,65 @@ jobs:
       - name: Upload isolated Android hotfix APK
         uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-Android-0.5.6-H1Cloud-server-import-preview
+          name: VainahVPN-Android-0.5.7-H1Cloud-libbox-isolated-preview
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  android-libbox-clerk:
+    name: Full Android VPN engine and genuine Clerk auth (when configured)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # PUBLISHABLE public key only; never embed Clerk secret in an APK.
+      CLERK_PUBLIC_KEY: ${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Require real Clerk public key if enabling full login
+        id: clerk
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, os, re
+          from pathlib import Path
+          value = os.environ.get("CLERK_PUBLIC_KEY", "")
+          match = re.fullmatch(r"pk_(?:test|live)_([A-Za-z0-9_=-]{12,512})", value)
+          try:
+              domain = base64.urlsafe_b64decode(match.group(1) + "="*((-len(match.group(1)))%4)).decode("ascii") if match else ""
+          except (ValueError,UnicodeError):
+              domain = ""
+          valid = bool(domain.endswith("$") and "." in domain and len(domain) <= 254)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+              output.write("ready=" + ("true" if valid else "false") + "\n")
+          if not valid:
+              print("No usable Clerk publishable key found: full-login APK will not be built; isolated VPN-only APK remains available.")
+          else:
+              print("Clerk public key format valid. Real login still requires device testing.")
+          PY
+      - name: Build combined libbox VPN and Clerk Android APK
+        if: steps.clerk.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p native/android \
+            -PvainahEnableLibbox=true \
+            -PvainahEnableClerk=true \
+            -PvainahIsolatedPreview=true \
+            -PvainahClerkPublishableKey="$CLERK_PUBLIC_KEY" \
+            :app:assembleDebug :app:testDebugUnitTest \
+            --no-daemon --stacktrace
+      - name: Upload combined Android preview with real Clerk configuration
+        if: steps.clerk.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: VainahVPN-Android-0.5.7-libbox-Clerk-full-preview
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
