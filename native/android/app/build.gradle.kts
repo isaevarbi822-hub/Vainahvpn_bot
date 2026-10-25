@@ -25,8 +25,8 @@ android {
         manifestPlaceholders["vainahAppLabel"] = "@string/app_name"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "0.5.9"
+        versionCode = 26
+        versionName = "0.5.10"
         buildConfigField("boolean", "VAINAH_CLERK_ENABLED", if (clerkEnabled) "true" else "false")
         buildConfigField("String", "VAINAH_CLERK_PUBLISHABLE_KEY",
             "\""+clerkPublishableKey.replace("\\","").replace("\"","")+"\"")
