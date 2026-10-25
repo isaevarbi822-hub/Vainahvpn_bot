@@ -35,7 +35,7 @@ class SecureSubscription(private val context: Context) {
     }
 
     fun save(raw: String): Boolean {
-        val url = SubscriptionLink.validate(raw) ?: return false
+        val url = SubscriptionInput.validate(raw) ?: return false
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(url.toByteArray(Charsets.UTF_8))
@@ -58,7 +58,7 @@ class SecureSubscription(private val context: Context) {
                 Cipher.DECRYPT_MODE, key(),
                 GCMParameterSpec(128, Base64.decode(pair[0], Base64.NO_WRAP))
             )
-            SubscriptionLink.validate(String(
+            SubscriptionInput.validate(String(
                 cipher.doFinal(Base64.decode(pair[1], Base64.NO_WRAP)), Charsets.UTF_8
             ))
         } catch (_: Exception) {
@@ -72,7 +72,7 @@ class SecureSubscription(private val context: Context) {
      * A cached node list is not an entitlement or proof of current availability.
      */
     fun saveServerCache(subscription: String, nodes: List<VainahNode>): Boolean {
-        val link = SubscriptionLink.validate(subscription) ?: return false
+        val link = SubscriptionInput.validate(subscription) ?: return false
         if (nodes.isEmpty() || nodes.size > 50 || nodes.any { it.uri.length > 8192 })
             return false
         if (load() != link) return false
@@ -94,7 +94,7 @@ class SecureSubscription(private val context: Context) {
     }
 
     fun cachedServers(subscription: String): List<VainahNode> {
-        val link = SubscriptionLink.validate(subscription) ?: return emptyList()
+        val link = SubscriptionInput.validate(subscription) ?: return emptyList()
         if (load() != link) return emptyList()
         val pair = store.getString("server_cache_v1", null)?.split(':', limit = 2)
             ?: return emptyList()
