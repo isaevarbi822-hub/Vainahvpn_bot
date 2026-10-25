@@ -34,6 +34,8 @@ class SubscriptionUserAgentHeadersTest {
             "Authorization: Bearer private",
             "VPN https://subscription.example/token=secret",
             "Bad@UserAgent",
+            "Happ/4.8.0/Android/device-id",
+            "Shadowrocket/2.2.45",
             "x".repeat(200), "", " ")
         for (value in unsafe) {
             assertFalse("unsafe UA accepted: " + value.take(12),
