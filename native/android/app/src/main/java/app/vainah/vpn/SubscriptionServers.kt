@@ -3,6 +3,7 @@ package app.vainah.vpn
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
+import java.net.URI
 import java.util.Locale
 
 /** Fetches subscription over HTTPS. Never logs bearer URLs or node credentials. */
@@ -48,25 +49,62 @@ object SubscriptionServers {
         connection.setRequestProperty("Cache-Control", "no-cache")
     }
 
-    fun loadNodes(raw: String): List<VainahNode> {
-        val link=SubscriptionLink.validate(raw) ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
-        val connection=(URL(link).openConnection() as HttpURLConnection)
-        configureConnection(connection)
-        try {
-            val status = connection.responseCode
-            if (status != 200) throw SubscriptionHttpStatus(status)
-            val bytes=connection.inputStream.use { input ->
-                val output=java.io.ByteArrayOutputStream()
-                val buffer=ByteArray(4096)
-                while(true){
-                    val n=input.read(buffer)
-                    if(n<0)break
-                    if(output.size()+n>262144)throw IllegalStateException("Подписка слишком большая")
-                    output.write(buffer,0,n)
+    private fun sameOrigin(current: String, next: String): Boolean {
+        val before = URI(current)
+        val after = URI(next)
+        val oldPort = if (before.port == -1) 443 else before.port
+        val newPort = if (after.port == -1) 443 else after.port
+        return after.scheme.equals("https", ignoreCase = true) &&
+            before.host.equals(after.host, ignoreCase = true) &&
+            oldPort == newPort && after.rawUserInfo == null &&
+            after.rawFragment == null && SubscriptionLink.validate(next) != null
+    }
+
+    /** Follow at most 2 same-origin HTTPS redirects; never forward bearer links cross-host. */
+    internal fun loadNodesWithConnection(
+        raw: String,
+        open: (String) -> HttpURLConnection
+    ): List<VainahNode> {
+        var current = SubscriptionLink.validate(raw)
+            ?: throw IllegalArgumentException("Неверная HTTPS-подписка")
+        for (hop in 0..2) {
+            val connection = open(current)
+            configureConnection(connection)
+            try {
+                val status = connection.responseCode
+                if (status in listOf(301, 302, 303, 307, 308)) {
+                    val redirect = connection.getHeaderField("Location")
+                        ?: throw SubscriptionHttpStatus(status)
+                    val next = runCatching { URI(current).resolve(redirect).toString() }
+                        .getOrNull() ?: throw SubscriptionHttpStatus(status)
+                    if (!sameOrigin(current, next) || hop >= 2) {
+                        throw SubscriptionHttpStatus(status)
+                    }
+                    current = next
+                    continue
                 }
-                output.toByteArray()
+                if (status != 200) throw SubscriptionHttpStatus(status)
+                val bytes = connection.inputStream.use { input ->
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(4096)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        if (output.size() + n > 262144)
+                            throw IllegalArgumentException("Подписка слишком большая")
+                        output.write(buffer, 0, n)
+                    }
+                    output.toByteArray()
+                }
+                return SubscriptionPayloadParser.nodes(bytes.toString(Charsets.UTF_8))
+            } finally {
+                connection.disconnect()
             }
-            return SubscriptionPayloadParser.nodes(bytes.toString(Charsets.UTF_8))
-        }finally{ connection.disconnect() }
+        }
+        throw SubscriptionHttpStatus(302)
+    }
+
+    fun loadNodes(raw: String): List<VainahNode> = loadNodesWithConnection(raw) {
+        URL(it).openConnection() as HttpURLConnection
     }
 }
