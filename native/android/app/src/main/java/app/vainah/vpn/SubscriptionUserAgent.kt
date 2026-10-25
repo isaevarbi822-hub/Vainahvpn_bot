@@ -3,9 +3,9 @@ package app.vainah.vpn
 import android.content.Context
 
 /**
- * HTTP User-Agent configured by a user for their own subscription provider.
+ * First-party HTTP User-Agent format approved by the user's subscription provider.
  * OFF by default. No client/device identity is ever copied from Happ.
- * Provider-approved values only; do not use to bypass device limits or login.
+ * VainahVPN identity only, never mimics another app or bypasses device checks.
  */
 class SubscriptionUserAgent(context: Context) {
     private val prefs = context.getSharedPreferences(
@@ -23,14 +23,10 @@ class SubscriptionUserAgent(context: Context) {
 }
 
 object SubscriptionUserAgentValue {
-    // Do not allow URLs, bearer tokens, control characters, or header injection.
-    fun valid(value: String?): Boolean {
-        if (value == null || value.length !in 3..160 ||
-            value.first() == ' ' || value.last() == ' ') return false
-        if (value.any { it.code !in 32..126 } ||
-            "://" in value || "@" in value ||
-            value.contains("token=", ignoreCase = true) ||
-            value.contains("bearer ", ignoreCase = true)) return false
-        return true
-    }
+    // First-party only: never impersonate Happ or another VPN client,
+    // and never treat User-Agent as a substitute for device authorization.
+    private val approvedFormat =
+        Regex("^VainahVPN(?:-Android)?/[A-Za-z0-9._+-]{1,32}(?: \\(Android(?:; [A-Za-z0-9 ._-]{1,60})?\\))?$")
+    fun valid(value: String?): Boolean =
+        value != null && value.length <= 120 && approvedFormat.matches(value)
 }
