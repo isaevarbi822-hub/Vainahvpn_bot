@@ -44,7 +44,12 @@ class SecureSubscription(private val context: Context) {
         val previous = load()
         val editor = store.edit().putString("ciphertext", "$iv:$data")
         // Never show cached servers from another subscriber/account.
-        if (previous != url) editor.remove("server_cache_v1")
+        if (previous != url) {
+            editor.remove("server_cache_v1")
+            // Different subscription host may not authorize the same
+            // client identity. Never silently forward a custom UA to it.
+            editor.remove("user_agent_ciphertext_v1")
+        }
         return editor.commit()
     }
 
@@ -117,7 +122,44 @@ class SecureSubscription(private val context: Context) {
         }.getOrElse { emptyList() }
     }
 
+    /** User-chosen User-Agent can contain a per-client ID: encrypt it as a secret. */
+    fun saveUserAgent(raw: String): Boolean {
+        val value = SubscriptionUserAgent.validate(raw) ?: return false
+        if (load() == null) return false
+        return runCatching {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, key())
+            val encoded = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+            val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+            val data = Base64.encodeToString(encoded, Base64.NO_WRAP)
+            store.edit().putString("user_agent_ciphertext_v1", "$iv:$data").commit()
+        }.getOrDefault(false)
+    }
+
+    fun userAgent(): String? {
+        if (load() == null) return null
+        val pair = store.getString("user_agent_ciphertext_v1", null)
+            ?.split(':', limit = 2) ?: return null
+        if (pair.size != 2) return null
+        return runCatching {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE, key(),
+                GCMParameterSpec(128, Base64.decode(pair[0], Base64.NO_WRAP))
+            )
+            SubscriptionUserAgent.validate(
+                String(cipher.doFinal(Base64.decode(pair[1], Base64.NO_WRAP)),
+                    Charsets.UTF_8)
+            )
+        }.getOrNull()
+    }
+
+    fun resetUserAgent() {
+        store.edit().remove("user_agent_ciphertext_v1").apply()
+    }
+
     fun delete() {
-        store.edit().remove("ciphertext").remove("server_cache_v1").apply()
+        store.edit().remove("ciphertext").remove("server_cache_v1")
+            .remove("user_agent_ciphertext_v1").apply()
     }
 }
