@@ -15,6 +15,11 @@ class SubscriptionHttpStatus(
     val source: SubscriptionOrigin.Kind = SubscriptionOrigin.Kind.NONE
 ) : Exception()
 
+/** No host, full URL or private subscription token is attached to this error. */
+class SubscriptionRequestTimeout(
+    val source: SubscriptionOrigin.Kind
+) : SocketTimeoutException()
+
 object SubscriptionLoadFailure {
     fun explain(error: Throwable): String = when (error) {
         is SubscriptionHttpStatus -> when (error.status) {
@@ -34,6 +39,13 @@ object SubscriptionLoadFailure {
             else -> "HTTP ${error.status}: сервер не отдал список VPN-серверов."
         }
         is UnknownHostException -> "Ошибка DNS: домен подписки сейчас не определяется."
+        is SubscriptionRequestTimeout -> "Тайм-аут HTTPS: " +
+            SubscriptionOrigin.label(error.source) + " " +
+            if (error.source == SubscriptionOrigin.Kind.PYTHON_RENDER)
+                "Бесплатный Render может просыпаться после простоя. " +
+                "В этой версии ожидание ответа Render увеличено до 85 секунд."
+            else "Сервер не ответил в установленное время. " +
+                "Проверь доступность подписки через Happ и попробуй позднее."
         is SocketTimeoutException -> "Тайм-аут HTTPS: сервер не ответил. Попробуй обновить позднее."
         is ConnectException -> "Не удалось подключиться к серверу подписки по HTTPS."
         is SSLException -> "Ошибка TLS: не удалось проверить защищённое соединение с H1Cloud."
