@@ -8,7 +8,7 @@ on:
       - 'site/**'
       - 'netlify/functions/**'
   push:
-    branches: ['migration/python-host']
+    branches: ['migration/python-host', 'fix/python-mobile-api-parity-20261025']
 permissions:
   contents: read
 jobs:
