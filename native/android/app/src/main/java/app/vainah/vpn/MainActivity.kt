@@ -1056,13 +1056,13 @@ class MainActivity : Activity() {
         add(agentCard, overline("HTTPS-ПОДПИСКА · СОВМЕСТИМОСТЬ"))
         add(agentCard, text("User-Agent для подписки", 19f, d.ink, true), 8)
         add(agentCard, text(
-            "По умолчанию используется Vainah VPN. Если провайдер разрешил " +
-            "другое значение User-Agent для твоей подписки, можно указать его здесь. " +
-            "Не копируй чужие идентификаторы устройств и не используй " +
-            "эту настройку для обхода лимита устройств или авторизации.",
+            "По умолчанию используется Vainah VPN. Если провайдер подтвердил " +
+            "точный формат User-Agent для VainahVPN, можно указать его здесь. " +
+            "Поддерживаются только значения, начинающиеся с VainahVPN/. " +
+            "Настройка не заменяет разрешение нового устройства на сервере.",
             12f, d.muted), 8)
         val agentInput = EditText(this).apply {
-            hint = "Значение User-Agent, разрешённое провайдером"
+            hint = "Например: VainahVPN/0.5.14 (Android)"
             setHintTextColor(d.muted)
             setTextColor(d.ink)
             textSize = 12f
@@ -1080,7 +1080,7 @@ class MainActivity : Activity() {
             if (subscriptionUserAgent.save(agentInput.text.toString())) {
                 nextAutoServerRefreshElapsedMs = 0L
                 notice("Настройка сохранена. Обнови серверы на главной странице.")
-            } else notice("User-Agent не принят: нужен короткий текст без ссылок, токенов и переносов строк.")
+            } else notice("User-Agent не принят: используй только формат VainahVPN/..., согласованный с провайдером.")
         }
         val clearAgent = action("Стандартный User-Agent Vainah VPN")
         add(agentCard, clearAgent, 8)
