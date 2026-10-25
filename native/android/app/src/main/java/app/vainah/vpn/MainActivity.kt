@@ -482,6 +482,10 @@ class MainActivity : Activity() {
             12f,d.muted),7)
         val syncStatus = text("Список ещё не синхронизирован", 12f, d.muted)
         add(servers, syncStatus, 7)
+        // Show which server answered 403, never the private URL/token.
+        add(servers, text(
+            SubscriptionOrigin.label(SubscriptionOrigin.fromLink(vault.load())),
+            11f, d.muted), 6)
         val search = EditText(this).apply {
             hint = "Поиск страны или локации..."
             setSingleLine(true)
@@ -955,6 +959,13 @@ class MainActivity : Activity() {
             else "Профиль не добавлен",20f,d.ink,true),12)
         add(vaultCard,text("Ссылка хранится на устройстве в Android Keystore. Это не является подтверждением оплаченной подписки.",
             12f,d.muted),8)
+        add(vaultCard,text(
+            SubscriptionOrigin.label(SubscriptionOrigin.fromLink(vault.load())),
+            12f,d.muted),8)
+        add(vaultCard,text(
+            "API кабинета и заказов в этой сборке всё ещё использует Netlify. " +
+            "Перенос мобильного API на Python/Render не завершён.",
+            11f,d.muted),8)
         val input=EditText(this).apply{
             hint="https:// подписка или vless:// собственный ключ"
             setHintTextColor(d.muted);setTextColor(d.ink);textSize=13f
