@@ -19,6 +19,7 @@ object SubscriptionLoadFailure {
         is SubscriptionHttpStatus -> when (error.status) {
             401 -> "H1Cloud ответил HTTP 401: приложению нужна авторизация. Это не доказательство окончания подписки."
             403 -> "HTTP 403: сервер подписки отклонил запрос Vainah VPN. " +
+                "Подписка может работать в другом VPN-клиенте. " +
                 SubscriptionDenial.label(error.category) +
                 " Это не подтверждает окончание подписки."
             404, 410 -> "HTTP ${error.status}: сервер не нашёл запрошенный адрес подписки. Проверь ссылку в кабинете."
