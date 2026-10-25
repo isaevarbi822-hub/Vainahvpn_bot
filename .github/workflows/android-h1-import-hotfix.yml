@@ -8,6 +8,7 @@ on:
       - fix/android-h1-denial-diagnostics-20261025
       - fix/android-subscription-origin-20261025
       - fix/android-subscription-timeout-20261025
+      - fix/android-subscription-client-headers-20261025
     paths:
       - "native/android/**"
       - ".github/workflows/android-h1-import-hotfix.yml"
@@ -40,7 +41,7 @@ jobs:
       - name: Upload isolated Android hotfix APK
         uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-Android-0.5.13-H1Cloud-libbox-isolated-preview
+          name: VainahVPN-Android-0.5.14-H1Cloud-libbox-isolated-preview
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
@@ -98,7 +99,7 @@ jobs:
         if: steps.clerk.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: VainahVPN-Android-0.5.13-libbox-Clerk-full-preview
+          name: VainahVPN-Android-0.5.14-libbox-Clerk-full-preview
           path: native/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
