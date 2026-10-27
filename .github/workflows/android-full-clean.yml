@@ -1,0 +1,148 @@
+name: Vainah VPN Android 0.5.15 - full clean rebuild
+
+on:
+  push:
+    branches:
+      - build/android-full-clean-20261027
+    paths:
+      - "native/android/**"
+      - ".github/workflows/android-full-clean.yml"
+      - "tests/native-mobile-foundation.test.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-security:
+    name: Native source and transport security regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run cross-platform source and security tests
+        run: node --test tests/native-mobile-foundation.test.mjs
+      - name: Verify Android VPN and HTTPS security configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'android:usesCleartextTraffic="false"' native/android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.BIND_VPN_SERVICE' native/android/app/src/main/AndroidManifest.xml
+          grep -q 'getByName("debug")' native/android/app/build.gradle.kts
+          grep -q 'versionName = "0.5.15"' native/android/app/build.gradle.kts
+          grep -q 'VAINAH_DIRECT_CHECKOUT_ENABLED' native/android/app/build.gradle.kts
+          echo "Manifest and version checks passed"
+
+  android:
+    name: Clean Android ${{ matrix.flavor }} (libbox and all unit tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: VPN-engine
+            app_suffix: cleanvpn15
+            app_label: "Vainah VPN Clean"
+            clerk: "false"
+            artifact: VainahVPN-Android-0.5.15-CLEAN-libbox
+          - flavor: VPN-engine-and-Clerk
+            app_suffix: cleanfull15
+            app_label: "Vainah VPN Clean Full"
+            clerk: "true"
+            artifact: VainahVPN-Android-0.5.15-CLEAN-libbox-Clerk
+    env:
+      # PUBLIC Clerk key only. Secret auth and RollyPay keys stay server-side.
+      CLERK_PUBLIC_KEY: ${{ vars.VAINAH_CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLISHABLE_KEY || vars.CLERK_PUBLIC_KEY || secrets.VAINAH_CLERK_PUBLISHABLE_KEY || secrets.CLERK_PUBLISHABLE_KEY }}
+      AB_SUFFIX: ${{ matrix.app_suffix }}
+      AB_APP_LABEL: ${{ matrix.app_label }}
+      INCLUDE_CLERK: ${{ matrix.clerk }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Verify real public Clerk config (no fake-login APK)
+        if: matrix.clerk == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re,base64,sys
+          pub=os.environ.get("CLERK_PUBLIC_KEY","")
+          m=re.fullmatch(r"pk_(?:test|live)_([A-Za-z0-9_=-]{12,512})",pub)
+          try:
+              domain=base64.urlsafe_b64decode(m.group(1)+"="*((-len(m.group(1)))%4)).decode("ascii") if m else ""
+          except (UnicodeError,ValueError):
+              domain=""
+          if not (domain.endswith("$") and "." in domain and len(domain)<=254):
+              sys.exit("No configured public Clerk key. Full APK cannot be published.")
+          print("Clerk public configuration present; sign-in still requires device verification.")
+          PY
+      - name: Isolate freshly rebuilt APK from old working and test apps
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path=Path("native/android/app/build.gradle.kts")
+          src=path.read_text()
+          suffix=os.environ["AB_SUFFIX"]
+          label=os.environ["AB_APP_LABEL"]
+          assert suffix in ("cleanvpn15","cleanfull15")
+          assert label in ("Vainah VPN Clean","Vainah VPN Clean Full")
+          assert 'applicationIdSuffix = ".preview"' in src
+          assert 'manifestPlaceholders["vainahAppLabel"] = "Vainah VPN Preview"' in src
+          src=src.replace('applicationIdSuffix = ".preview"',
+            'applicationIdSuffix = ".'+suffix+'"')
+          src=src.replace('manifestPlaceholders["vainahAppLabel"] = "Vainah VPN Preview"',
+            'manifestPlaceholders["vainahAppLabel"] = "'+label+'"')
+          path.write_text(src)
+          print("Isolated package suffix:",suffix)
+          PY
+      - name: Clean and rebuild libbox engine, Android UI, subscription import and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmd=(gradle -p native/android
+            -PvainahEnableLibbox=true
+            -PvainahIsolatedPreview=true)
+          if [[ "$INCLUDE_CLERK" == "true" ]]; then
+            cmd+=(-PvainahEnableClerk=true
+              "-PvainahClerkPublishableKey=$CLERK_PUBLIC_KEY")
+          fi
+          cmd+=(:app:clean :app:assembleDebug :app:testDebugUnitTest
+            --no-build-cache --rerun-tasks --no-daemon --stacktrace)
+          "${cmd[@]}"
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Save artifact checksums and build provenance
+        shell: bash
+        run: |
+          mkdir -p build-info
+          git rev-parse HEAD > build-info/source-commit.txt
+          sha256sum native/android/app/build/outputs/apk/debug/app-debug.apk > build-info/apk-sha256.txt
+          printf '%s\n' \
+            "Vainah VPN 0.5.15 clean Android build" \
+            "App variant: $AB_SUFFIX" \
+            "Compiled with libbox and Android unit tests from a clean build directory" \
+            "HTTP 403 from subscription providers is not proven resolved" \
+            "Release signing and real-device VPN egress are not verified" \
+            "Existing production app, billing and site were not changed" \
+            > build-info/README.txt
+      - name: Upload isolated debug APK and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            native/android/app/build/outputs/apk/debug/app-debug.apk
+            build-info/
+          if-no-files-found: error
+          retention-days: 7
