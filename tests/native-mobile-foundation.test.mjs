@@ -47,7 +47,12 @@ test('Android saves profile with AES-GCM and Keystore, not plaintext',()=>{
   assert.match(vault,/setKeySize\(256\)/);
   assert.doesNotMatch(vault,/Log\.|printStackTrace|android\.util\.Log/);
   assert.doesNotMatch(vault,/putString\("plaintext"/);
-  assert.match(vault,/SubscriptionLink\.validate/);
+  // Since direct VLESS Reality keys were added, the vault validates through
+  // SubscriptionInput, which still delegates HTTPS URLs to SubscriptionLink.
+  assert.match(vault,/SubscriptionInput\.validate/);
+  const validator=read(android+'SubscriptionInput.kt');
+  assert.match(validator,/SubscriptionLink\.validate/);
+  assert.match(validator,/VlessRealityConfig\.outbound/);
 });
 
 test('iOS stores profile in Keychain using device-only accessibility',()=>{
